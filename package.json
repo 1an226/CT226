@@ -1,0 +1,76 @@
+{
+  "name": "ct226-system",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Futuristic matrix-themed distribution management system for DDS integration",
+  "keywords": [
+    "dds",
+    "distribution",
+    "management",
+    "dashboard",
+    "react",
+    "vite",
+    "matrix",
+    "kenya"
+  ],
+  "homepage": "https://github.com/yourusername/ct226-system#readme",
+  "bugs": {
+    "url": "https://github.com/yourusername/ct226-system/issues"
+  },
+  "license": "MIT",
+  "author": "CT226 Systems <support@ct226.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/ct226-system.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "preview:prod": "vite preview --port 2260 --host",
+    "clean": "rm -rf dist node_modules/.vite",
+    "lint": "eslint src --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write src/",
+    "deploy": "npm run build && echo 'Build complete. Deploy dist/ folder to your hosting.'"
+  },
+  "dependencies": {
+    "@huggingface/inference": "^4.13.10",
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "multer": "^2.0.2",
+    "papaparse": "^5.5.3",
+    "pdfjs-dist": "^5.4.530",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.0",
+    "prettier": "^3.2.5",
+    "vite": "^7.3.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

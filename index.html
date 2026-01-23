@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CT226 • DDS Integration System</title>
+
+    <!-- Tesseract.js for OCR support -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+
+    <!-- Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #000000;
+        color: #ffffff;
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Oxygen,
+          Ubuntu,
+          sans-serif;
+        overflow-x: hidden;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #000000 0%, #0a0a0a 100%);
+        position: relative;
+      }
+
+      /* Grid overlay -->
+      body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image:
+          linear-gradient(rgba(0, 255, 0, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 255, 0, 0.03) 1px, transparent 1px);
+        background-size: 50px 50px;
+        z-index: -1;
+        opacity: 0.3;
+      }
+
+      /* Border effect -->
+      body::after {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border: 2px solid rgba(0, 255, 0, 0.1);
+        pointer-events: none;
+        z-index: -1;
+      }
+
+      #root {
+        min-height: 100vh;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Scrollbar -->
+      ::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: #000;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: #00ff00;
+        border-radius: 5px;
+        border: 2px solid #000;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: #00cc00;
+      }
+
+      /* Selection -->
+      ::selection {
+        background: rgba(0, 255, 0, 0.3);
+        color: #00ff00;
+      }
+
+      /* Animations -->
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes subtlePulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.8;
+        }
+      }
+
+      /* OCR animation -->
+      @keyframes ocrScan {
+        0% {
+          background-position: -200px 0;
+        }
+        100% {
+          background-position: calc(200px + 100%) 0;
+        }
+      }
+
+      .ocr-scanning {
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(0, 255, 0, 0.2),
+          transparent
+        );
+        background-size: 200px 100%;
+        animation: ocrScan 2s linear infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Console initialization messages -->
+    <script>
+      // Plain console messages
+      console.log("CT226 System Initialized");
+      console.log("DDS Integration Protocol v1.0");
+
+      // Check Tesseract.js loading status
+      window.addEventListener("load", function () {
+        setTimeout(() => {
+          if (typeof Tesseract !== "undefined") {
+            console.log("Tesseract.js OCR Engine Loaded");
+            console.log("Screenshot OCR: READY");
+          } else {
+            console.warn(
+              "Tesseract.js not loaded - Screenshot OCR unavailable",
+            );
+          }
+        }, 1000);
+      });
+    </script>
+  </body>
+</html>

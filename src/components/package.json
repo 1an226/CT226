@@ -1,0 +1,18 @@
+{
+  "name": "ct226-dds-viewer",
+  "version": "1.0.0",
+  "description": "Local DDS Branch Viewer for CT226",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "author": "CT226",
+  "license": "MIT"
+}
