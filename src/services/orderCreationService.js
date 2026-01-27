@@ -1,11 +1,7 @@
 import apiClient from "@services/api.js";
 import * as pdfjsLib from "pdfjs-dist";
 
-// ============================================
-// CONFIGURATION FROM ENVIRONMENT VARIABLES
-// ============================================
-
-// Parse item code mapping from environment variable
+// Configuration from environment variables
 const parseItemCodeMapping = () => {
   const mappingStr =
     import.meta.env.VITE_ITEM_CODE_MAPPING ||
@@ -23,7 +19,6 @@ const parseItemCodeMapping = () => {
   return mapping;
 };
 
-// Parse item names mapping from environment variable
 const parseItemNamesMapping = () => {
   const mappingStr =
     import.meta.env.VITE_ITEM_NAMES_MAPPING ||
@@ -47,7 +42,6 @@ const parseItemNamesMapping = () => {
   return mapping;
 };
 
-// Parse Cleanshelf item code mapping from environment variable
 const parseCleanshelfItemCodeMapping = () => {
   const mappingStr =
     import.meta.env.VITE_CLEANSHELF_ITEM_CODE_MAPPING ||
@@ -63,11 +57,10 @@ const parseCleanshelfItemCodeMapping = () => {
   return mapping;
 };
 
-// Parse Jazaribu item code mapping from environment variable
 const parseJazaribuItemCodeMapping = () => {
   const mappingStr =
     import.meta.env.VITE_JAZARIBU_ITEM_CODE_MAPPING ||
-    "JT01093:FG027,JT01098:FG015,JT01090:FG030,JT01094:FG017,JT01091:FG031,JT01097:FG018,JT01100:FG006,JT01103:FG008,JT01102:FG007,JT01099:JT01099";
+    "JT01093:FG027,JT01098:FG015,JT01090:FG030,JT01094:FG017,JT01091:FG031,JT01097:FG018,JT01100:FG006,JT01103:FG008,JT01102:FG007,JT01099:FG026";
 
   const mapping = {};
   mappingStr.split(",").forEach((pair) => {
@@ -79,13 +72,75 @@ const parseJazaribuItemCodeMapping = () => {
   return mapping;
 };
 
-// ITEM CODE MAPPINGS from environment variables
+const parseKhetiaItemCodeMapping = () => {
+  const mappingStr =
+    import.meta.env.VITE_KHETIA_ITEM_CODE_MAPPING ||
+    "790601:FG021,416868:FG015,412818:FG017,416872:FG018,414800:FG007,414810:FG008,415591:FG027,415592:FG030,410955:FG031,419349:FG006,413981:FG003,415596:FG026,410643:FG013";
+
+  const mapping = {};
+  mappingStr.split(",").forEach((pair) => {
+    const [key, value] = pair.split(":");
+    if (key && value) {
+      mapping[key.trim()] = value.trim();
+    }
+  });
+  return mapping;
+};
+
+const parseMajidBarcodeMapping = () => {
+  const mappingStr =
+    import.meta.env.VITE_MAJID_BARCODE_MAPPING ||
+    "6161102320404:FG027,6161102320305:FG008,6164000136610:FG030,6161102320183:FG031,6161102320534:FG026,6161102320138:FG015,6161102320299:FG007,6161102320268:FG003,6161102320442:FG017,6161102320435:FG018,6161102320459:FG013";
+
+  const mapping = {};
+  mappingStr.split(",").forEach((pair) => {
+    const [key, value] = pair.split(":");
+    if (key && value) {
+      mapping[key.trim()] = value.trim();
+    }
+  });
+  return mapping;
+};
+
+const parseChandaranaBarcodeMapping = () => {
+  const mappingStr =
+    import.meta.env.VITE_CHANDARANA_BARCODE_MAPPING ||
+    "6161102320459:FG013,6161102320046:FG026,6161102320138:FG015,6161102320404:FG027,6161102320299:FG007,6161102320442:FG017,6161102320183:FG031,6161102320435:FG018,6161102320169:FG030,6161102321074:FG021,6161102320268:FG003,6161102320060:FG006,6161102320305:FG008";
+
+  const mapping = {};
+  mappingStr.split(",").forEach((pair) => {
+    const [key, value] = pair.split(":");
+    if (key && value) {
+      mapping[key.trim()] = value.trim();
+    }
+  });
+  return mapping;
+};
+
+const parseQuickmartBarcodeMapping = () => {
+  const mappingStr =
+    import.meta.env.VITE_QUICKMART_BARCODE_MAPPING ||
+    "6161102320459:FG013,6161102320183:FG031,6161102320169:FG030,6161102320305:FG008,6161102320442:FG017,6161102320435:FG018,6161102320268:FG003,6161102320138:FG015,6161102320060:FG006,6161102320299:FG007,6161102320046:FG026,6161102320404:FG027";
+
+  const mapping = {};
+  mappingStr.split(",").forEach((pair) => {
+    const [key, value] = pair.split(":");
+    if (key && value) {
+      mapping[key.trim()] = value.trim();
+    }
+  });
+  return mapping;
+};
+
 const ITEM_CODE_MAPPING = parseItemCodeMapping();
 const ITEM_NAMES_MAPPING = parseItemNamesMapping();
 const CLEANSHELF_ITEM_CODE_MAPPING = parseCleanshelfItemCodeMapping();
 const JAZARIBU_ITEM_CODE_MAPPING = parseJazaribuItemCodeMapping();
+const KHETIA_ITEM_CODE_MAPPING = parseKhetiaItemCodeMapping();
+const MAJID_BARCODE_MAPPING = parseMajidBarcodeMapping();
+const CHANDARANA_BARCODE_MAPPING = parseChandaranaBarcodeMapping();
+const QUICKMART_BARCODE_MAPPING = parseQuickmartBarcodeMapping();
 
-// Get FG code from item code based on customer type
 const getFGCode = (itemCode, customerType = "NAIVAS") => {
   if (customerType === "CLEANSHELF") {
     return CLEANSHELF_ITEM_CODE_MAPPING[itemCode] || `UNKNOWN_${itemCode}`;
@@ -93,28 +148,48 @@ const getFGCode = (itemCode, customerType = "NAIVAS") => {
   if (customerType === "JAZARIBU") {
     return JAZARIBU_ITEM_CODE_MAPPING[itemCode] || `UNKNOWN_${itemCode}`;
   }
+  if (customerType === "KHETIA") {
+    return KHETIA_ITEM_CODE_MAPPING[itemCode] || `UNKNOWN_${itemCode}`;
+  }
+  if (customerType === "MAJID") {
+    return MAJID_BARCODE_MAPPING[itemCode] || `UNKNOWN_${itemCode}`;
+  }
+  if (customerType === "CHANDARANA") {
+    return CHANDARANA_BARCODE_MAPPING[itemCode] || `UNKNOWN_${itemCode}`;
+  }
+  if (customerType === "QUICKMART") {
+    return QUICKMART_BARCODE_MAPPING[itemCode] || `UNKNOWN_${itemCode}`;
+  }
   return ITEM_CODE_MAPPING[itemCode] || `UNKNOWN_${itemCode}`;
 };
 
-// Get product name from item code based on customer type
 const getProductName = (itemCode, customerType = "NAIVAS") => {
   if (customerType === "CLEANSHELF") {
     return `Cleanshelf Product ${itemCode}`;
   }
   if (customerType === "JAZARIBU") {
-    // Jazaribu product names will be extracted from the order text
     return `Jazaribu Product ${itemCode}`;
+  }
+  if (customerType === "KHETIA") {
+    return `Khetia Product ${itemCode}`;
+  }
+  if (customerType === "MAJID") {
+    return `Majid Product ${itemCode}`;
+  }
+  if (customerType === "CHANDARANA") {
+    return `Chandarana Product ${itemCode}`;
+  }
+  if (customerType === "QUICKMART") {
+    return `Quickmart Product ${itemCode}`;
   }
   return ITEM_NAMES_MAPPING[itemCode] || `Product ${itemCode}`;
 };
 
-// OCR.SPACE Configuration from environment variables
 const OCR_SPACE_API_KEY =
   import.meta.env.VITE_OCR_SPACE_API_KEY || "K88641853888957";
 const OCR_SPACE_URL =
   import.meta.env.VITE_OCR_SPACE_URL || "https://api.ocr.space/parse/image";
 
-// Default settings from environment variables
 const DEFAULT_SETTINGS = {
   WAREHOUSE: import.meta.env.VITE_DEFAULT_WAREHOUSE || "Dandora",
   SELLING_PRICE_LIST:
@@ -124,7 +199,18 @@ const DEFAULT_SETTINGS = {
   IS_TOP_UP: import.meta.env.VITE_DEFAULT_IS_TOP_UP === "true",
 };
 
-// Performance settings from environment variables
+const CUSTOMER_PRICE_LISTS = {
+  NAIVAS: import.meta.env.VITE_NAIVAS_PRICE_LIST || "Naivas Special Price",
+  CLEANSHELF:
+    import.meta.env.VITE_CLEANSHELF_PRICE_LIST || "Supermarkets Price",
+  JAZARIBU: import.meta.env.VITE_JAZARIBU_PRICE_LIST || "Depot Price",
+  KHETIA: import.meta.env.VITE_KHETIA_PRICE_LIST || "Depot Price",
+  MAJID: import.meta.env.VITE_MAJID_PRICE_LIST || "Supermarkets Price",
+  CHANDARANA:
+    import.meta.env.VITE_CHANDARANA_PRICE_LIST || "Supermarkets Price",
+  QUICKMART: import.meta.env.VITE_QUICKMART_PRICE_LIST || "Supermarkets Price",
+};
+
 const PERFORMANCE_SETTINGS = {
   PDFJS_VERSION: import.meta.env.VITE_PDFJS_VERSION || "3.11.174",
   PRODUCT_CACHE_DURATION:
@@ -132,14 +218,12 @@ const PERFORMANCE_SETTINGS = {
   MIN_TEXT_LENGTH: parseInt(import.meta.env.VITE_MIN_TEXT_LENGTH) || 50,
 };
 
-// Validation settings from environment variables
 const VALIDATION_SETTINGS = {
   MIN_QUANTITY: parseInt(import.meta.env.VITE_MIN_QUANTITY) || 1,
   MAX_QUANTITY: parseInt(import.meta.env.VITE_MAX_QUANTITY) || 10000,
   MIN_ITEM_COUNT: parseInt(import.meta.env.VITE_MIN_ITEM_COUNT) || 1,
 };
 
-// OCR.SPACE Configuration
 const getOCRSpaceConfig = () => ({
   language: import.meta.env.VITE_OCR_SPACE_LANGUAGE || "eng",
   isTable: import.meta.env.VITE_OCR_SPACE_IS_TABLE === "true",
@@ -148,7 +232,6 @@ const getOCRSpaceConfig = () => ({
     import.meta.env.VITE_OCR_SPACE_IS_OVERLAY_REQUIRED === "false",
 });
 
-// Tesseract Configuration (from working version)
 const getTesseractConfig = () => ({
   tessedit_char_whitelist:
     "0123456789PabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -/,.",
@@ -157,13 +240,7 @@ const getTesseractConfig = () => ({
   textord_tablefind_recognize_tables: "1",
 });
 
-// ============================================
-// CUSTOMER CONFIGURATION
-// ============================================
-
-// CLEANSHELF CUSTOMER CODES (19 codes total)
 const CLEANSHELF_CUSTOMER_CODES = [
-  // Original 13 codes
   "C06223",
   "C00498",
   "C06885",
@@ -177,7 +254,6 @@ const CLEANSHELF_CUSTOMER_CODES = [
   "C00492",
   "C06602",
   "C00507",
-  // New 6 codes
   "C00501",
   "C00497",
   "C00495",
@@ -186,7 +262,6 @@ const CLEANSHELF_CUSTOMER_CODES = [
   "C05747",
 ];
 
-// JAZARIBU CUSTOMER CODES (21 codes)
 const JAZARIBU_CUSTOMER_CODES = [
   "C07455",
   "C07257",
@@ -211,10 +286,248 @@ const JAZARIBU_CUSTOMER_CODES = [
   "C06721",
 ];
 
+const KHETIA_CUSTOMER_CODES = [
+  "C04051",
+  "C04059",
+  "C04066",
+  "C04062",
+  "C04078",
+  "C06059",
+  "C04068",
+  "C04428",
+  "C04876",
+  "C04878",
+  "C04877",
+  "C04874",
+  "C04800",
+  "C04061",
+  "C04073",
+  "C04873",
+  "C04872",
+  "C04316",
+  "C07440",
+  "C04053",
+  "C04057",
+  "C05534",
+  "C04065",
+  "C04072",
+];
+
+const MAJID_CUSTOMER_CODES = [
+  "C01996",
+  "C01998",
+  "C02000",
+  "C02005",
+  "C02008",
+  "C02004",
+  "C02002",
+  "C01994",
+  "C04299",
+  "C04347",
+  "C04444",
+  "C04753",
+  "C05301",
+  "C05392",
+  "C05455",
+  "C06008",
+  "C06256",
+  "C06529",
+  "C06765",
+  "C06866",
+  "C07008",
+  "C07070",
+  "C07441",
+  "C07466",
+  "C07530",
+  "C07551",
+  "C04754",
+  "C06538",
+  "C06900",
+];
+
+const CHANDARANA_CUSTOMER_CODES = [
+  "C00370",
+  "C00379",
+  "C04955",
+  "C00372",
+  "C05665",
+  "C00387",
+  "C00366",
+  "C06326",
+  "C00388",
+  "C00382",
+  "C05550",
+  "C00380",
+  "C00384",
+  "C00361",
+  "C06896",
+  "C05067",
+  "C00367",
+  "C00376",
+  "C05135",
+  "C05163",
+  "C00374",
+  "C00392",
+  "C00363",
+  "C00359",
+];
+
+const QUICKMART_CUSTOMER_CODES = [
+  "C03970",
+  "C02842",
+  "C02838",
+  "C02833",
+  "C04394",
+  "C04124",
+  "C02859",
+  "C04464",
+  "C05101",
+  "C05098",
+  "C05151",
+  "C07565",
+  "C05123",
+  "C05062",
+  "C06692",
+  "C07490",
+  "C02808",
+  "C02810",
+  "C07368",
+  "C02813",
+  "C02814",
+  "C02817",
+  "C02819",
+  "C02821",
+  "C02822",
+  "C02824",
+  "C02826",
+  "C05247",
+  "C04531",
+  "C05879",
+  "C02832",
+  "C02835",
+  "C02840",
+  "C05230",
+  "C04471",
+  "C02844",
+  "C06101",
+  "C04348",
+  "C02846",
+  "C02848",
+  "C02850",
+  "C02852",
+  "C02854",
+  "C02857",
+  "C05167",
+  "C05746",
+  "C02868",
+  "C02870",
+  "C02872",
+  "C02874",
+  "C02876",
+  "C04044",
+  "C04271",
+  "C05006",
+  "C04391",
+  "C04490",
+  "C06409",
+  "C02828",
+  "C07540",
+  "C02861",
+  "C04823",
+];
+
+const extractKhetiaLPONumber = (text) => {
+  console.log("Extracting Khetia LPO number...");
+
+  const pattern = /\b(\d{7})\b/;
+  const match = text.match(pattern);
+
+  if (match) {
+    if (text.includes("KHETIA") || text.includes("M/609")) {
+      console.log(`Khetia LPO found: ${match[1]}`);
+      return match[1];
+    }
+  }
+
+  console.log("No Khetia LPO found in text");
+  return "UNKNOWN_LPO";
+};
+
+const extractMajidLPONumber = (text) => {
+  console.log("Extracting Majid LPO number...");
+
+  const pattern = /26\d{6}/;
+  const match = text.match(pattern);
+
+  if (match) {
+    const orderPattern = /ORDER\s*:\s*(26\d{6})/i;
+    const orderMatch = text.match(orderPattern);
+
+    if (orderMatch) {
+      console.log(`Majid LPO found: ${orderMatch[1]}`);
+      return orderMatch[1];
+    }
+
+    console.log(`Majid LPO found: ${match[0]}`);
+    return match[0];
+  }
+
+  console.log("No Majid LPO found in text");
+  return "UNKNOWN_LPO";
+};
+
+const extractChandaranaLPONumber = (text) => {
+  console.log("Extracting Chandarana LPO number...");
+
+  const pattern = /20\d{11}/;
+  const match = text.match(pattern);
+
+  if (match) {
+    const orderPattern = /ORDER\s*:\s*(20\d{11})/i;
+    const orderMatch = text.match(orderPattern);
+
+    if (orderMatch) {
+      console.log(`Chandarana LPO found: ${orderMatch[1]}`);
+      return orderMatch[1];
+    }
+
+    console.log(`Chandarana LPO found: ${match[0]}`);
+    return match[0];
+  }
+
+  console.log("No Chandarana LPO found in text");
+  return "UNKNOWN_LPO";
+};
+
+const extractQuickmartLPONumber = (text) => {
+  console.log("Extracting Quickmart LPO number...");
+
+  const pattern = /\d{3}-\d{8}/;
+  const match = text.match(pattern);
+
+  if (match) {
+    if (text.includes("QUICK MART") || text.includes("052-00059738")) {
+      console.log(`Quickmart LPO found: ${match[0]}`);
+      return match[0];
+    }
+  }
+
+  const noDashPattern = /\b\d{11}\b/;
+  const noDashMatch = text.match(noDashPattern);
+
+  if (noDashMatch && text.includes("QUICK MART")) {
+    console.log(`Quickmart LPO found: ${noDashMatch[0]}`);
+    return noDashMatch[0];
+  }
+
+  console.log("No Quickmart LPO found in text");
+  return "UNKNOWN_LPO";
+};
+
 const CUSTOMER_CONFIG = {
   NAIVAS: {
     name: "Naivas",
-    priceList: "Naivas Special Price",
+    priceList: CUSTOMER_PRICE_LISTS.NAIVAS,
     itemCodePattern: /(135\d{5}|N\d{6})/,
     lpoPattern: /P\d{9}(?:-\d+)?/,
     codeMappings: ITEM_CODE_MAPPING,
@@ -222,29 +535,66 @@ const CUSTOMER_CONFIG = {
   },
   CLEANSHELF: {
     name: "Cleanshelf",
-    priceList: "Supermarkets Price",
+    priceList: CUSTOMER_PRICE_LISTS.CLEANSHELF,
     itemCodePattern: /4003\d{2}/,
     lpoPattern: /\b\d{5,6}\b/,
     codeMappings: CLEANSHELF_ITEM_CODE_MAPPING,
-    nameMappings: {}, // We'll use generic names for Cleanshelf
+    nameMappings: {},
   },
   JAZARIBU: {
     name: "Jazaribu",
-    priceList: "Supermarkets Price",
+    priceList: CUSTOMER_PRICE_LISTS.JAZARIBU,
     itemCodePattern: /JT\d{5}/,
     lpoPattern: /PO-J\d{3}-\d{6}/,
     codeMappings: JAZARIBU_ITEM_CODE_MAPPING,
-    nameMappings: {}, // Product names will be extracted from order text
+    nameMappings: {},
+  },
+  KHETIA: {
+    name: "Khetia",
+    priceList: CUSTOMER_PRICE_LISTS.KHETIA,
+    itemCodePattern: /\b\d{6}\b/,
+    lpoPattern: /\b\d{7}\b/,
+    codeMappings: KHETIA_ITEM_CODE_MAPPING,
+    nameMappings: {},
+    extractLPO: extractKhetiaLPONumber,
+  },
+  MAJID: {
+    name: "Majid",
+    priceList: CUSTOMER_PRICE_LISTS.MAJID,
+    itemCodePattern: /\b\d{13}\b/,
+    lpoPattern: /26\d{6}/,
+    codeMappings: MAJID_BARCODE_MAPPING,
+    nameMappings: {},
+    extractLPO: extractMajidLPONumber,
+  },
+  CHANDARANA: {
+    name: "Chandarana",
+    priceList: CUSTOMER_PRICE_LISTS.CHANDARANA,
+    itemCodePattern: /\b\d{13}\b/,
+    lpoPattern: /20\d{11}/,
+    codeMappings: CHANDARANA_BARCODE_MAPPING,
+    nameMappings: {},
+    extractLPO: extractChandaranaLPONumber,
+  },
+  QUICKMART: {
+    name: "Quickmart",
+    priceList: CUSTOMER_PRICE_LISTS.QUICKMART,
+    itemCodePattern: /\b\d{13}\b/,
+    lpoPattern: /\d{3}-\d{8}/,
+    codeMappings: QUICKMART_BARCODE_MAPPING,
+    nameMappings: {},
+    extractLPO: extractQuickmartLPONumber,
   },
 };
 
-// ============================================
-// GET PRODUCTS BY CUSTOMER (with cache)
-// ============================================
 let cachedProducts = {
   NAIVAS: null,
   CLEANSHELF: null,
   JAZARIBU: null,
+  KHETIA: null,
+  MAJID: null,
+  CHANDARANA: null,
+  QUICKMART: null,
 };
 
 const getProductsByCustomer = async (customerType = "NAIVAS") => {
@@ -282,38 +632,29 @@ const getProductsByCustomer = async (customerType = "NAIVAS") => {
   }
 };
 
-// Alias for backward compatibility
 const getNaivasProducts = () => getProductsByCustomer("NAIVAS");
 
-// ============================================
-// PDF TEXT EXTRACTION
-// ============================================
 const extractTextFromPDF = async (pdfFile) => {
   try {
     console.log("Extracting text from PDF using PDF.js...");
 
-    // Set up PDF.js worker (important for browser)
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-    // Convert file to ArrayBuffer
     const arrayBuffer = await pdfFile.arrayBuffer();
 
-    // Load the PDF document
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
     console.log(`PDF loaded: ${pdf.numPages} pages`);
 
     let fullText = "";
 
-    // Extract text from all pages
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
 
-      // Extract text items and preserve their order
       const pageText = textContent.items.map((item) => item.str).join(" ");
 
-      fullText += pageText + "\n\n"; // Add spacing between pages
+      fullText += pageText + "\n\n";
 
       console.log(`Extracted page ${pageNum}: ${pageText.length} chars`);
     }
@@ -331,14 +672,10 @@ const extractTextFromPDF = async (pdfFile) => {
   }
 };
 
-// ============================================
-// OCR.SPACE Extraction
-// ============================================
 const extractTextWithOCRSpace = async (imageFile) => {
   try {
     console.log("Using OCR.Space API...");
 
-    // Convert file to base64
     const base64Image = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -351,7 +688,6 @@ const extractTextWithOCRSpace = async (imageFile) => {
 
     const ocrConfig = getOCRSpaceConfig();
 
-    // Create form data for OCR.Space
     const formData = new FormData();
     formData.append("base64Image", `data:image/png;base64,${base64Image}`);
     formData.append("language", ocrConfig.language);
@@ -363,7 +699,6 @@ const extractTextWithOCRSpace = async (imageFile) => {
       ocrConfig.isOverlayRequired ? "true" : "false",
     );
 
-    // Call OCR.Space API
     const response = await fetch(OCR_SPACE_URL, {
       method: "POST",
       headers: {
@@ -384,7 +719,6 @@ const extractTextWithOCRSpace = async (imageFile) => {
       );
     }
 
-    // Extract text from all results
     let fullText = "";
     if (result.ParsedResults && result.ParsedResults.length > 0) {
       result.ParsedResults.forEach((parsedResult, index) => {
@@ -404,168 +738,199 @@ const extractTextWithOCRSpace = async (imageFile) => {
   }
 };
 
-// ============================================
-// UPDATED TEXT CLEANUP - PRESERVE NEWLINES FOR CLEANSHELF & JAZARIBU
-// ============================================
-
-// Clean and normalize text from OCR/screenshots
 const cleanOCRText = (text) => {
   console.log("Cleaning OCR text...");
   console.log("Original text sample:", text.substring(0, 200));
 
-  // FIRST: SUPER AGGRESSIVE N-CODE FIXING - ALL POSSIBLE OCR VARIATIONS
   let cleaned = text;
 
-  // CRITICAL: Fix ALL OCR misreadings for N-codes
-  // Pattern 1: NO51055/NO51056 (OCR reads 0 as O)
   cleaned = cleaned.replace(/NO51055/g, "N051055");
   cleaned = cleaned.replace(/NO51056/g, "N051056");
-
-  // Pattern 2: N05105O/N05105o (OCR reads 5 as O/o)
   cleaned = cleaned.replace(/N05105O/g, "N051055");
   cleaned = cleaned.replace(/N05105o/g, "N051055");
-
-  // Pattern 3: Standard variations
   cleaned = cleaned.replace(/[HM]051055/g, "N051055");
   cleaned = cleaned.replace(/[HM]051056/g, "N051056");
   cleaned = cleaned.replace(/IN051055/g, "N051055");
   cleaned = cleaned.replace(/IN051056/g, "N051056");
   cleaned = cleaned.replace(/N\s+051055/g, "N051055");
   cleaned = cleaned.replace(/N\s+051056/g, "N051056");
-
-  // Pattern 4: Digits only (missing N prefix)
   cleaned = cleaned.replace(/\b051055\b/g, "N051055");
   cleaned = cleaned.replace(/\b051056\b/g, "N051056");
-
-  // Pattern 5: Lowercase n
   cleaned = cleaned.replace(/n051055/g, "N051055");
   cleaned = cleaned.replace(/n051056/g, "N051056");
-
-  // Pattern 6: With dashes or other separators
   cleaned = cleaned.replace(/N-051055/g, "N051055");
   cleaned = cleaned.replace(/N-051056/g, "N051056");
   cleaned = cleaned.replace(/N\.051055/g, "N051055");
   cleaned = cleaned.replace(/N\.051056/g, "N051056");
-
-  // Pattern 7: Extra spaces in middle
   cleaned = cleaned.replace(/N 051055/g, "N051055");
   cleaned = cleaned.replace(/N 051056/g, "N051056");
 
-  // Check for Jazaribu format
+  const isKhetiaText = /KHETIA DRAPERS LTD|790601|416868|412818|416872/i.test(
+    cleaned,
+  );
+
+  const isQuickmartText = /QUICK MART|052-00059738|700183|700001|700009/i.test(
+    cleaned,
+  );
+
+  const isMajidText = /ORDER\s*:\s*26\d{6}|MAJID|616110232/i.test(cleaned);
+
+  const isChandaranaText = /CHANDARANA|20\d{11}|616110232/i.test(cleaned);
+
   const isJazaribuText = /JAZARIBU|JT\d{5}|PO-J\d{3}-\d{6}/i.test(text);
 
-  // Check if this is Cleanshelf text
   const isCleanshelfText =
     /(CLEAN\s*SHELF|FRESHMARKET|LOCAL PURCHASE ORDER|4003\d{2})/i.test(text);
 
-  // For Jazaribu: PRESERVE NEWLINES AND FORMAT
+  if (isKhetiaText) {
+    console.log("Detected Khetia text, preserving newlines...");
+
+    cleaned = cleaned
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\t/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/[ \t]+$/gm, "")
+      .replace(/^[ \t]+/gm, "")
+      .replace(/\n\s*\n/g, "\n")
+      .replace(/[|]/g, " ")
+      .replace(/[`'"]/g, "")
+      .replace(/[{}]/g, "")
+      .replace(/[\[\]]/g, "")
+      .replace(/\s*\.\s*/g, ".")
+      .replace(/(\d+\.\d{2})(\d+\.\d{3})/g, "$1 $2");
+
+    console.log("Khetia cleaned text sample:", cleaned.substring(0, 200));
+    return cleaned;
+  }
+
+  if (isQuickmartText) {
+    console.log("Detected Quickmart text, preserving newlines...");
+
+    cleaned = cleaned
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\t/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/[ \t]+$/gm, "")
+      .replace(/^[ \t]+/gm, "")
+      .replace(/\n\s*\n/g, "\n")
+      .replace(/[|]/g, " ")
+      .replace(/[`'"]/g, "")
+      .replace(/[{}]/g, "")
+      .replace(/[\[\]]/g, "")
+      .replace(/\s*\.\s*/g, ".")
+      .replace(/(\d+\.\d{2})(\d+\.\d{3})/g, "$1 $2");
+
+    console.log("Quickmart cleaned text sample:", cleaned.substring(0, 200));
+    return cleaned;
+  }
+
+  if (isMajidText) {
+    console.log("Detected Majid text, preserving newlines...");
+
+    cleaned = cleaned
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\t/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/[ \t]+$/gm, "")
+      .replace(/^[ \t]+/gm, "")
+      .replace(/\n\s*\n/g, "\n")
+      .replace(/[|]/g, " ")
+      .replace(/[`'"]/g, "")
+      .replace(/[{}]/g, "")
+      .replace(/[\[\]]/g, "")
+      .replace(/\s*\.\s*/g, ".");
+
+    console.log("Majid cleaned text sample:", cleaned.substring(0, 200));
+    return cleaned;
+  }
+
+  if (isChandaranaText) {
+    console.log("Detected Chandarana text, preserving newlines...");
+
+    cleaned = cleaned
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\t/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/[ \t]+$/gm, "")
+      .replace(/^[ \t]+/gm, "")
+      .replace(/\n\s*\n/g, "\n")
+      .replace(/[|]/g, " ")
+      .replace(/[`'"]/g, "")
+      .replace(/[{}]/g, "")
+      .replace(/[\[\]]/g, "")
+      .replace(/\s*\.\s*/g, ".");
+
+    console.log("Chandarana cleaned text sample:", cleaned.substring(0, 200));
+    return cleaned;
+  }
+
   if (isJazaribuText) {
     console.log("Detected Jazaribu text, preserving newlines...");
 
     cleaned = cleaned
-      .replace(/\r\n/g, "\n") // Convert Windows line endings to Unix
-      .replace(/\r/g, "\n") // Convert Mac line endings to Unix
-      .replace(/\t/g, " ") // Convert tabs to spaces
-      .replace(/[ \t]+/g, " ") // Normalize multiple spaces/tabs within line
-      .replace(/[ \t]+$/gm, "") // Remove trailing spaces from each line
-      .replace(/^[ \t]+/gm, "") // Remove leading spaces from each line
-      .replace(/\n\s*\n/g, "\n") // Normalize multiple newlines
-      .replace(/[|]/g, " ") // Replace pipe with space
-      .replace(/[`'"]/g, "") // Remove quotes
-      .replace(/[{}]/g, "") // Remove curly braces
-      .replace(/[\[\]]/g, "") // Remove brackets
-      .replace(/\s*\.\s*/g, ".") // Fix decimal points
-      .replace(/(\d+\.\d{2})(\d+\.\d{3})/g, "$1 $2") // Fix merged decimals: 351.00117.000 -> 351.00 117.000
-      .replace(/(\d+\.\d{3})(4003\d{2})/g, "$1 $2"); // Fix merged decimals and codes
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\t/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/[ \t]+$/gm, "")
+      .replace(/^[ \t]+/gm, "")
+      .replace(/\n\s*\n/g, "\n")
+      .replace(/[|]/g, " ")
+      .replace(/[`'"]/g, "")
+      .replace(/[{}]/g, "")
+      .replace(/[\[\]]/g, "")
+      .replace(/\s*\.\s*/g, ".")
+      .replace(/(\d+\.\d{2})(\d+\.\d{3})/g, "$1 $2")
+      .replace(/(\d+\.\d{3})(4003\d{2})/g, "$1 $2");
 
     console.log("Jazaribu cleaned text sample:", cleaned.substring(0, 200));
-    console.log("Jazaribu cleaned text length:", cleaned.length);
-    console.log("Line count after cleaning:", cleaned.split("\n").length);
-
     return cleaned;
   }
 
-  // For Cleanshelf: PRESERVE NEWLINES, only normalize spaces within lines
   if (isCleanshelfText) {
     console.log("Detected Cleanshelf text, preserving newlines...");
 
     cleaned = cleaned
-      .replace(/\r\n/g, "\n") // Convert Windows line endings to Unix
-      .replace(/\r/g, "\n") // Convert Mac line endings to Unix
-      .replace(/\t/g, " ") // Convert tabs to spaces
-      .replace(/[ \t]+/g, " ") // Normalize multiple spaces/tabs within line
-      .replace(/[ \t]+$/gm, "") // Remove trailing spaces from each line
-      .replace(/^[ \t]+/gm, "") // Remove leading spaces from each line
-      .replace(/\n\s*\n/g, "\n") // Normalize multiple newlines
-      .replace(/[|]/g, " ") // Replace pipe with space
-      .replace(/[`'"]/g, "") // Remove quotes
-      .replace(/[{}]/g, "") // Remove curly braces
-      .replace(/[\[\]]/g, "") // Remove brackets
-      .replace(/\s*\.\s*/g, ".") // Fix decimal points
-      .replace(/(\d+\.\d{2})(\d+\.\d{3})/g, "$1 $2") // Fix merged decimals: 351.00117.000 -> 351.00 117.000
-      .replace(/(\d+\.\d{3})(4003\d{2})/g, "$1 $2"); // Fix merged decimals and codes
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\t/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/[ \t]+$/gm, "")
+      .replace(/^[ \t]+/gm, "")
+      .replace(/\n\s*\n/g, "\n")
+      .replace(/[|]/g, " ")
+      .replace(/[`'"]/g, "")
+      .replace(/[{}]/g, "")
+      .replace(/[\[\]]/g, "")
+      .replace(/\s*\.\s*/g, ".")
+      .replace(/(\d+\.\d{2})(\d+\.\d{3})/g, "$1 $2")
+      .replace(/(\d+\.\d{3})(4003\d{2})/g, "$1 $2");
 
     console.log("Cleanshelf cleaned text sample:", cleaned.substring(0, 200));
-    console.log("Cleanshelf cleaned text length:", cleaned.length);
-    console.log("Line count after cleaning:", cleaned.split("\n").length);
-
     return cleaned;
   }
 
-  // For Naivas and other formats: Use original logic
   const isCopyPasteFormat = /135\d{5}\s+\d{13}\s+(?:SUPA|FRESH)/i.test(text);
 
   if (isCopyPasteFormat) {
     console.log("Detected copy-paste format, using special cleaning...");
 
-    // For copy-paste format: Preserve newlines, only normalize spaces within lines
-    cleaned = cleaned
-      .replace(/\r\n/g, "\n") // Convert Windows line endings to Unix
-      .replace(/\r/g, "\n") // Convert Mac line endings to Unix
-      .replace(/\t/g, " ") // Convert tabs to spaces
-      .replace(/[ \t]+/g, " ") // Normalize multiple spaces/tabs within line
-      .replace(/[ \t]+$/gm, "") // Remove trailing spaces from each line
-      .replace(/^[ \t]+/gm, "") // Remove leading spaces from each line
-      .replace(/\n\s*\n/g, "\n"); // Normalize multiple newlines
-
-    // Fix item codes merged with barcodes: 135041806161102320305 -> 13504180 6161102320305
-    cleaned = cleaned.replace(/(135\d{5})(\d{13})/g, "$1 $2");
-    cleaned = cleaned.replace(/(N\d{6})(\d{13})/g, "$1 $2");
-
-    // Clean up common OCR errors but preserve decimal number spacing
-    cleaned = cleaned
-      .replace(/[|]/g, " ") // Replace pipe with space
-      .replace(/[`'"]/g, "") // Remove quotes
-      .replace(/[{}]/g, "") // Remove curly braces
-      .replace(/[\[\]]/g, "") // Remove brackets
-      .replace(/\s*\.\s*/g, "."); // Fix decimal points
-
-    console.log("Copy-paste cleaned text sample:", cleaned.substring(0, 200));
-    console.log("Copy-paste cleaned text length:", cleaned.length);
-    console.log("Line count after cleaning:", cleaned.split("\n").length);
-  } else {
-    // Original cleaning for other formats
     cleaned = cleaned
       .replace(/\r\n/g, "\n")
       .replace(/\r/g, "\n")
       .replace(/\t/g, " ")
-      .replace(/\s+/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/[ \t]+$/gm, "")
+      .replace(/^[ \t]+/gm, "")
       .replace(/\n\s*\n/g, "\n");
 
-    // Separate merged item codes from barcodes
     cleaned = cleaned.replace(/(135\d{5})(\d{13})/g, "$1 $2");
     cleaned = cleaned.replace(/(N\d{6})(\d{13})/g, "$1 $2");
 
-    // IMPORTANT FIX: Don't join numbers together for any format
-    // Only separate decimal numbers that are merged
-    cleaned = cleaned.replace(/(\d+\.\d{2})(\d+\.\d{2,3})(\d{6})/g, "$1 $2 $3"); // Fix pattern like 351.00117.000400348
-    cleaned = cleaned.replace(/(\d+\.\d{2})(\d+\.\d{2,3})(\d+)/g, "$1 $2 $3"); // More general pattern
-
-    // Fix item codes merged with quantities
-    cleaned = cleaned.replace(/(135\d{5})(\d+\.\d{2})/g, "$1 $2");
-    cleaned = cleaned.replace(/(N\d{6})(\d+\.\d{2})/g, "$1 $2");
-
-    // Now clean up common OCR errors
     cleaned = cleaned
       .replace(/[|]/g, " ")
       .replace(/[`'"]/g, "")
@@ -573,38 +938,73 @@ const cleanOCRText = (text) => {
       .replace(/[\[\]]/g, "")
       .replace(/\s*\.\s*/g, ".");
 
-    // DON'T join separated numbers - REMOVED this problematic line
-    // .replace(/(\d)\s+(\d)/g, "$1$2");
+    console.log("Copy-paste cleaned text sample:", cleaned.substring(0, 200));
+    return cleaned;
+  } else {
+    cleaned = cleaned
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\t/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/\n\s*\n/g, "\n");
+
+    cleaned = cleaned.replace(/(135\d{5})(\d{13})/g, "$1 $2");
+    cleaned = cleaned.replace(/(N\d{6})(\d{13})/g, "$1 $2");
+
+    cleaned = cleaned.replace(/(\d+\.\d{2})(\d+\.\d{2,3})(\d{6})/g, "$1 $2 $3");
+    cleaned = cleaned.replace(/(\d+\.\d{2})(\d+\.\d{2,3})(\d+)/g, "$1 $2 $3");
+
+    cleaned = cleaned.replace(/(135\d{5})(\d+\.\d{2})/g, "$1 $2");
+    cleaned = cleaned.replace(/(N\d{6})(\d+\.\d{2})/g, "$1 $2");
+
+    cleaned = cleaned
+      .replace(/[|]/g, " ")
+      .replace(/[`'"]/g, "")
+      .replace(/[{}]/g, "")
+      .replace(/[\[\]]/g, "")
+      .replace(/\s*\.\s*/g, ".");
 
     console.log(
       "Original format cleaned text sample:",
       cleaned.substring(0, 200),
     );
-    console.log("Original format cleaned text length:", cleaned.length);
   }
 
   return cleaned;
 };
 
-// ============================================
-// CUSTOMER DETECTION BY CUSTOMER CODE ONLY
-// ============================================
-
 const detectCustomerTypeByCode = (customerCode = null, text = "") => {
-  console.log("=== CHECKING CUSTOMER TYPE BY CODE ===");
+  console.log("Checking customer type by code");
   console.log("Customer code provided:", customerCode);
 
-  // If no customer code provided, try to detect from text
   if (!customerCode) {
     console.log("No customer code provided, checking text indicators...");
 
-    // Check for Jazaribu indicators in text
+    if (/KHETIA DRAPERS LTD|790601|416868|412818|416872/i.test(text)) {
+      console.log("Detected Khetia from text indicators");
+      return "KHETIA";
+    }
+
+    if (/QUICK MART|052-00059738|700183|700001|700009/i.test(text)) {
+      console.log("Detected Quickmart from text indicators");
+      return "QUICKMART";
+    }
+
+    if (/ORDER\s*:\s*26\d{6}|MAJID/i.test(text)) {
+      console.log("Detected Majid from text indicators");
+      return "MAJID";
+    }
+
+    if (/CHANDARANA|20\d{11}/i.test(text)) {
+      console.log("Detected Chandarana from text indicators");
+      return "CHANDARANA";
+    }
+
     if (/JAZARIBU|JT\d{5}|PO-J\d{3}-\d{6}/i.test(text)) {
       console.log("Detected Jazaribu from text indicators");
       return "JAZARIBU";
     }
 
-    // Check for Cleanshelf indicators in text
     if (
       /(CLEAN\s*SHELF|FRESHMARKET|LOCAL PURCHASE ORDER|4003\d{2})/i.test(text)
     ) {
@@ -616,7 +1016,6 @@ const detectCustomerTypeByCode = (customerCode = null, text = "") => {
     return "NAIVAS";
   }
 
-  // Check against customer code lists
   if (CLEANSHELF_CUSTOMER_CODES.includes(customerCode)) {
     console.log(`Customer code ${customerCode} is in Cleanshelf list`);
     return "CLEANSHELF";
@@ -627,24 +1026,84 @@ const detectCustomerTypeByCode = (customerCode = null, text = "") => {
     return "JAZARIBU";
   }
 
+  if (KHETIA_CUSTOMER_CODES.includes(customerCode)) {
+    console.log(`Customer code ${customerCode} is in Khetia list`);
+    return "KHETIA";
+  }
+
+  if (MAJID_CUSTOMER_CODES.includes(customerCode)) {
+    console.log(`Customer code ${customerCode} is in Majid list`);
+    return "MAJID";
+  }
+
+  if (CHANDARANA_CUSTOMER_CODES.includes(customerCode)) {
+    console.log(`Customer code ${customerCode} is in Chandarana list`);
+    return "CHANDARANA";
+  }
+
+  if (QUICKMART_CUSTOMER_CODES.includes(customerCode)) {
+    console.log(`Customer code ${customerCode} is in Quickmart list`);
+    return "QUICKMART";
+  }
+
   console.log(
-    `Customer code ${customerCode} is not in special lists, defaulting to NAIVAS`,
+    `Customer code ${customerCode} is not in any special lists, defaulting to NAIVAS`,
   );
   return "NAIVAS";
 };
-
-// ============================================
-// ENHANCED: DETECT TEXT FORMAT WITH AUTO-CUSTOMER DETECTION
-// ============================================
 
 const detectTextFormat = (text, customerType = "NAIVAS") => {
   const cleaned = text.toLowerCase();
 
   console.log("Text for format detection:", cleaned.substring(0, 200));
 
-  // Check for Jazaribu format first
+  if (customerType === "KHETIA") {
+    if (
+      cleaned.includes("khetia drapers ltd") ||
+      cleaned.includes("790601") ||
+      cleaned.includes("416868") ||
+      cleaned.includes("412818")
+    ) {
+      console.log("Detected Khetia copy-paste format");
+      return "KHETIA_COPY_PASTE";
+    }
+  }
+
+  if (customerType === "QUICKMART") {
+    if (
+      cleaned.includes("quick mart") ||
+      cleaned.includes("052-00059738") ||
+      cleaned.includes("700183") ||
+      cleaned.includes("700001")
+    ) {
+      console.log("Detected Quickmart copy-paste format");
+      return "QUICKMART_COPY_PASTE";
+    }
+  }
+
+  if (customerType === "MAJID") {
+    if (
+      cleaned.includes("order : 26") ||
+      cleaned.includes("order: 26") ||
+      /26\d{6}/.test(cleaned)
+    ) {
+      console.log("Detected Majid screenshot format");
+      return "MAJID_SCREENSHOT";
+    }
+  }
+
+  if (customerType === "CHANDARANA") {
+    if (
+      cleaned.includes("chandarana") ||
+      /20\d{11}/.test(cleaned) ||
+      cleaned.includes("order : 20")
+    ) {
+      console.log("Detected Chandarana screenshot format");
+      return "CHANDARANA_SCREENSHOT";
+    }
+  }
+
   if (customerType === "JAZARIBU") {
-    // Check for Jazaribu Format (your provided format)
     if (
       cleaned.includes("jazaribu") ||
       cleaned.includes("jt0") ||
@@ -652,36 +1111,43 @@ const detectTextFormat = (text, customerType = "NAIVAS") => {
       cleaned.includes("supa loaf white bread") ||
       cleaned.includes("supa butter toast loaf")
     ) {
-      console.log("Detected Format: Jazaribu standard format");
+      console.log("Detected Jazaribu standard format");
       return "JAZARIBU_STANDARD";
     }
   }
 
-  // Check for Cleanshelf formats
   if (customerType === "CLEANSHELF") {
-    // Check for Cleanshelf Format 1: LOCAL PURCHASE ORDER
     if (
       cleaned.includes("local purchase order") ||
       cleaned.includes("code description pieces unit price amount pack")
     ) {
-      console.log("Detected Format: Cleanshelf LOCAL PURCHASE ORDER");
+      console.log("Detected Cleanshelf LOCAL PURCHASE ORDER");
       return "CLEANSHELF_LOCAL_PO";
     }
 
-    // Check for Cleanshelf Format 2: Pending Purchase Orders
     if (
       cleaned.includes("pending purchase orders") ||
       cleaned.includes("outstanding qty") ||
-      cleaned.includes("orderd qty")
+      cleaned.includes("orderd qty") ||
+      cleaned.includes("orderd qty.f") ||
+      (cleaned.includes("4003") && cleaned.includes("supa"))
     ) {
-      console.log("Detected Format: Cleanshelf PENDING_ORDERS");
+      console.log("Detected Cleanshelf PENDING_ORDERS");
       return "CLEANSHELF_PENDING_ORDERS";
+    }
+
+    if (
+      cleaned.includes("clean shelf") &&
+      cleaned.includes("freshmarket") &&
+      cleaned.includes("pending purchase orders") &&
+      cleaned.includes("4003")
+    ) {
+      console.log("Detected Cleanshelf COPY_PASTE_TEXT");
+      return "CLEANSHELF_COPY_PASTE_TEXT";
     }
   }
 
-  // Check for Naivas formats
   if (customerType === "NAIVAS") {
-    // NEW: Check for copy-paste text format (your new format from the example)
     const hasCopyPasteFormat =
       /^\s*\d{8}\s+\d{13}\s+[A-Z\s]+[A-Z]\s+\d+(?:\.\d{2})?\s+\d+(?:\.\d{2})?\s+[\d,]+\.\d{2}/m.test(
         text,
@@ -693,11 +1159,10 @@ const detectTextFormat = (text, customerType = "NAIVAS") => {
         text.includes("Sub total"));
 
     if (hasCopyPasteFormat) {
-      console.log("Detected Format: Copy-paste text format (new format)");
+      console.log("Detected copy-paste text format");
       return "COPY_PASTE_TEXT";
     }
 
-    // Check for detailed PO format (your new format)
     const hasDetailedPOFormat =
       cleaned.includes("p.o. date:") &&
       cleaned.includes("ship to:") &&
@@ -705,70 +1170,642 @@ const detectTextFormat = (text, customerType = "NAIVAS") => {
       (cleaned.includes("purchase order") || cleaned.includes("purchaseorder"));
 
     if (hasDetailedPOFormat) {
-      console.log("Detected Format: Detailed PO with descriptions");
+      console.log("Detected detailed PO with descriptions");
       return "DETAILED_PO";
     }
 
-    // Check for your specific format pattern (from your image)
     if (
       /p\d{9}.*mini.*bakeries.*nbi/i.test(cleaned) &&
       /item.*number.*quantity/i.test(cleaned)
     ) {
-      console.log(
-        "Detected Format: Your specific format (with P number and MINI BAKERIES)",
-      );
-      return "YOUR_FORMAT";
+      console.log("Detected specific format");
+      return "SPECIFIC_FORMAT";
     }
 
-    // Check for simple tabular format
     if (cleaned.includes("item number") && cleaned.includes("quantity")) {
-      console.log("Detected Format: Simple tabular");
+      console.log("Detected simple tabular");
       return "SIMPLE_TABULAR";
     }
 
-    // Format 1: Tabular format with headers
     if (
       cleaned.includes("line number") &&
       cleaned.includes("item number") &&
       cleaned.includes("quantity")
     ) {
-      console.log("Detected Format: Tabular with headers");
+      console.log("Detected tabular with headers");
       return "TABULAR_WITH_HEADERS";
     }
 
-    // Format 2: Standard PO format with item codes and quantities
     if (
       cleaned.includes("item code") &&
       cleaned.includes("quantity") &&
       cleaned.includes("unit price")
     ) {
-      console.log("Detected Format: Standard PO");
+      console.log("Detected standard PO");
       return "STANDARD_PO";
     }
 
-    // Format 3: Simple list with codes and quantities
     const itemCodePattern = /(135\d{5}|N\d{6})\D+?(\d+(?:\.\d{2})?)/g;
     const matches = text.match(itemCodePattern);
     if (matches && matches.length >= 2) {
-      console.log("Detected Format: Simple list with", matches.length, "items");
+      console.log("Detected simple list with", matches.length, "items");
       return "SIMPLE_LIST";
     }
 
-    // Format 4: Copy-paste from Excel/CSV
     const csvPattern = /\d+\t+(135\d{5}|N\d{6})\t+\d+(?:\.\d{2})?\t+/;
     if (csvPattern.test(text)) {
-      console.log("Detected Format: Excel/CSV copy-paste");
+      console.log("Detected Excel/CSV copy-paste");
       return "EXCEL_COPY_PASTE";
     }
   }
 
-  console.log("Detected Format: Unknown, using robust parsing");
+  console.log("Detected unknown format, using robust parsing");
   return "UNKNOWN";
 };
 
-// ============================================
-// JAZARIBU PARSER
-// ============================================
+const parseKhetiaFormat = (text) => {
+  console.log("Parsing Khetia format...");
+  const items = [];
+  const lines = text.split("\n");
+
+  console.log("Total lines to parse:", lines.length);
+
+  const seenCodes = new Set();
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+
+    if (
+      !line ||
+      line.includes("KHETIA DRAPERS LTD") ||
+      line.includes("M/609") ||
+      line.includes("MINI BAKERIES") ||
+      line.includes("P.O.BOX") ||
+      line.includes("Supaloaf Complex") ||
+      line.includes("Kangundo Road") ||
+      line.includes("operations@minibake.com") ||
+      line.includes("Bernice") ||
+      line.includes("KES - Kenyan") ||
+      line.includes("Shillings") ||
+      line.includes("KHETIA'S KAHAWA SUPERMARKET") ||
+      line.includes("0731-999903") ||
+      line.includes("WEKALAMOYO") ||
+      line.length < 10
+    ) {
+      continue;
+    }
+
+    console.log("Processing Khetia line:", line);
+
+    const itemCodeMatch = line.match(/\b(\d{6})\b/);
+    if (!itemCodeMatch) {
+      continue;
+    }
+
+    const itemCode = itemCodeMatch[1];
+
+    if (seenCodes.has(itemCode)) {
+      console.log(`Skipping duplicate Khetia code: ${itemCode}`);
+      continue;
+    }
+
+    console.log(`Found Khetia item code: ${itemCode} in line: ${line}`);
+
+    const parts = line.split(/\s+/);
+
+    console.log(`Line parts (${parts.length}):`, parts);
+
+    let quantity = null;
+    for (let j = 0; j < parts.length; j++) {
+      if (parts[j] === "PCS" && j > 0) {
+        const qtyStr = parts[j - 1];
+        quantity = parseFloat(qtyStr);
+        console.log(`Found quantity for ${itemCode}: ${quantity}`);
+        break;
+      }
+    }
+
+    if (quantity === null) {
+      for (let j = 0; j < parts.length; j++) {
+        const part = parts[j];
+        if (/^\d+\.\d{2}$/.test(part)) {
+          const num = parseFloat(part);
+          if (num >= 1 && num <= 100) {
+            quantity = num;
+            console.log(`Found quantity for ${itemCode}: ${quantity}`);
+            break;
+          }
+        }
+      }
+    }
+
+    let description = "";
+    const codeIndex = parts.indexOf(itemCode);
+    if (codeIndex !== -1 && codeIndex < parts.length - 3) {
+      for (let j = codeIndex + 1; j < parts.length; j++) {
+        if (/^\d+\.\d{2}$/.test(parts[j])) {
+          break;
+        }
+        description += parts[j] + " ";
+      }
+      description = description.trim();
+    }
+
+    if (
+      quantity !== null &&
+      !isNaN(quantity) &&
+      KHETIA_ITEM_CODE_MAPPING[itemCode] &&
+      quantity >= VALIDATION_SETTINGS.MIN_QUANTITY
+    ) {
+      seenCodes.add(itemCode);
+
+      items.push({
+        ocrItemCode: itemCode,
+        actualItemCode: KHETIA_ITEM_CODE_MAPPING[itemCode],
+        quantity: Math.round(quantity),
+        foundQuantity: quantity,
+        productName: description || `Khetia Product ${itemCode}`,
+        method: "khetia_format",
+        lineNumber: i + 1,
+        rawLine: line.substring(0, 100),
+      });
+      console.log(
+        `Khetia: ${itemCode} -> ${KHETIA_ITEM_CODE_MAPPING[itemCode]} x ${quantity}`,
+      );
+    } else {
+      console.log(`Could not parse quantity for ${itemCode}:`, {
+        quantityFound: quantity,
+        hasMapping: KHETIA_ITEM_CODE_MAPPING[itemCode],
+        linePreview: line.substring(0, 100),
+      });
+    }
+  }
+
+  console.log(`Total Khetia items parsed: ${items.length}`);
+  return items;
+};
+
+const parseQuickmartFormat = (text) => {
+  console.log("Parsing Quickmart format...");
+  const items = [];
+  const lines = text.split("\n");
+
+  console.log("Total lines to parse:", lines.length);
+
+  const seenBarcodes = new Set();
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+
+    if (
+      !line ||
+      line.includes("QUICK MART") ||
+      line.includes("052-00059738") ||
+      line.includes("M/028") ||
+      line.includes("MINI BAKERIES") ||
+      line.includes("NAIROBI LIMITED") ||
+      line.includes("23/01/2026") ||
+      line.includes("0 Days") ||
+      line.includes("KES - Kenya Shilings") ||
+      line.includes("by  on") ||
+      line.length < 10
+    ) {
+      continue;
+    }
+
+    console.log("Processing Quickmart line:", line);
+
+    const barcodeMatch = line.match(/\b(\d{13})\b/);
+    if (!barcodeMatch) {
+      continue;
+    }
+
+    const barcode = barcodeMatch[1];
+
+    if (seenBarcodes.has(barcode)) {
+      console.log(`Skipping duplicate Quickmart barcode: ${barcode}`);
+      continue;
+    }
+
+    console.log(`Found Quickmart barcode: ${barcode} in line: ${line}`);
+
+    const parts = line.split(/\s+/);
+
+    let quantity = null;
+    let barcodeIndex = parts.indexOf(barcode);
+
+    if (barcodeIndex !== -1) {
+      for (let j = barcodeIndex + 1; j < parts.length; j++) {
+        const part = parts[j];
+        if (/^\d+\.\d{2}$/.test(part)) {
+          quantity = parseFloat(part);
+          console.log(`Found quantity for ${barcode}: ${quantity}`);
+          break;
+        }
+      }
+    }
+
+    if (quantity === null) {
+      const pattern = new RegExp(
+        `${barcode}\\s+.+?\\s+(\\d+\\.\\d{2})\\s+\\d+\\.\\d{2}\\s+PCS\\s+1\\s+PCS\\s+[\\d,]+\\.\\d{2}`,
+      );
+      const match = line.match(pattern);
+      if (match) {
+        quantity = parseFloat(match[1]);
+        console.log(`Found quantity for ${barcode}: ${quantity}`);
+      }
+    }
+
+    let description = "";
+    if (barcodeIndex !== -1 && barcodeIndex < parts.length - 1) {
+      for (let j = barcodeIndex + 1; j < parts.length; j++) {
+        if (/^\d+\.\d{2}$/.test(parts[j])) {
+          break;
+        }
+        description += parts[j] + " ";
+      }
+      description = description.trim();
+    }
+
+    if (
+      quantity !== null &&
+      !isNaN(quantity) &&
+      QUICKMART_BARCODE_MAPPING[barcode] &&
+      quantity >= VALIDATION_SETTINGS.MIN_QUANTITY
+    ) {
+      seenBarcodes.add(barcode);
+
+      items.push({
+        ocrItemCode: barcode,
+        actualItemCode: QUICKMART_BARCODE_MAPPING[barcode],
+        quantity: Math.round(quantity),
+        foundQuantity: quantity,
+        productName: description || `Quickmart Product ${barcode}`,
+        method: "quickmart_format",
+        lineNumber: i + 1,
+        rawLine: line.substring(0, 100),
+      });
+      console.log(
+        `Quickmart: ${barcode} -> ${QUICKMART_BARCODE_MAPPING[barcode]} x ${quantity}`,
+      );
+    } else {
+      console.log(`Could not parse quantity for ${barcode}:`, {
+        quantityFound: quantity,
+        hasMapping: QUICKMART_BARCODE_MAPPING[barcode],
+        linePreview: line.substring(0, 100),
+      });
+    }
+  }
+
+  console.log(`Total Quickmart items parsed: ${items.length}`);
+
+  if (items.length === 0) {
+    console.log("Trying regex pattern matching for Quickmart...");
+
+    const pattern =
+      /\b\d{6}\s+(\d{13})\s+(.+?)\s+(\d+\.\d{2})\s+\d+\.\d{2}\s+PCS\s+1\s+PCS\s+[\d,]+\\.\d{2}/g;
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+      const barcode = match[1];
+      const description = match[2];
+      const quantity = parseFloat(match[3]);
+
+      if (
+        QUICKMART_BARCODE_MAPPING[barcode] &&
+        quantity >= VALIDATION_SETTINGS.MIN_QUANTITY
+      ) {
+        if (!seenBarcodes.has(barcode)) {
+          seenBarcodes.add(barcode);
+          items.push({
+            ocrItemCode: barcode,
+            actualItemCode: QUICKMART_BARCODE_MAPPING[barcode],
+            quantity: Math.round(quantity),
+            foundQuantity: quantity,
+            productName: description,
+            method: "quickmart_regex",
+            rawLine: match[0].substring(0, 100),
+          });
+          console.log(
+            `Quickmart: ${barcode} -> ${QUICKMART_BARCODE_MAPPING[barcode]} x ${quantity}`,
+          );
+        }
+      }
+    }
+  }
+
+  return items;
+};
+
+const parseMajidFormat = (text) => {
+  console.log("Parsing Majid format...");
+  const items = [];
+  const lines = text.split("\n");
+
+  console.log("Total lines to parse:", lines.length);
+
+  const seenBarcodes = new Set();
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+
+    if (
+      !line ||
+      line.includes("ORDER :") ||
+      line.includes("MAJID") ||
+      line.includes("SCREENSHOT") ||
+      line.includes("QTY UC") ||
+      line.length < 10
+    ) {
+      continue;
+    }
+
+    console.log("Processing Majid line:", line);
+
+    const barcodeMatch = line.match(/\b(\d{13})\b/);
+    if (!barcodeMatch) {
+      continue;
+    }
+
+    const barcode = barcodeMatch[1];
+
+    if (seenBarcodes.has(barcode)) {
+      console.log(`Skipping duplicate Majid barcode: ${barcode}`);
+      continue;
+    }
+
+    console.log(`Found Majid barcode: ${barcode} in line: ${line}`);
+
+    let quantity = null;
+
+    const qtyPattern = /QTY\s*UC:\s*(\d+)/i;
+    const qtyMatch = line.match(qtyPattern);
+
+    if (qtyMatch) {
+      quantity = parseInt(qtyMatch[1], 10);
+      console.log(
+        `Found quantity from QTY UC column for ${barcode}: ${quantity}`,
+      );
+    }
+
+    if (quantity === null && i + 1 < lines.length) {
+      const nextLine = lines[i + 1].trim();
+      const nextLineQtyMatch = nextLine.match(/QTY\s*UC:\s*(\d+)/i);
+      if (nextLineQtyMatch) {
+        quantity = parseInt(nextLineQtyMatch[1], 10);
+        console.log(
+          `Found quantity from next line QTY UC for ${barcode}: ${quantity}`,
+        );
+      }
+    }
+
+    if (quantity === null) {
+      const numbers = line.match(/\b(\d+)\b/g);
+      if (numbers) {
+        for (const numStr of numbers) {
+          if (numStr === barcode) continue;
+
+          const num = parseInt(numStr, 10);
+          if (num >= 1 && num <= 1000 && numStr.length <= 4) {
+            const contextBefore = line.substring(0, line.indexOf(numStr));
+            const contextAfter = line.substring(
+              line.indexOf(numStr) + numStr.length,
+            );
+
+            if (contextBefore.includes("QTY") || contextAfter.includes("QTY")) {
+              quantity = num;
+              console.log(`Found quantity for ${barcode}: ${quantity}`);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (
+      quantity !== null &&
+      !isNaN(quantity) &&
+      MAJID_BARCODE_MAPPING[barcode] &&
+      quantity >= VALIDATION_SETTINGS.MIN_QUANTITY
+    ) {
+      seenBarcodes.add(barcode);
+
+      items.push({
+        ocrItemCode: barcode,
+        actualItemCode: MAJID_BARCODE_MAPPING[barcode],
+        quantity: Math.round(quantity),
+        foundQuantity: quantity,
+        productName: `Majid Product ${barcode}`,
+        method: "majid_format",
+        lineNumber: i + 1,
+        rawLine: line.substring(0, 100),
+      });
+      console.log(
+        `Majid: ${barcode} -> ${MAJID_BARCODE_MAPPING[barcode]} x ${quantity}`,
+      );
+    } else {
+      console.log(`Could not parse quantity for ${barcode}:`, {
+        quantityFound: quantity,
+        hasMapping: MAJID_BARCODE_MAPPING[barcode],
+        linePreview: line.substring(0, 100),
+      });
+    }
+  }
+
+  console.log(`Total Majid items parsed: ${items.length}`);
+
+  if (items.length === 0) {
+    console.log("Trying regex pattern matching for Majid...");
+
+    const pattern = /\b(\d{13})\b.*?QTY\s*UC:\s*(\d+)/gi;
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+      const barcode = match[1];
+      const quantity = parseInt(match[2], 10);
+
+      if (
+        MAJID_BARCODE_MAPPING[barcode] &&
+        quantity >= VALIDATION_SETTINGS.MIN_QUANTITY
+      ) {
+        if (!seenBarcodes.has(barcode)) {
+          seenBarcodes.add(barcode);
+          items.push({
+            ocrItemCode: barcode,
+            actualItemCode: MAJID_BARCODE_MAPPING[barcode],
+            quantity: Math.round(quantity),
+            foundQuantity: quantity,
+            productName: `Majid Product ${barcode}`,
+            method: "majid_regex",
+            rawLine: match[0].substring(0, 100),
+          });
+          console.log(
+            `Majid: ${barcode} -> ${MAJID_BARCODE_MAPPING[barcode]} x ${quantity}`,
+          );
+        }
+      }
+    }
+  }
+
+  return items;
+};
+
+const parseChandaranaFormat = (text) => {
+  console.log("Parsing Chandarana format...");
+  const items = [];
+  const lines = text.split("\n");
+
+  console.log("Total lines to parse:", lines.length);
+
+  const seenBarcodes = new Set();
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+
+    if (
+      !line ||
+      line.includes("CHANDARANA") ||
+      line.includes("ORDER :") ||
+      line.includes("SCREENSHOT") ||
+      line.includes("QTY") ||
+      line.includes("QUANTITY") ||
+      line.length < 10
+    ) {
+      continue;
+    }
+
+    console.log("Processing Chandarana line:", line);
+
+    const barcodeMatch = line.match(/\b(\d{13})\b/);
+    if (!barcodeMatch) {
+      continue;
+    }
+
+    const barcode = barcodeMatch[1];
+
+    if (seenBarcodes.has(barcode)) {
+      console.log(`Skipping duplicate Chandarana barcode: ${barcode}`);
+      continue;
+    }
+
+    console.log(`Found Chandarana barcode: ${barcode} in line: ${line}`);
+
+    let quantity = null;
+
+    const quantityPattern = /QUANTITY:\s*(\d+)/i;
+    const quantityMatch = line.match(quantityPattern);
+
+    if (quantityMatch) {
+      quantity = parseInt(quantityMatch[1], 10);
+      console.log(`Found quantity from QUANTITY: for ${barcode}: ${quantity}`);
+    }
+
+    if (quantity === null) {
+      const numbers = line.match(/\b(\d+)\b/g);
+      if (numbers) {
+        for (const numStr of numbers) {
+          if (numStr === barcode) continue;
+
+          const num = parseInt(numStr, 10);
+          if (num >= 1 && num <= 1000 && numStr.length <= 4) {
+            const beforeNum = line.substring(0, line.indexOf(numStr));
+            const afterNum = line.substring(
+              line.indexOf(numStr) + numStr.length,
+            );
+
+            if (
+              beforeNum.includes("QTY") ||
+              beforeNum.includes("QUANTITY") ||
+              afterNum.includes("QTY") ||
+              afterNum.includes("QUANTITY")
+            ) {
+              quantity = num;
+              console.log(`Found quantity for ${barcode}: ${quantity}`);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (quantity === null && i + 1 < lines.length) {
+      const nextLine = lines[i + 1].trim();
+      const nextLineQuantityMatch = nextLine.match(/QUANTITY:\s*(\d+)/i);
+      if (nextLineQuantityMatch) {
+        quantity = parseInt(nextLineQuantityMatch[1], 10);
+        console.log(
+          `Found quantity from next line for ${barcode}: ${quantity}`,
+        );
+      }
+    }
+
+    if (
+      quantity !== null &&
+      !isNaN(quantity) &&
+      CHANDARANA_BARCODE_MAPPING[barcode] &&
+      quantity >= VALIDATION_SETTINGS.MIN_QUANTITY
+    ) {
+      seenBarcodes.add(barcode);
+
+      items.push({
+        ocrItemCode: barcode,
+        actualItemCode: CHANDARANA_BARCODE_MAPPING[barcode],
+        quantity: Math.round(quantity),
+        foundQuantity: quantity,
+        productName: `Chandarana Product ${barcode}`,
+        method: "chandarana_format",
+        lineNumber: i + 1,
+        rawLine: line.substring(0, 100),
+      });
+      console.log(
+        `Chandarana: ${barcode} -> ${CHANDARANA_BARCODE_MAPPING[barcode]} x ${quantity}`,
+      );
+    } else {
+      console.log(`Could not parse quantity for ${barcode}:`, {
+        quantityFound: quantity,
+        hasMapping: CHANDARANA_BARCODE_MAPPING[barcode],
+        linePreview: line.substring(0, 100),
+      });
+    }
+  }
+
+  console.log(`Total Chandarana items parsed: ${items.length}`);
+
+  if (items.length === 0) {
+    console.log("Trying regex pattern matching for Chandarana...");
+
+    const pattern = /\b(\d{13})\b.*?QUANTITY:\s*(\d+)/gi;
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+      const barcode = match[1];
+      const quantity = parseInt(match[2], 10);
+
+      if (
+        CHANDARANA_BARCODE_MAPPING[barcode] &&
+        quantity >= VALIDATION_SETTINGS.MIN_QUANTITY
+      ) {
+        if (!seenBarcodes.has(barcode)) {
+          seenBarcodes.add(barcode);
+          items.push({
+            ocrItemCode: barcode,
+            actualItemCode: CHANDARANA_BARCODE_MAPPING[barcode],
+            quantity: Math.round(quantity),
+            foundQuantity: quantity,
+            productName: `Chandarana Product ${barcode}`,
+            method: "chandarana_regex",
+            rawLine: match[0].substring(0, 100),
+          });
+          console.log(
+            `Chandarana: ${barcode} -> ${CHANDARANA_BARCODE_MAPPING[barcode]} x ${quantity}`,
+          );
+        }
+      }
+    }
+  }
+
+  return items;
+};
 
 const parseJazaribuFormat = (text) => {
   console.log("Parsing Jazaribu format...");
@@ -777,13 +1814,11 @@ const parseJazaribuFormat = (text) => {
 
   console.log("Total lines to parse:", lines.length);
 
-  // Track unique product codes to avoid duplicates
   const seenCodes = new Set();
 
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i].trim();
 
-    // Skip empty lines and summary lines
     if (
       !line ||
       line.includes("Total KE") ||
@@ -803,12 +1838,10 @@ const parseJazaribuFormat = (text) => {
       continue;
     }
 
-    // Look for JT codes in the line
     const jtMatch = line.match(/(JT\d{5})/i);
     if (jtMatch) {
       const jtCode = jtMatch[1].toUpperCase();
 
-      // Skip if we've already seen this code
       if (seenCodes.has(jtCode)) {
         console.log(`Skipping duplicate JT code: ${jtCode}`);
         continue;
@@ -816,25 +1849,17 @@ const parseJazaribuFormat = (text) => {
 
       console.log(`Found JT code: ${jtCode} in line: ${line}`);
 
-      // Split line by spaces
       const parts = line.split(/\s+/);
-
-      // Debug: Show all parts
       console.log(`Line parts (${parts.length}):`, parts);
 
-      // In Jazaribu format, quantity is usually before "PIECES"
-      // Format: [barcode] [JT code] [description...] [quantity] PIECES [unit price] [total price]
       let quantity = null;
       let productName = "";
 
-      // Find "PIECES" and get quantity before it
       for (let j = 0; j < parts.length; j++) {
         if (parts[j].toUpperCase() === "PIECES" && j > 0) {
-          // Previous part should be the quantity
           const qtyStr = parts[j - 1];
           quantity = parseInt(qtyStr);
 
-          // Extract product name: everything between JT code and quantity
           const jtIndex = parts.indexOf(jtCode);
           if (jtIndex !== -1 && jtIndex < j - 1) {
             const nameParts = parts.slice(jtIndex + 1, j - 1);
@@ -848,29 +1873,21 @@ const parseJazaribuFormat = (text) => {
         }
       }
 
-      // If we didn't find "PIECES", try alternative parsing
       if (!quantity) {
-        // Look for numbers that could be quantities (usually 4-8 in Jazaribu orders)
         for (let j = 0; j < parts.length; j++) {
           const part = parts[j];
-          // Check if part is a number between 1 and 20 (typical Jazaribu quantities)
           const num = parseInt(part);
           if (!isNaN(num) && num >= 1 && num <= 20) {
-            // Make sure it's not a barcode or price
             if (part.length <= 2 && j > 1) {
-              // Quantity is usually 1-2 digits
-              // Check context - quantity should be after description and before price
               const nextPart = j + 1 < parts.length ? parts[j + 1] : "";
               const prevPart = j > 0 ? parts[j - 1] : "";
 
-              // If next part looks like a price (contains .00) or is PIECES
               if (
                 nextPart.includes(".") ||
                 nextPart.toUpperCase() === "PIECES"
               ) {
                 quantity = num;
 
-                // Extract product name
                 const jtIndex = parts.indexOf(jtCode);
                 if (jtIndex !== -1 && jtIndex < j) {
                   const nameParts = parts.slice(jtIndex + 1, j);
@@ -878,7 +1895,7 @@ const parseJazaribuFormat = (text) => {
                 }
 
                 console.log(
-                  `Found quantity (alt) for ${jtCode}: ${quantity}, Product: ${productName}`,
+                  `Found quantity for ${jtCode}: ${quantity}, Product: ${productName}`,
                 );
                 break;
               }
@@ -887,14 +1904,12 @@ const parseJazaribuFormat = (text) => {
         }
       }
 
-      // Final fallback: Look for common quantity patterns
       if (!quantity) {
-        // Jazaribu quantities are usually small: 4, 5, 6, 8
         const commonQuantities = ["4", "5", "6", "8"];
         for (const qty of commonQuantities) {
           if (line.includes(` ${qty} `) || line.endsWith(` ${qty}`)) {
             quantity = parseInt(qty);
-            console.log(`Found quantity (common) for ${jtCode}: ${quantity}`);
+            console.log(`Found quantity for ${jtCode}: ${quantity}`);
             break;
           }
         }
@@ -911,7 +1926,7 @@ const parseJazaribuFormat = (text) => {
         items.push({
           ocrItemCode: jtCode,
           actualItemCode: JAZARIBU_ITEM_CODE_MAPPING[jtCode],
-          quantity: quantity,
+          quantity: Math.round(quantity),
           foundQuantity: quantity,
           productName: productName || `Jazaribu Product ${jtCode}`,
           method: "jazaribu_format",
@@ -919,10 +1934,10 @@ const parseJazaribuFormat = (text) => {
           rawLine: line.substring(0, 100),
         });
         console.log(
-          `✅ Jazaribu: ${jtCode} -> ${JAZARIBU_ITEM_CODE_MAPPING[jtCode]} x ${quantity}`,
+          `Jazaribu: ${jtCode} -> ${JAZARIBU_ITEM_CODE_MAPPING[jtCode]} x ${quantity}`,
         );
       } else {
-        console.log(`❌ Could not parse quantity for ${jtCode}:`, {
+        console.log(`Could not parse quantity for ${jtCode}:`, {
           quantityFound: quantity,
           hasMapping: JAZARIBU_ITEM_CODE_MAPPING[jtCode],
           linePreview: line.substring(0, 100),
@@ -935,11 +1950,6 @@ const parseJazaribuFormat = (text) => {
   return items;
 };
 
-// ============================================
-// UPDATED: CLEANSHELF PARSERS - FIXED VERSION
-// ============================================
-
-// Parse Cleanshelf LOCAL PURCHASE ORDER format - FIXED VERSION
 const parseCleanshelfLocalPO = (text) => {
   console.log("Parsing Cleanshelf LOCAL PURCHASE ORDER format...");
   const items = [];
@@ -952,12 +1962,10 @@ const parseCleanshelfLocalPO = (text) => {
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i].trim();
 
-    // Skip empty lines
     if (!line) {
       continue;
     }
 
-    // Check if we've entered the items section
     if (
       line.includes("CODE DESCRIPTION") ||
       line.includes("Unit price") ||
@@ -968,7 +1976,6 @@ const parseCleanshelfLocalPO = (text) => {
       continue;
     }
 
-    // Check for end of items section
     if (
       line.includes("Delivery Instructions") ||
       line.includes("Prepared By") ||
@@ -978,12 +1985,10 @@ const parseCleanshelfLocalPO = (text) => {
       continue;
     }
 
-    // Skip if not in items section
     if (!inItemsSection) {
       continue;
     }
 
-    // Skip header lines and non-item lines
     if (
       line.includes("LOCAL PURCHASE ORDER") ||
       line.includes("CLEAN SHELF") ||
@@ -1003,10 +2008,8 @@ const parseCleanshelfLocalPO = (text) => {
 
     console.log("Processing line:", line);
 
-    // Fix common OCR pattern: 351.00117.000400348 -> 351.00 117.000 400348
     line = line.replace(/(\d+\.\d{2})(\d+\.\d{3})(4003\d{2})/g, "$1 $2 $3");
 
-    // Fix pattern like: SUPALOAF WHITE 800GM 13 -> SUPALOAF WHITE 800GM 1 3
     line = line.replace(/(\d+[A-Z]+)\s+(\d{2})\s+/g, function (match, p1, p2) {
       if (p2.length === 2 && parseInt(p2) > 9 && parseInt(p2) < 100) {
         return p1 + " " + p2[0] + " " + p2[1] + " ";
@@ -1014,37 +2017,25 @@ const parseCleanshelfLocalPO = (text) => {
       return match;
     });
 
-    // Try to match the Cleanshelf format
-    // Example: "351.00 117.000 400348 SUPALOAF WHITE 800GM 1 3"
-    // Columns: Amount | Unit price | Code | Description | Pieces | Pack (Quantity)
-
-    // Find the 6-digit code (4003xx)
     const codeMatch = line.match(/(4003\d{2})/);
     if (!codeMatch) {
-      continue; // Skip lines without Cleanshelf codes
+      continue;
     }
 
     const code = codeMatch[1];
-
-    // Split the line by spaces
     const parts = line.split(/\s+/);
 
     if (parts.length >= 5) {
-      // The last part should be the pack quantity (what we want)
       const lastPart = parts[parts.length - 1];
       const secondLastPart = parts[parts.length - 2];
 
       let quantity = null;
-
-      // Try to parse the last part as quantity
       quantity = parseFloat(lastPart.replace(/,/g, ""));
 
-      // If last part is not a valid number, try second last
       if (isNaN(quantity) || quantity <= 0) {
         quantity = parseFloat(secondLastPart.replace(/,/g, ""));
       }
 
-      // If still no valid quantity, look for any number in the last few parts
       if (isNaN(quantity) || quantity <= 0) {
         for (let j = Math.max(0, parts.length - 5); j < parts.length; j++) {
           const potentialQty = parseFloat(parts[j].replace(/,/g, ""));
@@ -1056,11 +2047,9 @@ const parseCleanshelfLocalPO = (text) => {
       }
 
       if (quantity && !isNaN(quantity) && quantity > 0) {
-        // Find the product description
         const codeIndex = parts.indexOf(code);
         let description = "";
         if (codeIndex !== -1 && codeIndex < parts.length - 2) {
-          // Get everything from after code up to before the numbers
           const descriptionParts = [];
           for (let j = codeIndex + 1; j < parts.length; j++) {
             if (/^\d+$/.test(parts[j]) || /^\d+\.\d+$/.test(parts[j])) {
@@ -1082,7 +2071,7 @@ const parseCleanshelfLocalPO = (text) => {
           rawLine: line.substring(0, 100),
         });
         console.log(
-          `✅ Cleanshelf Local PO: ${code} (${description}) x ${quantity}`,
+          `Cleanshelf Local PO: ${code} (${description}) x ${quantity}`,
         );
       }
     }
@@ -1090,18 +2079,16 @@ const parseCleanshelfLocalPO = (text) => {
 
   console.log(`Parsed ${items.length} items from Cleanshelf Local PO`);
 
-  // If we didn't find items with line-by-line parsing, try regex pattern
   if (items.length === 0) {
     console.log("Trying regex pattern matching...");
 
-    // Pattern to match: number number 4003xx description number number
     const pattern =
       /(\d+\.\d{2})\s+(\d+\.\d{3})\s+(4003\d{2})\s+(.+?)\s+(\d+)\s+(\d+)/g;
     let match;
 
     while ((match = pattern.exec(text)) !== null) {
       const code = match[3];
-      const quantity = parseFloat(match[6]); // Last number is Pack (quantity)
+      const quantity = parseFloat(match[6]);
       const description = match[4];
 
       if (quantity && !isNaN(quantity) && quantity > 0) {
@@ -1115,7 +2102,7 @@ const parseCleanshelfLocalPO = (text) => {
           rawLine: match[0].substring(0, 100),
         });
         console.log(
-          `✅ Cleanshelf Local PO (regex): ${code} (${description}) x ${quantity}`,
+          `Cleanshelf Local PO: ${code} (${description}) x ${quantity}`,
         );
       }
     }
@@ -1124,7 +2111,6 @@ const parseCleanshelfLocalPO = (text) => {
   return items;
 };
 
-// Parse Cleanshelf PENDING ORDERS format - FIXED VERSION
 const parseCleanshelfPendingOrders = (text) => {
   console.log("Parsing Cleanshelf PENDING ORDERS format...");
   const items = [];
@@ -1135,51 +2121,68 @@ const parseCleanshelfPendingOrders = (text) => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // Skip empty lines
     if (!line) {
       continue;
     }
 
-    // Check if we've entered the items section
     if (
       line.includes("Code Description") ||
       line.includes("Orderd Qty.") ||
-      line.includes("Outstanding Qty.")
+      line.includes("Outstanding Qty.") ||
+      line.includes("Orderd Qty.F")
     ) {
       inItemsSection = true;
       console.log("Entered items section at line:", i + 1);
       continue;
     }
 
-    // Check for end of report
     if (
       line.includes("********* End of Report ********") ||
-      line.includes("FRESHMARKET")
+      line.includes("FRESHMARKET") ||
+      line.includes("* End of Report")
     ) {
       break;
     }
 
-    // Skip if not in items section
     if (!inItemsSection) {
       continue;
     }
 
-    // Pattern for lines like: "0.00 8.00 8.00 400329 SUPA BUTTER TOAST WHITE 400GM"
-    // We want: code (400329) and quantity (third number, 8.00 - Outstanding Qty.)
+    const screenshotPattern = /^(4003\d{2})\s+(.+?)\s+(\d+\.\d{2})$/;
+    const screenshotMatch = line.match(screenshotPattern);
 
-    // Find the 6-digit code
+    if (screenshotMatch) {
+      const code = screenshotMatch[1];
+      const description = screenshotMatch[2];
+      const quantity = parseFloat(screenshotMatch[3]);
+
+      if (quantity && !isNaN(quantity) && quantity > 0) {
+        items.push({
+          ocrItemCode: code,
+          actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
+          quantity: Math.round(quantity),
+          foundQuantity: quantity,
+          productName: description || `Cleanshelf Product ${code}`,
+          method: "cleanshelf_screenshot_format",
+          lineNumber: i + 1,
+          rawLine: line.substring(0, 100),
+        });
+        console.log(
+          `Cleanshelf Screenshot: ${code} (${description}) x ${quantity}`,
+        );
+        continue;
+      }
+    }
+
     const codeMatch = line.match(/(4003\d{2})/);
     if (!codeMatch) {
       continue;
     }
 
     const code = codeMatch[1];
-
-    // Split line by spaces
     const parts = line.split(/\s+/);
 
     if (parts.length >= 4) {
-      // Look for three decimal numbers followed by the code
       let quantity = null;
 
       for (let j = 0; j < parts.length; j++) {
@@ -1190,17 +2193,30 @@ const parseCleanshelfPendingOrders = (text) => {
           /^\d+\.\d{2}$/.test(parts[j + 2]) &&
           parts[j + 3] === code
         ) {
-          quantity = parseFloat(parts[j + 2]); // Outstanding Qty is the third decimal
+          quantity = parseFloat(parts[j]);
           break;
         }
       }
 
-      // Fallback: just look for any decimal number before the code
       if (!quantity || isNaN(quantity)) {
         for (let j = 0; j < parts.length; j++) {
-          if (parts[j] === code && j > 0) {
-            // Look backward for a decimal number
-            for (let k = j - 1; k >= 0; k--) {
+          if (parts[j] === code && j < parts.length - 2) {
+            for (let k = j + 1; k < parts.length; k++) {
+              const potentialQty = parseFloat(parts[k]);
+              if (!isNaN(potentialQty) && potentialQty > 0) {
+                quantity = potentialQty;
+                break;
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      if (!quantity || isNaN(quantity)) {
+        for (let j = 0; j < parts.length; j++) {
+          if (parts[j] === code && j < parts.length - 1) {
+            for (let k = j + 1; k < parts.length; k++) {
               const potentialQty = parseFloat(parts[k]);
               if (!isNaN(potentialQty) && potentialQty > 0) {
                 quantity = potentialQty;
@@ -1213,11 +2229,16 @@ const parseCleanshelfPendingOrders = (text) => {
       }
 
       if (quantity && !isNaN(quantity) && quantity > 0) {
-        // Extract description
         const codeIndex = parts.indexOf(code);
         let description = "";
         if (codeIndex !== -1 && codeIndex < parts.length - 1) {
-          description = parts.slice(codeIndex + 1).join(" ");
+          for (let j = codeIndex + 1; j < parts.length; j++) {
+            if (/^\d+\.\d{2}$/.test(parts[j])) {
+              break;
+            }
+            description += parts[j] + " ";
+          }
+          description = description.trim();
         }
 
         items.push({
@@ -1231,7 +2252,7 @@ const parseCleanshelfPendingOrders = (text) => {
           rawLine: line.substring(0, 100),
         });
         console.log(
-          `✅ Cleanshelf Pending: ${code} (${description}) x ${quantity}`,
+          `Cleanshelf Pending: ${code} (${description}) x ${quantity}`,
         );
       }
     }
@@ -1239,19 +2260,16 @@ const parseCleanshelfPendingOrders = (text) => {
 
   console.log(`Parsed ${items.length} items from Cleanshelf Pending Orders`);
 
-  // If we didn't find items with line-by-line parsing, try regex pattern
   if (items.length === 0) {
     console.log("Trying regex pattern matching...");
 
-    // Pattern to match: 0.00 8.00 8.00 400329 description
-    const pattern =
-      /(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(4003\d{2})\s+(.+)/g;
-    let match;
+    const pattern1 = /(4003\d{2})\s+(.+?)\s+(\d+\.\d{2})/g;
+    let match1;
 
-    while ((match = pattern.exec(text)) !== null) {
-      const code = match[4];
-      const quantity = parseFloat(match[3]); // Third number is Outstanding Qty
-      const description = match[5];
+    while ((match1 = pattern1.exec(text)) !== null) {
+      const code = match1[1];
+      const description = match1[2];
+      const quantity = parseFloat(match1[3]);
 
       if (quantity && !isNaN(quantity) && quantity > 0) {
         items.push({
@@ -1260,11 +2278,36 @@ const parseCleanshelfPendingOrders = (text) => {
           quantity: Math.round(quantity),
           foundQuantity: quantity,
           productName: description,
-          method: "cleanshelf_pending_orders_regex",
-          rawLine: match[0].substring(0, 100),
+          method: "cleanshelf_pending_orders_regex1",
+          rawLine: match1[0].substring(0, 100),
         });
         console.log(
-          `✅ Cleanshelf Pending (regex): ${code} (${description}) x ${quantity}`,
+          `Cleanshelf Pending: ${code} (${description}) x ${quantity}`,
+        );
+      }
+    }
+
+    const pattern2 =
+      /(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(4003\d{2})\s+(.+)/g;
+    let match2;
+
+    while ((match2 = pattern2.exec(text)) !== null) {
+      const code = match2[4];
+      const quantity = parseFloat(match2[1]);
+      const description = match2[5];
+
+      if (quantity && !isNaN(quantity) && quantity > 0) {
+        items.push({
+          ocrItemCode: code,
+          actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
+          quantity: Math.round(quantity),
+          foundQuantity: quantity,
+          productName: description,
+          method: "cleanshelf_pending_orders_regex2",
+          rawLine: match2[0].substring(0, 100),
+        });
+        console.log(
+          `Cleanshelf Pending: ${code} (${description}) x ${quantity}`,
         );
       }
     }
@@ -1273,165 +2316,360 @@ const parseCleanshelfPendingOrders = (text) => {
   return items;
 };
 
-// ============================================
-// UPDATED: EXTRACT LPO NUMBER FOR ALL CUSTOMER TYPES
-// ============================================
+const parseCleanshelfCopyPasteText = (text) => {
+  console.log("Parsing Cleanshelf Copy-Paste Text Format...");
+  const items = [];
+  const lines = text.split("\n");
 
-const extractLPONumber = (text, customerType = "NAIVAS") => {
-  console.log(`Extracting LPO number for ${customerType}...`);
+  console.log("Total lines to parse:", lines.length);
 
-  // Clean the text first
-  const cleaned = cleanOCRText(text);
+  let mainLPONumber = null;
+  let inItemsSection = false;
 
-  console.log("Looking for LPO in text sample:", cleaned.substring(0, 200));
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
 
-  // Jazaribu LPO extraction
-  if (customerType === "JAZARIBU") {
-    // Pattern for Jazaribu LPO: PO-J001-000361
-    const jazaribuPattern = /PO-J\d{3}-\d{6}/i;
-    const match = cleaned.match(jazaribuPattern);
-    if (match) {
-      console.log(`✅ Jazaribu LPO found: ${match[0]}`);
-      return match[0];
+    if (!line) {
+      continue;
     }
 
-    // Also check for Order No. pattern
-    const orderNoPattern = /Order No\.\s*(PO-J\d{3}-\d{6})/i;
-    const orderNoMatch = cleaned.match(orderNoPattern);
-    if (orderNoMatch) {
-      console.log(`✅ Jazaribu LPO found (Order No.): ${orderNoMatch[1]}`);
-      return orderNoMatch[1];
-    }
-
-    console.log("❌ No Jazaribu LPO found in text");
-    return "UNKNOWN_LPO";
-  }
-
-  // Cleanshelf LPO extraction
-  if (customerType === "CLEANSHELF") {
-    // Pattern 1: Look for "L. P. O. No:" followed by number AND date (Format 1)
-    // Example: "94843 L. P. O. No: 23-Jan-2026" -> LPO is 94843
-    const pattern1 =
-      /(\d{5,6})\s+L\.?\s*P\.?\s*O\.?\s*No:\s*\d{2}-[A-Za-z]{3}-\d{4}/i;
-    const match1 = text.match(pattern1);
-    if (match1) {
-      console.log(`✅ Cleanshelf LPO found (Format 1): ${match1[1]}`);
-      return match1[1];
-    }
-
-    // Pattern 2: Look for "LPO No." followed by number with comma (Format 2)
-    // Example: "111,626 LPO No." -> LPO is 111626
-    const pattern2 = /([\d,]+)\s+LPO\s*No\./i;
-    const match2 = text.match(pattern2);
-    if (match2) {
-      const lpo = match2[1].replace(/,/g, "");
-      console.log(`✅ Cleanshelf LPO found (Format 2): ${lpo}`);
-      return lpo;
-    }
-
-    // Pattern 3: Look for standalone 5-6 digit numbers in Cleanshelf context
+    const lpoMatch = line.match(/(\d{5,6})/);
     if (
-      text.includes("CLEAN SHELF") ||
-      text.includes("CLEANSHELF") ||
-      text.includes("FRESHMARKET")
+      lpoMatch &&
+      (line.includes("L.P.O. No:") || line.includes("L. P. O. No:"))
     ) {
-      // Look for 5-6 digit numbers that might be LPO
-      const pattern3 = /\b(\d{5,6})\b(?!.*\d{2}-[A-Za-z]{3}-\d{4})/; // Not followed by date
-      const matches = text.match(pattern3);
-      if (matches) {
-        console.log(`⚠️ Possible Cleanshelf LPO: ${matches[1]}`);
-        return matches[1];
+      mainLPONumber = lpoMatch[0];
+      console.log(`Found main LPO number: ${mainLPONumber}`);
+      continue;
+    }
+
+    if (
+      line.includes("Code") &&
+      line.includes("Description") &&
+      (line.includes("Orderd Qty") ||
+        line.includes("Ordered Qty") ||
+        line.includes("Qty"))
+    ) {
+      inItemsSection = true;
+      console.log("Entered items section at line:", i + 1);
+      continue;
+    }
+
+    if (
+      line.includes("*********") ||
+      line.includes("End of Report") ||
+      line.includes("FRESHMARKET") ||
+      (line.includes("CLEAN SHELF") &&
+        i > 0 &&
+        !line.includes("SUPERMARKETS")) ||
+      line.includes("* End of Report")
+    ) {
+      inItemsSection = false;
+      break;
+    }
+
+    if (!inItemsSection) {
+      continue;
+    }
+
+    if (
+      line.includes("Pending Purchase Orders") ||
+      line.includes("CLEAN SHELF SUPERMARKETS") ||
+      line.includes("P.O. BOX") ||
+      line.includes("LIMURU") ||
+      line.includes("M044") ||
+      line.includes("MO44") ||
+      line.includes("MINI BAKERIES") ||
+      line.length < 5
+    ) {
+      continue;
+    }
+
+    const screenshotPattern = /^(4003\d{2})\s+(.+?)\s+(\d+\.\d{2})$/;
+    const screenshotMatch = line.match(screenshotPattern);
+
+    if (screenshotMatch) {
+      const code = screenshotMatch[1];
+      const description = screenshotMatch[2];
+      const quantity = parseFloat(screenshotMatch[3]);
+
+      if (quantity && !isNaN(quantity) && quantity > 0) {
+        items.push({
+          ocrItemCode: code,
+          actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
+          quantity: Math.round(quantity),
+          foundQuantity: quantity,
+          productName: description || `Cleanshelf Product ${code}`,
+          method: "cleanshelf_screenshot_copy_paste",
+          lineNumber: i + 1,
+          mainLPONumber: mainLPONumber,
+        });
+        console.log(
+          `Cleanshelf Screenshot: ${code} (${description}) x ${quantity}`,
+        );
+        continue;
       }
     }
 
-    console.log("❌ No Cleanshelf LPO found in text");
-    return "UNKNOWN_LPO";
-  }
+    const codeMatch = line.match(/(4003\d{2})/);
+    if (codeMatch) {
+      const code = codeMatch[1];
+      let quantity = null;
+      let description = "";
 
-  // NAIVAS LPO extraction
-  const patterns = [
-    /\*?P\d{9}-\d+\*?/, // NEW: P038304522-1
-    /\*?P\d{9}\*?/, // P038303873 or *P038303873*
-    /P\.?O\.?\s*[:#]?\s*0*(\d{6,9})/i, // P.O. 038303873
-    /Purchase\s*Order\s*[:\s]*\*?(P\d{9}(?:-\d+)?)\*?/i, // Purchase Order: P038304522-1
-    /LPO\s*[:\s]*\*?(P\d{9}(?:-\d+)?)\*?/i, // LPO: P038304522-1
-    /\b(P\d{8,10}(?:-\d+)?)\b/, // P followed by 8-10 digits, optional dash
-    /\b(\d{9})\b/, // Just 9 digits
-    /^P\d{9}\s*:/, // P038303873 : (at start of line)
-    /P\d{9}/, // Any P followed by 9 digits
-    /P0\d{8}/, // P0 followed by 8 digits
-  ];
+      const parts = line.split(/\s+/);
 
-  for (const pattern of patterns) {
-    const match = cleaned.match(pattern);
-    if (match) {
-      console.log("Pattern matched:", pattern, "Result:", match);
-      let lpo = match[1] || match[0];
+      if (parts.length >= 2) {
+        for (let j = parts.length - 1; j >= 0; j--) {
+          const potentialQty = parseFloat(parts[j]);
+          if (!isNaN(potentialQty) && potentialQty > 0 && potentialQty < 1000) {
+            const isQuantity = true;
 
-      // Clean up the LPO
-      lpo = lpo
-        .replace(/\*/g, "")
-        .replace(/[^\dP\-]/g, "")
-        .replace(/^:/, "")
-        .replace(/:$/, "");
+            for (let k = j - 1; k >= 0; k--) {
+              if (parts[k] === code) {
+                quantity = potentialQty;
 
-      console.log("Cleaned LPO:", lpo);
-
-      // Ensure it starts with P and has 9 digits after P (before dash if present)
-      if (/^\d{9}$/.test(lpo)) {
-        lpo = "P" + lpo;
-        console.log("Added P prefix:", lpo);
-      } else if (/^P\d{6,}(?:-\d+)?$/.test(lpo)) {
-        // Handle format with dash: P038304522-1
-        if (lpo.includes("-")) {
-          const [prefix, suffix] = lpo.split("-");
-          const digits = prefix.substring(1);
-          if (digits.length < 9) {
-            lpo = "P" + digits.padStart(9, "0") + "-" + suffix;
-            console.log("Padded with zeros (with dash):", lpo);
-          }
-        } else {
-          // Pad with zeros if needed
-          const digits = lpo.substring(1);
-          if (digits.length < 9) {
-            lpo = "P" + digits.padStart(9, "0");
-            console.log("Padded with zeros:", lpo);
+                const codeIndex = k;
+                if (codeIndex !== -1 && codeIndex < j) {
+                  for (let l = codeIndex + 1; l < j; l++) {
+                    if (
+                      !/^\d+\.\d{2,3}$/.test(parts[l]) &&
+                      !/^\d+$/.test(parts[l])
+                    ) {
+                      description += parts[l] + " ";
+                    }
+                  }
+                  description = description.trim();
+                }
+                break;
+              }
+            }
+            if (quantity !== null) break;
           }
         }
       }
 
-      if (/^P\d{9}(?:-\d+)?$/.test(lpo)) {
-        console.log(`✅ Valid LPO found: ${lpo}`);
-        return lpo;
+      if (quantity === null) {
+        const qtyMatch = line.match(/(\d+\.\d{2})/);
+        if (qtyMatch) {
+          quantity = parseFloat(qtyMatch[1]);
+
+          const codeIndex = line.indexOf(code);
+          const qtyIndex = line.indexOf(qtyMatch[1]);
+          if (codeIndex !== -1 && qtyIndex > codeIndex) {
+            description = line
+              .substring(codeIndex + code.length, qtyIndex)
+              .trim();
+          }
+        }
+      }
+
+      if (quantity && !isNaN(quantity) && quantity > 0) {
+        items.push({
+          ocrItemCode: code,
+          actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
+          quantity: Math.round(quantity),
+          foundQuantity: quantity,
+          productName: description || `Cleanshelf Product ${code}`,
+          method: "cleanshelf_copy_paste_fallback",
+          lineNumber: i + 1,
+          mainLPONumber: mainLPONumber,
+        });
+        console.log(`Cleanshelf: ${code} x ${quantity}`);
       }
     }
   }
 
-  console.log("❌ No valid LPO found in text");
+  console.log(`Parsed ${items.length} items from Cleanshelf Copy-Paste Text`);
+
+  if (items.length === 0) {
+    console.log("Trying regex pattern matching for Cleanshelf copy-paste...");
+
+    const pattern = /(4003\d{2})\s+(.+?)\s+(\d+\.\d{2})/g;
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+      const code = match[1];
+      const description = match[2];
+      const quantity = parseFloat(match[3]);
+
+      if (quantity && !isNaN(quantity) && quantity > 0) {
+        items.push({
+          ocrItemCode: code,
+          actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
+          quantity: Math.round(quantity),
+          foundQuantity: quantity,
+          productName: description,
+          method: "cleanshelf_copy_paste_regex",
+          rawLine: match[0].substring(0, 100),
+        });
+        console.log(`Cleanshelf: ${code} (${description}) x ${quantity}`);
+      }
+    }
+  }
+
+  return { items, mainLPONumber };
+};
+
+const extractLPONumber = (text, customerType = "NAIVAS") => {
+  console.log(`Extracting LPO number for ${customerType}...`);
+
+  const cleaned = cleanOCRText(text);
+
+  console.log("Looking for LPO in text sample:", cleaned.substring(0, 200));
+
+  const config = CUSTOMER_CONFIG[customerType];
+  if (config && config.extractLPO) {
+    const lpo = config.extractLPO(text);
+    if (lpo && lpo !== "UNKNOWN_LPO") {
+      return lpo;
+    }
+  }
+
+  switch (customerType) {
+    case "JAZARIBU":
+      const jazaribuPattern = /PO-J\d{3}-\d{6}/i;
+      const jazaribuMatch = cleaned.match(jazaribuPattern);
+      if (jazaribuMatch) {
+        console.log(`Jazaribu LPO found: ${jazaribuMatch[0]}`);
+        return jazaribuMatch[0];
+      }
+
+      const orderNoPattern = /Order No\.\s*(PO-J\d{3}-\d{6})/i;
+      const orderNoMatch = cleaned.match(orderNoPattern);
+      if (orderNoMatch) {
+        console.log(`Jazaribu LPO found: ${orderNoMatch[1]}`);
+        return orderNoMatch[1];
+      }
+      break;
+
+    case "CLEANSHELF":
+      const commaPattern = /\b(\d{1,3},\d{3})\b/;
+      const commaMatch = text.match(commaPattern);
+      if (commaMatch) {
+        if (text.includes("CLEAN SHELF") || text.includes("FRESHMARKET")) {
+          console.log(`Cleanshelf LPO with comma found: ${commaMatch[1]}`);
+          return commaMatch[1];
+        }
+      }
+
+      const pattern1 =
+        /(\d{5,6})\s+L\.?\s*P\.?\s*O\.?\s*No:\s*\d{2}-[A-Za-z]{3}-\d{4}/i;
+      const match1 = text.match(pattern1);
+      if (match1) {
+        console.log(`Cleanshelf LPO found: ${match1[1]}`);
+        return match1[1];
+      }
+
+      const pattern2 = /([\d,]+)\s+LPO\s*No\./i;
+      const match2 = text.match(pattern2);
+      if (match2) {
+        console.log(`Cleanshelf LPO found: ${match2[1]}`);
+        return match2[1];
+      }
+
+      if (
+        text.includes("CLEAN SHELF") ||
+        text.includes("CLEANSHELF") ||
+        text.includes("FRESHMARKET")
+      ) {
+        const pattern3 = /\b(\d{5,6})\b(?!.*\d{2}-[A-Za-z]{3}-\d{4})/;
+        const matches = text.match(pattern3);
+        if (matches) {
+          console.log(`Possible Cleanshelf LPO: ${matches[1]}`);
+          return matches[1];
+        }
+      }
+      break;
+
+    case "KHETIA":
+      return extractKhetiaLPONumber(text);
+
+    case "MAJID":
+      return extractMajidLPONumber(text);
+
+    case "CHANDARANA":
+      return extractChandaranaLPONumber(text);
+
+    case "QUICKMART":
+      return extractQuickmartLPONumber(text);
+
+    default: // NAIVAS
+      const patterns = [
+        /\*?P\d{9}-\d+\*?/,
+        /\*?P\d{9}\*?/,
+        /P\.?O\.?\s*[:#]?\s*0*(\d{6,9})/i,
+        /Purchase\s*Order\s*[:\s]*\*?(P\d{9}(?:-\d+)?)\*?/i,
+        /LPO\s*[:\s]*\*?(P\d{9}(?:-\d+)?)\*?/i,
+        /\b(P\d{8,10}(?:-\d+)?)\b/,
+        /\b(\d{9})\b/,
+        /^P\d{9}\s*:/,
+        /P\d{9}/,
+        /P0\d{8}/,
+      ];
+
+      for (const pattern of patterns) {
+        const match = cleaned.match(pattern);
+        if (match) {
+          console.log("Pattern matched:", pattern, "Result:", match);
+          let lpo = match[1] || match[0];
+
+          lpo = lpo
+            .replace(/\*/g, "")
+            .replace(/[^\dP\-]/g, "")
+            .replace(/^:/, "")
+            .replace(/:$/, "");
+
+          console.log("Cleaned LPO:", lpo);
+
+          if (/^\d{9}$/.test(lpo)) {
+            lpo = "P" + lpo;
+            console.log("Added P prefix:", lpo);
+          } else if (/^P\d{6,}(?:-\d+)?$/.test(lpo)) {
+            if (lpo.includes("-")) {
+              const [prefix, suffix] = lpo.split("-");
+              const digits = prefix.substring(1);
+              if (digits.length < 9) {
+                lpo = "P" + digits.padStart(9, "0") + "-" + suffix;
+                console.log("Padded with zeros:", lpo);
+              }
+            } else {
+              const digits = lpo.substring(1);
+              if (digits.length < 9) {
+                lpo = "P" + digits.padStart(9, "0");
+                console.log("Padded with zeros:", lpo);
+              }
+            }
+          }
+
+          if (/^P\d{9}(?:-\d+)?$/.test(lpo)) {
+            console.log(`Valid LPO found: ${lpo}`);
+            return lpo;
+          }
+        }
+      }
+  }
+
+  console.log("No valid LPO found in text");
   return "UNKNOWN_LPO";
 };
 
-// ============================================
-// NEW: SMART N-CODE DETECTION - ONLY ADD IF CLEAR EVIDENCE
-// ============================================
-
-// SMART N-CODE CHECK: Only add N-codes if we have CLEAR evidence they're in the order
 const hasClearEvidenceOfNCodes = (cleanedText) => {
-  console.log("=== CHECKING FOR N-CODE EVIDENCE ===");
+  console.log("Checking for N-code evidence");
 
-  // Check for specific N-code patterns in the text
   const n055Patterns = [
     /N051055/i,
-    /NO51055/i, // OCR misread
-    /051055/i, // Missing N prefix
+    /NO51055/i,
+    /N05105O/i,
+    /051055/i,
     /BUTTER TOAST BREAD 1\.5KG/i,
     /SUPA BUTTER TOAST BREAD 1\.5KG/i,
   ];
 
   const n056Patterns = [
     /N051056/i,
-    /NO51056/i, // OCR misread
-    /051056/i, // Missing N prefix
+    /NO51056/i,
+    /051056/i,
     /BUTTER TOAST BREAD 600G/i,
     /SUPA BUTTER TOAST BREAD 600G/i,
   ];
@@ -1447,9 +2685,6 @@ const hasClearEvidenceOfNCodes = (cleanedText) => {
   console.log("N051056 evidence found:", hasN056Evidence);
 
   if (hasN055Evidence || hasN056Evidence) {
-    console.log("N-code evidence found in text. Sample of relevant text:");
-
-    // Show context around N-code evidence
     if (hasN055Evidence) {
       const match055 = cleanedText.match(
         /(.{0,100}(N051055|NO51055|051055|BUTTER TOAST BREAD 1\.5KG).{0,100})/i,
@@ -1468,23 +2703,16 @@ const hasClearEvidenceOfNCodes = (cleanedText) => {
   return { hasN055Evidence, hasN056Evidence };
 };
 
-// ============================================
-// UPDATED: ULTIMATE N-CODE DETECTION BY LAST 3 DIGITS - ONLY IF EVIDENCE EXISTS
-// ============================================
-
 const ultimateNCodeDetection = (text, items) => {
-  console.log("=== ULTIMATE N-CODE DETECTION (ONLY IF EVIDENCE) ===");
+  console.log("Ultimate N-code detection");
 
-  // First check for clear evidence
   const nCodeEvidence = hasClearEvidenceOfNCodes(text);
 
-  // Create a map of last 3 digits to item codes for N-codes
   const last3DigitsMap = {
-    "055": "N051055", // Last 3 digits 055 -> N051055
-    "056": "N051056", // Last 3 digits 056 -> N051056
+    "055": "N051055",
+    "056": "N051056",
   };
 
-  // Also map product names to N-codes
   const productNameMap = {
     "BUTTER TOAST BREAD 1.5KG": "N051055",
     "SUPA BUTTER TOAST BREAD 1.5KG": "N051055",
@@ -1497,14 +2725,11 @@ const ultimateNCodeDetection = (text, items) => {
   const lines = text.split("\n");
   let foundNCodes = [];
 
-  // METHOD 1: Search by last 3 digits in text - ONLY IF WE HAVE EVIDENCE
   for (const [last3Digits, nCode] of Object.entries(last3DigitsMap)) {
-    // Skip if we already found this N-code
     if (items.some((item) => item.ocrItemCode === nCode)) {
       continue;
     }
 
-    // Check if we have evidence for this specific N-code
     const hasEvidence =
       (nCode === "N051055" && nCodeEvidence.hasN055Evidence) ||
       (nCode === "N051056" && nCodeEvidence.hasN056Evidence);
@@ -1516,7 +2741,6 @@ const ultimateNCodeDetection = (text, items) => {
 
     console.log(`Searching for ${nCode} by last 3 digits "${last3Digits}"...`);
 
-    // Look for patterns like "51055", "051055", "51056", "051056" in text
     const patterns = [
       new RegExp(`(\\d{0,2}${last3Digits})`, "g"),
       new RegExp(`(\\D${last3Digits}\\D)`, "g"),
@@ -1529,9 +2753,7 @@ const ultimateNCodeDetection = (text, items) => {
       if (matches) {
         console.log(`Found pattern for ${last3Digits}:`, matches);
 
-        // Try to find quantity near this match
         for (const match of matches) {
-          // Look for quantity pattern \d+\.\d{4} near the match
           const matchIndex = text.indexOf(match);
           const searchStart = Math.max(0, matchIndex - 30);
           const searchEnd = Math.min(
@@ -1540,7 +2762,6 @@ const ultimateNCodeDetection = (text, items) => {
           );
           const context = text.substring(searchStart, searchEnd);
 
-          // Look for quantity in context
           const qtyMatch = context.match(/(\d+\.\d{4})/);
           if (qtyMatch) {
             const quantity = parseFloat(qtyMatch[1]);
@@ -1555,9 +2776,7 @@ const ultimateNCodeDetection = (text, items) => {
                 lineNumber: items.length + foundNCodes.length + 1,
                 context: context,
               });
-              console.log(
-                `✅ Found ${nCode} by last 3 digits: ${quantity} units`,
-              );
+              console.log(`Found ${nCode} by last 3 digits: ${quantity} units`);
               break;
             }
           }
@@ -1569,13 +2788,11 @@ const ultimateNCodeDetection = (text, items) => {
     }
   }
 
-  // METHOD 2: Search by product name - ONLY IF WE HAVE EVIDENCE
   for (const [productName, nCode] of Object.entries(productNameMap)) {
     if (items.some((item) => item.ocrItemCode === nCode)) {
       continue;
     }
 
-    // Check if we have evidence for this specific N-code
     const hasEvidence =
       (nCode === "N051055" && nCodeEvidence.hasN055Evidence) ||
       (nCode === "N051056" && nCodeEvidence.hasN056Evidence);
@@ -1587,12 +2804,10 @@ const ultimateNCodeDetection = (text, items) => {
     if (text.includes(productName)) {
       console.log(`Found product name "${productName}" for ${nCode}`);
 
-      // Find the line with product name
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].includes(productName)) {
           const line = lines[i];
 
-          // Look for quantity in this line
           const qtyMatch = line.match(/(\d+\.\d{4})/);
           if (qtyMatch) {
             const quantity = parseFloat(qtyMatch[1]);
@@ -1607,9 +2822,7 @@ const ultimateNCodeDetection = (text, items) => {
                 lineNumber: i + 1,
                 rawLine: line.substring(0, 100),
               });
-              console.log(
-                `✅ Found ${nCode} by product name: ${quantity} units`,
-              );
+              console.log(`Found ${nCode} by product name: ${quantity} units`);
               break;
             }
           }
@@ -1618,15 +2831,8 @@ const ultimateNCodeDetection = (text, items) => {
     }
   }
 
-  // REMOVED: Fallback - if we have exactly 10 items and missing N-codes
-  // NO LONGER FORCING N-CODES WHEN THEY'RE NOT IN THE ORDER
-
   return foundNCodes;
 };
-
-// ============================================
-// FIXED: PARSE COPY-PASTE TEXT FORMAT - INCLUDES N-CODES
-// ============================================
 
 const parseCopyPasteTextFormat = (text) => {
   console.log("Parsing Copy-Paste Text Format...");
@@ -1635,11 +2841,9 @@ const parseCopyPasteTextFormat = (text) => {
 
   console.log("Total lines to parse:", lines.length);
 
-  // Parse ALL lines that look like items
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // Skip empty lines and summary lines
     if (
       !line ||
       line.includes("Sub total") ||
@@ -1657,7 +2861,6 @@ const parseCopyPasteTextFormat = (text) => {
       continue;
     }
 
-    // Look for item codes at the start of line (135xxxxx OR Nxxxxxx)
     const itemCodeMatch = line.match(/^(135\d{5}|N\d{6})/);
     if (itemCodeMatch) {
       const itemCode = itemCodeMatch[1];
@@ -1665,17 +2868,12 @@ const parseCopyPasteTextFormat = (text) => {
         `Found item code: ${itemCode} in line: ${line.substring(0, 80)}...`,
       );
 
-      // Split line by spaces
       const parts = line.split(/\s+/);
-
-      // Debug: Show all parts
       console.log(`Line parts (${parts.length}):`, parts);
 
-      // Find quantity - it's the FIRST decimal number after "PCS"
       let quantity = null;
       for (let j = 0; j < parts.length; j++) {
         if (parts[j] === "PCS" && j + 1 < parts.length) {
-          // Next part should be the quantity
           const qtyStr = parts[j + 1];
           quantity = parseFloat(qtyStr);
           console.log(`Found quantity after PCS: ${quantity}`);
@@ -1683,11 +2881,7 @@ const parseCopyPasteTextFormat = (text) => {
         }
       }
 
-      // If we didn't find PCS, look for pattern in the format:
-      // Format: [item_code] [barcode] [description...] [quantity] [unit_price] [amount]
-      // Quantity is usually the 5th from the end or 6th from the end
       if (quantity === null && parts.length >= 6) {
-        // Look for decimal numbers in the line
         const decimalNumbers = [];
         for (let j = 0; j < parts.length; j++) {
           if (/\d+\.\d{2}/.test(parts[j])) {
@@ -1704,17 +2898,12 @@ const parseCopyPasteTextFormat = (text) => {
           decimalNumbers,
         );
 
-        // In your format, we should have 3 decimal numbers at the end:
-        // [quantity] [unit_price] [amount]
-        // Example: "20.00 117.00 2,340.00"
         if (decimalNumbers.length >= 3) {
-          // Take the first of the last 3 decimal numbers as quantity
           quantity = decimalNumbers[decimalNumbers.length - 3].value;
           console.log(
             `Using quantity from position ${decimalNumbers.length - 3}: ${quantity}`,
           );
         } else if (decimalNumbers.length > 0) {
-          // Fallback: use the first decimal number that looks like a quantity
           for (const num of decimalNumbers) {
             if (num.value >= 1 && num.value <= 1000 && num.index > 2) {
               quantity = num.value;
@@ -1747,11 +2936,11 @@ const parseCopyPasteTextFormat = (text) => {
             rawLine: line.substring(0, 100),
           });
           console.log(
-            `✅ Added: ${itemCode} -> ${ITEM_CODE_MAPPING[itemCode]} x ${quantity}`,
+            `Added: ${itemCode} -> ${ITEM_CODE_MAPPING[itemCode]} x ${quantity}`,
           );
         }
       } else {
-        console.log(`❌ Could not parse quantity for ${itemCode}:`, {
+        console.log(`Could not parse quantity for ${itemCode}:`, {
           quantityFound: quantity,
           hasMapping: ITEM_CODE_MAPPING[itemCode],
           linePreview: line.substring(0, 100),
@@ -1764,10 +2953,6 @@ const parseCopyPasteTextFormat = (text) => {
   return items;
 };
 
-// ============================================
-// NEW: PARSE DETAILED PO FORMAT (your new format)
-// ============================================
-
 const parseDetailedPOFormat = (text) => {
   console.log("Parsing Detailed PO Format...");
   const items = [];
@@ -1775,8 +2960,6 @@ const parseDetailedPOFormat = (text) => {
 
   console.log("Looking for item patterns in detailed format...");
 
-  // Pattern for lines like: "13505786 2037680000000 FRESH WHITE BREAD 800GM PCS 120.00 105.00 12,600.00"
-  // We want to capture: item code (13505786) and quantity (120.00)
   const detailedPattern =
     /(135\d{5}|N\d{6})\s+\d+\s+.+?\s+PCS\s+(\d+(?:\.\d{2})?)/g;
 
@@ -1789,7 +2972,6 @@ const parseDetailedPOFormat = (text) => {
       ITEM_CODE_MAPPING[itemCode] &&
       quantity >= VALIDATION_SETTINGS.MIN_QUANTITY
     ) {
-      // Check if we already have this item
       const existingIndex = items.findIndex(
         (item) => item.ocrItemCode === itemCode,
       );
@@ -1811,14 +2993,12 @@ const parseDetailedPOFormat = (text) => {
     }
   }
 
-  // If we didn't find items with the regex approach, try line-by-line
   if (items.length === 0) {
     console.log("Trying line-by-line parsing for detailed format...");
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
 
-      // Skip empty lines and summary lines
       if (
         !line ||
         line.includes("Sub total") ||
@@ -1833,20 +3013,16 @@ const parseDetailedPOFormat = (text) => {
         continue;
       }
 
-      // Look for item codes in the line
       const itemCodeMatch = line.match(/(135\d{5}|N\d{6})/);
       if (itemCodeMatch) {
         const itemCode = itemCodeMatch[1];
 
-        // Look for quantity pattern: number with .00 after PCS
         const quantityMatch = line.match(/PCS\s+(\d+(?:\.\d{2})?)/);
         if (!quantityMatch) {
-          // Try alternative: look for decimal number near the end
           const numbers = line.match(
             /(\d+(?:\.\d{2})?)\s+(\d+(?:\.\d{2})?)\s+([\d,]+\d{2})/,
           );
           if (numbers) {
-            // First number after item code is usually quantity
             const quantity = parseFloat(numbers[1]);
 
             if (
@@ -1895,7 +3071,7 @@ const parseDetailedPOFormat = (text) => {
                 lineNumber: items.length + 1,
               });
               console.log(
-                `Detailed line (PCS): ${itemCode} -> ${ITEM_CODE_MAPPING[itemCode]} x ${quantity}`,
+                `Detailed line: ${itemCode} -> ${ITEM_CODE_MAPPING[itemCode]} x ${quantity}`,
               );
             }
           }
@@ -1907,18 +3083,12 @@ const parseDetailedPOFormat = (text) => {
   return items;
 };
 
-// ============================================
-// ENHANCED UNIVERSAL PARSER WITH N-CODE PRIORITY
-// ============================================
-
 const parseUniversalFormat = (text) => {
-  console.log("Using ENHANCED UNIVERSAL parser with N-code priority...");
+  console.log("Using universal parser with N-code priority...");
   const items = [];
 
-  // PHASE 1: Direct N-code extraction (PRIORITY)
-  console.log("=== PHASE 1: Direct N-code extraction ===");
+  console.log("Direct N-code extraction");
 
-  // Direct patterns for N051055 with ALL POSSIBLE OCR VARIATIONS
   const n051055Patterns = [
     /(N051055|NO51055|N05105O|N05105o|051055)\s+(\d+(?:\.\d{2,4})?)/gi,
     /(N051055|NO51055|N05105O|N05105o|051055)(\d+\.\d{2,4})/gi,
@@ -1958,17 +3128,14 @@ const parseUniversalFormat = (text) => {
           lineNumber: items.length + 1,
           rawMatch: match[0],
         });
-        console.log(
-          `✅ Found N051055: ${quantity} units (pattern: ${pattern})`,
-        );
+        console.log(`Found N051055: ${quantity} units`);
         foundN055 = true;
-        break; // Found it, no need to check other patterns
+        break;
       }
     }
     if (foundN055) break;
   }
 
-  // Direct patterns for N051056 with ALL POSSIBLE OCR VARIATIONS
   const n051056Patterns = [
     /(N051056|NO51056|051056)\s+(\d+(?:\.\d{2,4})?)/gi,
     /(N051056|NO51056|051056)(\d+\.\d{2,4})/gi,
@@ -2008,32 +3175,23 @@ const parseUniversalFormat = (text) => {
           lineNumber: items.length + 1,
           rawMatch: match[0],
         });
-        console.log(
-          `✅ Found N051056: ${quantity} units (pattern: ${pattern})`,
-        );
+        console.log(`Found N051056: ${quantity} units`);
         foundN056 = true;
-        break; // Found it, no need to check other patterns
+        break;
       }
     }
     if (foundN056) break;
   }
 
-  // PHASE 2: General pattern matching for all codes
-  console.log("=== PHASE 2: General pattern matching ===");
+  console.log("General pattern matching");
 
   const generalPatterns = [
-    // Pattern with line numbers: "1 13505757 30.00" or "1 N051055 12.00"
     /(\d+)\s+(135\d{5}|N\d{6})\s+(\d+(?:\.\d{2,4})?)/g,
-    // Pattern without line numbers: "13505757 30.00" or "N051055 12.00"
     /(135\d{5}|N\d{6})\s+(\d+(?:\.\d{2,4})?)/g,
-    // Pattern for merged OCR: "1350575730.00" or "N05105512.00"
     /(135\d{5})(\d+\.\d{2,4})/g,
     /(N\d{6})(\d+\.\d{2,4})/g,
-    // Pattern with pipes: "| 13505757 | 30.00 |" or "| N051055 | 12.00 |"
     /\|\s*(135\d{5}|N\d{6})\s*\|\s*(\d+(?:\.\d{2,4})?)/g,
-    // Pattern for detailed format: code, barcode, description, PCS, quantity, price, amount
     /(135\d{5}|N\d{6})\s+\d+\s+.+?\s+PCS\s+(\d+(?:\.\d{2,4})?)/g,
-    // Pattern for lines with amounts at the end
     /(135\d{5}|N\d{6})\s+.+?(\d+(?:\.\d{2,4})?)\s+\d+(?:\.\d{2})?\s+[\d,]+\.\d{2}/g,
   ];
 
@@ -2054,7 +3212,6 @@ const parseUniversalFormat = (text) => {
         itemCode = itemCode.toUpperCase().replace(/\s+/g, "");
         const quantity = parseFloat(quantityStr);
 
-        // Skip if we already found this N-code in phase 1
         if (
           (itemCode === "N051055" || itemCode === "N051056") &&
           items.some((item) => item.ocrItemCode === itemCode)
@@ -2067,7 +3224,6 @@ const parseUniversalFormat = (text) => {
           quantity >= VALIDATION_SETTINGS.MIN_QUANTITY &&
           quantity <= VALIDATION_SETTINGS.MAX_QUANTITY
         ) {
-          // Check if we already have this item
           const existingIndex = items.findIndex(
             (item) => item.ocrItemCode === itemCode,
           );
@@ -2084,7 +3240,7 @@ const parseUniversalFormat = (text) => {
               rawMatch: match[0],
             });
             console.log(
-              `✅ Universal: ${itemCode} -> ${ITEM_CODE_MAPPING[itemCode]} x ${quantity}`,
+              `Universal: ${itemCode} -> ${ITEM_CODE_MAPPING[itemCode]} x ${quantity}`,
             );
           }
         }
@@ -2094,18 +3250,13 @@ const parseUniversalFormat = (text) => {
     }
   }
 
-  // PHASE 3: Fallback for any missed items
   if (items.length === 0) {
-    console.log("=== PHASE 3: Fallback extraction ===");
+    console.log("Fallback extraction");
     items.push(...findItemsGeneric(text));
   }
 
   return items;
 };
-
-// ============================================
-// ORIGINAL GENERIC PARSING (fallback)
-// ============================================
 
 const findItemsGeneric = (text) => {
   console.log("Using generic parsing...");
@@ -2113,7 +3264,6 @@ const findItemsGeneric = (text) => {
 
   const cleanText = text.replace(/\t/g, " ").replace(/\s+/g, " ");
 
-  // Enhanced pattern to handle both 135xxxxx and Nxxxxxx codes
   const itemQuantityPattern =
     /((?:135\d{5}|N\d{6}))\D+?(\d+(?:,\d{3})*\.\d{2})/g;
 
@@ -2141,82 +3291,100 @@ const findItemsGeneric = (text) => {
   return items;
 };
 
-// ============================================
-// ENHANCED: FIND ITEMS AND QUANTITIES (MAIN FUNCTION) - WITH UPDATED CUSTOMER TYPE DETECTION
-// ============================================
-
 const findItemsAndQuantities = (text, customerType = "NAIVAS") => {
-  console.log(`=== STARTING ITEM EXTRACTION FOR ${customerType} ===`);
+  console.log(`Starting item extraction for ${customerType}`);
 
   const cleanedText = cleanOCRText(text);
   const format = detectTextFormat(cleanedText, customerType);
 
   let items = [];
 
-  // Use appropriate parser based on format and customer type
-  if (customerType === "JAZARIBU") {
-    items = parseJazaribuFormat(cleanedText);
-  } else if (customerType === "CLEANSHELF") {
-    switch (format) {
-      case "CLEANSHELF_LOCAL_PO":
-        items = parseCleanshelfLocalPO(cleanedText);
-        break;
-      case "CLEANSHELF_PENDING_ORDERS":
-        items = parseCleanshelfPendingOrders(cleanedText);
-        break;
-      default:
-        // Try both formats if auto-detection fails
-        items = parseCleanshelfLocalPO(cleanedText);
-        if (items.length === 0) {
+  switch (customerType) {
+    case "JAZARIBU":
+      items = parseJazaribuFormat(cleanedText);
+      break;
+
+    case "CLEANSHELF":
+      switch (format) {
+        case "CLEANSHELF_LOCAL_PO":
+          items = parseCleanshelfLocalPO(cleanedText);
+          break;
+        case "CLEANSHELF_PENDING_ORDERS":
           items = parseCleanshelfPendingOrders(cleanedText);
-        }
-    }
-  } else {
-    // NAIVAS parsing
-    switch (format) {
-      case "COPY_PASTE_TEXT": // NEW CASE for copy-paste format
-        items = parseCopyPasteTextFormat(cleanedText);
-        break;
-      case "DETAILED_PO": // Detailed PO format
-        items = parseDetailedPOFormat(cleanedText);
-        break;
-      case "YOUR_FORMAT": // Your specific format
-      case "SIMPLE_TABULAR":
-      case "TABULAR_WITH_HEADERS":
-      case "STANDARD_PO":
-      case "SIMPLE_LIST":
-      case "EXCEL_COPY_PASTE":
-      default:
-        items = parseUniversalFormat(cleanedText);
-
-        // If still no items, try the original generic parser
-        if (items.length === 0) {
-          console.log("Universal parser found no items, trying generic...");
-          items = findItemsGeneric(cleanedText);
-        }
-    }
-
-    // UPDATED N-CODE DETECTION (LAST RESORT) - Only if evidence exists
-    const ultimateNCodes = ultimateNCodeDetection(cleanedText, items);
-
-    // Add ultimate N-codes if not already found
-    for (const nCodeItem of ultimateNCodes) {
-      const alreadyExists = items.some(
-        (item) => item.ocrItemCode === nCodeItem.ocrItemCode,
-      );
-      const hasReasonableQuantity =
-        nCodeItem.quantity > 0 && nCodeItem.quantity <= 1000;
-
-      if (!alreadyExists && hasReasonableQuantity) {
-        items.push(nCodeItem);
-        console.log(
-          `Adding ultimate N-code: ${nCodeItem.ocrItemCode} x ${nCodeItem.quantity}`,
-        );
+          break;
+        case "CLEANSHELF_COPY_PASTE_TEXT":
+          const result = parseCleanshelfCopyPasteText(cleanedText);
+          items = result.items;
+          break;
+        default:
+          items = parseCleanshelfLocalPO(cleanedText);
+          if (items.length === 0) {
+            items = parseCleanshelfPendingOrders(cleanedText);
+          }
+          if (items.length === 0) {
+            const result = parseCleanshelfCopyPasteText(cleanedText);
+            items = result.items;
+          }
       }
-    }
+      break;
+
+    case "KHETIA":
+      items = parseKhetiaFormat(cleanedText);
+      break;
+
+    case "MAJID":
+      items = parseMajidFormat(cleanedText);
+      break;
+
+    case "CHANDARANA":
+      items = parseChandaranaFormat(cleanedText);
+      break;
+
+    case "QUICKMART":
+      items = parseQuickmartFormat(cleanedText);
+      break;
+
+    default: // NAIVAS
+      switch (format) {
+        case "COPY_PASTE_TEXT":
+          items = parseCopyPasteTextFormat(cleanedText);
+          break;
+        case "DETAILED_PO":
+          items = parseDetailedPOFormat(cleanedText);
+          break;
+        case "SPECIFIC_FORMAT":
+        case "SIMPLE_TABULAR":
+        case "TABULAR_WITH_HEADERS":
+        case "STANDARD_PO":
+        case "SIMPLE_LIST":
+        case "EXCEL_COPY_PASTE":
+        default:
+          items = parseUniversalFormat(cleanedText);
+
+          if (items.length === 0) {
+            console.log("Universal parser found no items, trying generic...");
+            items = findItemsGeneric(cleanedText);
+          }
+      }
+
+      const ultimateNCodes = ultimateNCodeDetection(cleanedText, items);
+
+      for (const nCodeItem of ultimateNCodes) {
+        const alreadyExists = items.some(
+          (item) => item.ocrItemCode === nCodeItem.ocrItemCode,
+        );
+        const hasReasonableQuantity =
+          nCodeItem.quantity > 0 && nCodeItem.quantity <= 1000;
+
+        if (!alreadyExists && hasReasonableQuantity) {
+          items.push(nCodeItem);
+          console.log(
+            `Adding ultimate N-code: ${nCodeItem.ocrItemCode} x ${nCodeItem.quantity}`,
+          );
+        }
+      }
   }
 
-  // Remove duplicates (keep first occurrence)
   const uniqueItems = [];
   const seenCodes = new Set();
 
@@ -2227,7 +3395,6 @@ const findItemsAndQuantities = (text, customerType = "NAIVAS") => {
     }
   }
 
-  // Sort by line number if available
   uniqueItems.sort((a, b) => {
     if (a.lineNumber && b.lineNumber) {
       return a.lineNumber - b.lineNumber;
@@ -2235,50 +3402,44 @@ const findItemsAndQuantities = (text, customerType = "NAIVAS") => {
     return 0;
   });
 
-  // Calculate totals and show results
   if (uniqueItems.length > 0) {
     const totalQuantity = uniqueItems.reduce(
       (sum, item) => sum + item.quantity,
       0,
     );
     console.log(
-      `✅ Found ${uniqueItems.length} unique items, Total quantity: ${totalQuantity}`,
+      `Found ${uniqueItems.length} unique items, Total quantity: ${totalQuantity}`,
     );
 
-    console.log("📋 Item Details:");
+    console.log("Item Details:");
     uniqueItems.forEach((item, index) => {
       const fgCode = item.actualItemCode;
       const productName = item.productName || "Unknown Product";
       console.log(
-        `${index + 1}. ${item.ocrItemCode} → ${fgCode} → ${productName}: ${item.quantity} units (method: ${item.method})`,
+        `${index + 1}. ${item.ocrItemCode} -> ${fgCode} -> ${productName}: ${item.quantity} units`,
       );
     });
 
-    // Special summary for Naivas (N-codes)
     if (customerType === "NAIVAS") {
       const nCodeItems = uniqueItems.filter((item) =>
         item.ocrItemCode.startsWith("N"),
       );
       if (nCodeItems.length > 0) {
-        console.log("🎯 N-code items successfully extracted:");
+        console.log("N-code items successfully extracted:");
         nCodeItems.forEach((item) => {
           console.log(
-            `   • ${item.ocrItemCode}: ${item.quantity} units (${item.productName})`,
+            `${item.ocrItemCode}: ${item.quantity} units (${item.productName})`,
           );
         });
       }
     }
   } else {
-    console.log("❌ No items found in text");
+    console.log("No items found in text");
     console.log("Debug sample:", cleanedText.substring(0, 500));
   }
 
   return uniqueItems;
 };
-
-// ============================================
-// TESSERACT OCR
-// ============================================
 
 const extractTextFromImage = async (imageFile) => {
   try {
@@ -2303,14 +3464,9 @@ const extractTextFromImage = async (imageFile) => {
   }
 };
 
-// ============================================
-// PROCESS DROPPED FILE
-// ============================================
-
 const processDroppedFile = async (file) => {
   console.log("Processing dropped file:", file.name, file.type);
 
-  // For PDF files: Use PDF.js
   if (
     file.type === "application/pdf" ||
     file.name.toLowerCase().endsWith(".pdf")
@@ -2352,12 +3508,10 @@ const processDroppedFile = async (file) => {
     }
   }
 
-  // For text files, just read them
   if (file.type === "text/plain") {
     return await file.text();
   }
 
-  // For images: Try OCR.Space first, then Tesseract fallback
   if (file.type.startsWith("image/")) {
     try {
       console.log("Attempting OCR.Space...");
@@ -2387,7 +3541,6 @@ const processDroppedFile = async (file) => {
     }
   }
 
-  // For other files, try to read as text
   try {
     return await file.text();
   } catch (error) {
@@ -2397,44 +3550,33 @@ const processDroppedFile = async (file) => {
   }
 };
 
-// ============================================
-// ENHANCED: PARSE PO TEXT (MAIN PARSING FUNCTION) WITH CUSTOMER TYPE DETECTION
-// ============================================
-
 const parsePOText = async (
   text,
   customerCode = null,
   customerType = "NAIVAS",
 ) => {
-  console.log(`=== STARTING ENHANCED PO PARSING ===`);
+  console.log("Starting PO parsing");
   console.log("Input text sample:", text.substring(0, 300));
   console.log("Initial customer type:", customerType);
   console.log("Customer code:", customerCode);
 
-  // DETECT CUSTOMER TYPE BASED ON CUSTOMER CODE AND TEXT
-  // This is the key logic: check customer code against our lists
   const detectedCustomerType = detectCustomerTypeByCode(customerCode, text);
 
-  // Override with detected type if different
   if (detectedCustomerType !== customerType) {
     console.log(
-      `⚠️ Switching customer type from ${customerType} to ${detectedCustomerType} based on detection`,
+      `Switching customer type from ${customerType} to ${detectedCustomerType} based on detection`,
     );
     customerType = detectedCustomerType;
   }
 
   console.log(`Final customer type: ${customerType}`);
 
-  // Extract LPO number based on customer type
   const lpoNumber = extractLPONumber(text, customerType);
 
-  // Find items and quantities based on customer type
   const foundItems = findItemsAndQuantities(text, customerType);
 
-  // Get products for matching based on customer type
   const products = await getProductsByCustomer(customerType);
 
-  // Map found items to actual products
   const items = [];
   const parsingWarnings = [];
   const parsingErrors = [];
@@ -2468,19 +3610,18 @@ const parsePOText = async (
       });
 
       console.log(
-        `✅ Matched: ${foundItem.ocrItemCode} → ${foundItem.actualItemCode} → ${foundItem.productName || "Unknown"}: ${foundItem.quantity} x ${product.itemPrice} = ${itemValue}`,
+        `Matched: ${foundItem.ocrItemCode} -> ${foundItem.actualItemCode} -> ${foundItem.productName || "Unknown"}: ${foundItem.quantity} x ${product.itemPrice} = ${itemValue}`,
       );
     } else {
       console.log(
-        `❌ No product found for code: ${foundItem.actualItemCode} (from OCR: ${foundItem.ocrItemCode})`,
+        `No product found for code: ${foundItem.actualItemCode} (from OCR: ${foundItem.ocrItemCode})`,
       );
       parsingErrors.push(
-        `Item code ${foundItem.ocrItemCode} → ${foundItem.actualItemCode} not found in system`,
+        `Item code ${foundItem.ocrItemCode} -> ${foundItem.actualItemCode} not found in system`,
       );
     }
   }
 
-  // Summary
   const summary = {
     totalItems: items.length,
     totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
@@ -2491,13 +3632,12 @@ const parsePOText = async (
     customerType: customerType,
   };
 
-  console.log("=== PARSING SUMMARY ===");
+  console.log("Parsing summary");
   console.log(`Customer Type: ${customerType}`);
   console.log(`LPO: ${lpoNumber}`);
   console.log(`Customer: ${customerCode || "Not specified"}`);
   console.log(`Items: ${summary.totalItems} matched`);
 
-  // Only show failed items if there are any
   if (summary.failedItems > 0) {
     console.log(`Failed items: ${summary.failedItems}`);
   }
@@ -2509,7 +3649,7 @@ const parsePOText = async (
     console.log("Items found:");
     items.forEach((item, index) => {
       console.log(
-        `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} → ${item.fgCode}: ${item.quantity} units`,
+        `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units`,
       );
     });
   }
@@ -2519,17 +3659,13 @@ const parsePOText = async (
     items,
     lpoNumber: lpoNumber,
     customerType: customerType,
-    detectedFormat: "ENHANCED_PARSING",
+    detectedFormat: "STANDARD_PARSING",
     parsingWarnings: [...parsingWarnings, ...parsingErrors],
     parsingErrors: parsingErrors,
     originalText: text.substring(0, 500),
     summary: summary,
   };
 };
-
-// ============================================
-// PARSE PO FROM DROPPED FILE
-// ============================================
 
 const parsePOFromDroppedFile = async (
   file,
@@ -2559,10 +3695,6 @@ const parsePOFromDroppedFile = async (
   }
 };
 
-// ============================================
-// CREATE ORDER FROM PO DATA
-// ============================================
-
 const createOrderFromPO = async (
   poData,
   warehouse = DEFAULT_SETTINGS.WAREHOUSE,
@@ -2586,11 +3718,9 @@ const createOrderFromPO = async (
     0,
   );
 
-  // FIXED DATE ISSUE: Get tomorrow's date correctly in GMT+3 timezone
   const now = new Date();
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-  // Get date in YYYY-MM-DD format for tomorrow
   const year = tomorrow.getFullYear();
   const month = String(tomorrow.getMonth() + 1).padStart(2, "0");
   const day = String(tomorrow.getDate()).padStart(2, "0");
@@ -2600,24 +3730,43 @@ const createOrderFromPO = async (
   console.log("Today's date:", now.toISOString().split("T")[0]);
   console.log("Tomorrow's due date:", dueDate);
 
-  // Get LPO number (use extracted or null)
   const lpoNumber =
     poData.lpoNumber && poData.lpoNumber !== "UNKNOWN_LPO"
       ? poData.lpoNumber
       : null;
 
-  // Use customer-specific selling price list
   let sellingPriceList;
   switch (poData.customerType) {
+    case "NAIVAS":
+      sellingPriceList = CUSTOMER_PRICE_LISTS.NAIVAS || "Naivas Special Price";
+      break;
     case "CLEANSHELF":
-      sellingPriceList = "Supermarkets Price";
+      sellingPriceList =
+        CUSTOMER_PRICE_LISTS.CLEANSHELF || "Supermarkets Price";
       break;
     case "JAZARIBU":
-      sellingPriceList = "Supermarkets Price";
+      sellingPriceList = CUSTOMER_PRICE_LISTS.JAZARIBU || "Depot Price";
+      break;
+    case "KHETIA":
+      sellingPriceList = CUSTOMER_PRICE_LISTS.KHETIA || "Depot Price";
+      break;
+    case "MAJID":
+      sellingPriceList = CUSTOMER_PRICE_LISTS.MAJID || "Supermarkets Price";
+      break;
+    case "CHANDARANA":
+      sellingPriceList =
+        CUSTOMER_PRICE_LISTS.CHANDARANA || "Supermarkets Price";
+      break;
+    case "QUICKMART":
+      sellingPriceList = CUSTOMER_PRICE_LISTS.QUICKMART || "Supermarkets Price";
       break;
     default:
       sellingPriceList = DEFAULT_SETTINGS.SELLING_PRICE_LIST;
   }
+
+  console.log(
+    `Using price list for ${poData.customerType}: ${sellingPriceList}`,
+  );
 
   const orderPayload = {
     customer: poData.customer,
@@ -2644,6 +3793,7 @@ const createOrderFromPO = async (
       totalQuantity: totalQuantity,
       matchedItems: matchedItems.length,
       customerType: poData.customerType,
+      priceListUsed: sellingPriceList,
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
@@ -2655,13 +3805,10 @@ const createOrderFromPO = async (
       success: false,
       error: error.response?.data?.message || error.message,
       details: error.response?.data,
+      priceListAttempted: sellingPriceList,
     };
   }
 };
-
-// ============================================
-// DRAG AND DROP SETUP
-// ============================================
 
 const setupDragAndDrop = (element, callback) => {
   if (!element) return;
@@ -2698,12 +3845,177 @@ const setupDragAndDrop = (element, callback) => {
   }
 };
 
-// ============================================
-// TEST FUNCTIONS FOR ALL CUSTOMER TYPES
-// ============================================
+const testWithKhetiaFormat = async () => {
+  const testText = `KHETIA DRAPERS LTD.
+2520970 
+0 Days
+19/01/2026 16:36:45 M/609 - MINI BAKERIES NBI LTD
+P.O.BOX 17592-00500, Supaloaf Complex,
+Kangundo Road.
+020-783374 / 054-31271
+operations@minibake.com
+Bernice-0740198754
+KES - Kenyan
+Shillings
+KHETIA'S KAHAWA SUPERMARKET
+0731-999903 / by WEKALAMOYO on 19/01/2026
+17:14:10
+790601 BREAD BARREL WHITE BUTTERTOAST 600G 4.00 PCS 1 PCS
+416868 BREAD BUTTER TOAST WHITE 400G 4.00 PCS 1 PCS
+412818 BREAD BUTTER TOAST WHITE 600G 4.00 PCS 1 PCS
+416872 BREAD BUTTER TOAST WHITE 800G 3.00 PCS 1 PCS
+414800 BREAD SUPA JUBILEE BARREL WHITE 600G 4.00 PCS 1 PCS
+414810 BREAD SUPA JUBILEE BARREL WHITE 800G 4.00 PCS 1 PCS
+415591 BREAD SUPA LOAF 400G WHITE 4.00 PCS 1 PCS
+415592 BREAD SUPA LOAF 600G WHITE 4.00 PCS 1 PCS * 8 PAIR
+410955 BREAD SUPA LOAF 800G WHITE 4.00 PCS 1 PCS * 8 UNIT
+419349 BREAD SUPA LOAF BARREL WHITE 400G 4.00 PCS`;
+
+  console.log("Testing Khetia parser");
+  const result = await parsePOText(testText, "C04051", "KHETIA");
+
+  console.log(`Khetia results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
+    );
+  });
+
+  return result;
+};
+
+const testWithQuickmartFormat = async () => {
+  const testText = `QUICK MART WESTLANDS
+052-00059738 
+M/028 - MINI BAKERIES NAIROBI LIMITED
+ / 
+ / 
+23/01/2026  15:47:05
+0 Days
+KES - Kenya Shilings
+by  on 
+700183 6161102320459 FD- SUPA BUTTER TOAST 1500G 3.00 217.90 PCS 1 PCS 653.70
+700001 6161102320183 FD- SUPA LOAF PREMIUM WHITE CT 800G 10.00 117.00 PCS 1 PCS 1,170.00
+700009 6161102320169 FD- SUPALOAF WHITE CT 600G 10.00 88.70 PCS 1 PCS 887.00
+700330 6161102320305 FD-SUPA BARREL 800G WHITE 6.00 117.00 PCS 1 PCS 702.00
+700178 6161102320442 FD-SUPA BUTTER TOAST 600G 10.00 88.70 PCS 1 PCS 887.00
+700140 6161102320435 FD-SUPA BUTTER TOAST BREAD 800G 7.00 117.00 PCS 1 PCS 819.00
+700103 6161102320268 FD-SUPALOAF BROWN BARREL 600GMS 3.00 88.70 PCS 1 PCS 266.10
+700110 6161102320138 FD-SUPALOAF BUTTER TOAST 400GMS 10.00 57.90 PCS 1 PCS 579.00
+700106 6161102320060 FD-SUPALOAF WHITE BARREL 400G 6.00 57.90 PCS 1 PCS 347.40
+700104 6161102320299 FD-SUPALOAF WHITE BARREL 600GMS 4.00 88.70 PCS 1 PCS 354.80
+700113 6161102320046 FD-SUPALOAF WHITE BREAD 1.5KG 3.00 217.90 PCS 1 PCS 653.70
+700076 6161102320404 FD-SUPALOAF WHITE BREAD CT 400G 15.00 57.90 PCS 1 PCS 868.50
+Approx. Gross Weight 0.00 Total 87.00 Unit`;
+
+  console.log("Testing Quickmart parser");
+  const result = await parsePOText(testText, "C03970", "QUICKMART");
+
+  console.log(`Quickmart results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
+    );
+  });
+
+  return result;
+};
+
+const testWithMajidFormat = async () => {
+  const testText = `ORDER : 26451278
+MAJID SUPERMARKET
+ITEM LIST:
+6161102320404 - SUPALOAF WHITE BREAD CT 400G
+QTY UC: 15
+6161102320305 - SUPA BARREL 800G WHITE
+QTY UC: 6
+6164000136610 - SUPALOAF FAMILY 600G
+QTY UC: 10
+6161102320183 - SUPA LOAF PREMIUM WHITE CT 800G
+QTY UC: 10
+6161102320534 - SUPA LOAF WHITE BREAD 1.5KG
+QTY UC: 3
+6161102320138 - SUPALOAF BUTTER TOAST 400G
+QTY UC: 10`;
+
+  console.log("Testing Majid parser");
+  const result = await parsePOText(testText, "C01996", "MAJID");
+
+  console.log(`Majid results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units`,
+    );
+  });
+
+  return result;
+};
+
+const testWithChandaranaFormat = async () => {
+  const testText = `ORDER : 2012345678912
+CHANDARANA SUPERMARKET
+ITEM LIST:
+6161102320459 - SUPA BUTTER TOAST 1500G
+QUANTITY: 3
+6161102320046 - SUPA LOAF WHITE BREAD 1.5KG
+QUANTITY: 3
+6161102320138 - SUPALOAF BUTTER TOAST 400G
+QUANTITY: 10
+6161102320404 - SUPALOAF WHITE BREAD CT 400G
+QUANTITY: 15
+6161102320299 - SUPA WHITE BARREL 600G
+QUANTITY: 4
+6161102320442 - SUPA BUTTER TOAST 600G
+QUANTITY: 10
+6161102320183 - SUPA LOAF PREMIUM WHITE CT 800G
+QUANTITY: 10
+6161102320435 - SUPA BUTTER TOAST BREAD 800G
+QUANTITY: 7
+6161102320169 - SUPALOAF WHITE CT 600G
+QUANTITY: 10
+6161102321074 - SPECIAL BREAD
+QUANTITY: 5
+6161102320268 - SUPALOAF BROWN BARREL 600G
+QUANTITY: 3
+6161102320060 - SUPA WHITE BARREL 400G
+QUANTITY: 6
+6161102320305 - SUPA BARREL 800G WHITE
+QUANTITY: 6`;
+
+  console.log("Testing Chandarana parser");
+  const result = await parsePOText(testText, "C00370", "CHANDARANA");
+
+  console.log(`Chandarana results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units`,
+    );
+  });
+
+  return result;
+};
 
 const testWithNCodes = async () => {
-  // Test text with N-codes in various formats
   const testText = `P038303873 :  
 M/539 - MINI  
 BAKERIES (NBI)  
@@ -2719,17 +4031,16 @@ BAKERIES (NBI)
 | 7    | N051055  | 5.00    |
 | 8    | N051056  | 8.00    `;
 
-  console.log("=== TESTING N-CODES PARSER ===");
+  console.log("Testing N-codes parser");
   const result = await parsePOText(testText, "M/539", "NAIVAS");
 
-  // Show N-code specific results
   const nCodeItems = result.items.filter((item) =>
     item.ocrDetails?.ocrItemCode?.startsWith("N"),
   );
-  console.log(`\n🎯 N-code items found: ${nCodeItems.length}`);
+  console.log(`N-code items found: ${nCodeItems.length}`);
   nCodeItems.forEach((item) => {
     console.log(
-      `   • ${item.ocrDetails.ocrItemCode}: ${item.quantity} units (${item.description})`,
+      `${item.ocrDetails.ocrItemCode}: ${item.quantity} units (${item.description})`,
     );
   });
 
@@ -2737,7 +4048,6 @@ BAKERIES (NBI)
 };
 
 const testWithCopyPasteFormat = async () => {
-  // Test text with the new copy-paste format
   const testText = `13504180 6161102320305 SUPA LOAF WHITE BARREL 800G PCS 20.00 117.00 2,340.00
 13506130 6161102320435 SUPA WHITE TOAST 800G PCS 10.00 117.00 1,170.00
 13504428 6161102320183 SUPA LOAF WHITE BREAD 800G PCS 15.00 117.00 1,755.00
@@ -2767,19 +4077,18 @@ Order
 *P038302575*
 P`;
 
-  console.log("=== TESTING COPY-PASTE FORMAT PARSER ===");
+  console.log("Testing copy-paste format parser");
   const result = await parsePOText(testText, "MINI BAKERIES", "NAIVAS");
 
-  console.log(`\n📋 Copy-paste format results:`);
+  console.log(`Copy-paste format results:`);
   console.log(`LPO Number: ${result.lpoNumber}`);
   console.log(`Total Items: ${result.summary.totalItems}`);
   console.log(`Total Quantity: ${result.summary.totalQuantity}`);
   console.log(`Total Value: ${result.summary.totalAmount}`);
 
-  // Show all items
   result.items.forEach((item, index) => {
     console.log(
-      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} → ${item.fgCode}: ${item.quantity} units (${item.description})`,
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
     );
   });
 
@@ -2787,7 +4096,6 @@ P`;
 };
 
 const testWithCleanshelfFormat = async () => {
-  // Test text with Cleanshelf Format 1
   const testText = `LOCAL PURCHASE ORDER
 M044
 1
@@ -2799,43 +4107,41 @@ Phone:
 Location:
 PoBox: VALID UPTO:
 L. P. O. Date:
-94843 L. P. O. No:
-23-Jan-2026
+91213 L. P. O. No:
+10-Jan-2026
 VAT NO:
 PIN NO: 
 CLEAN SHELF SUPERMARKETS LIMITED
-WENDANI
+LIMURU
 CLS 
-01/30/2026  05:54:19PM
+17/01/2026  11:56:26
 CODE DESCRIPTION Pieces Unit price Amount Pack
 P051147119S
 0125810H
-P.O BOX 1208-00217, LIMURU
- 351.00 117.000 400348 SUPALOAF WHITE 800GM 1 3
- 2,128.80 88.700 400347 SUPALOAF WHITE 600GM 2 24
+P.O. BOX 1208-00217,LIMURU
+ 936.00 117.000 400348 SUPALOAF WHITE 800GM 1 8
+ 532.20 88.700 400347 SUPALOAF WHITE 600GM 1 6
  435.80 217.900 400346 SUPALOAF SANDWICH 1.5KG 1 2
- 2,128.80 88.700 400343 SUPALOAF BUTTER TOAST 600GM 2 24
- 234.00 117.000 400339 SUPALOAF BARREL WHITE 800GM 0 2
- 1,774.00 88.700 400338 SUPALOAF BARREL WHITE 600GM 2 20
- 868.50 57.900 400337 SUPALOAF BARREL WHITE 400GM 1 15
- 354.80 88.700 400336 SUPALOAF BARREL BROWN 600GM 0 4
- 868.50 57.900 400334 SUPALOAF  WHITE 400GM 1 15
- 532.20 88.700 400330 SUPA BUTTER TOAST BARREL 600GM 6 6
- 579.00 57.900 400329 SUPA BUTTER TOAST WHITE 400GM 10 10`;
+ 936.00 117.000 400344 SUPALOAF BUTTER TOAST 800GM 1 8
+ 709.60 88.700 400343 SUPALOAF BUTTER TOAST 600GM 1 8
+ 1,170.00 117.000 400339 SUPALOAF BARREL WHITE 800GM 2 10
+ 709.60 88.700 400338 SUPALOAF BARREL WHITE 600GM 1 8
+ 463.20 57.900 400337 SUPALOAF BARREL WHITE 400GM 1 8
+ 347.40 57.900 400334 SUPALOAF  WHITE 400GM 0 6
+ 463.20 57.900 400329 SUPA BUTTER TOAST WHITE 400GM`;
 
-  console.log("=== TESTING CLEANSHELF PARSER ===");
-  const result = await parsePOText(testText, "C00494", "NAIVAS");
+  console.log("Testing Cleanshelf parser");
+  const result = await parsePOText(testText, "C00494", "CLEANSHELF");
 
-  console.log(`\n📋 Cleanshelf results:`);
+  console.log(`Cleanshelf results:`);
   console.log(`LPO Number: ${result.lpoNumber}`);
   console.log(`Total Items: ${result.summary.totalItems}`);
   console.log(`Total Quantity: ${result.summary.totalQuantity}`);
   console.log(`Customer Type: ${result.customerType}`);
 
-  // Show all items
   result.items.forEach((item, index) => {
     console.log(
-      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} → ${item.fgCode}: ${item.quantity} units`,
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units`,
     );
   });
 
@@ -2843,7 +4149,6 @@ P.O BOX 1208-00217, LIMURU
 };
 
 const testWithJazaribuFormat = async () => {
-  // Test text with Jazaribu format
   const testText = `6161102320404 JT01093 Supa Loaf White Bread 400Gm Ct 8 PIECES 55.00 440.00
 6161102320138 JT01098 Supa Butter Toast Loaf 400Gm 6 PIECES 55.00 330.00
 6161102320169 JT01090 Supa Loaf Family 600Gms 8 PIECES 82.00 656.00
@@ -2881,33 +4186,97 @@ Mesora
 JAZARIBU RETAIL
 P`;
 
-  console.log("=== TESTING JAZARIBU PARSER ===");
-  const result = await parsePOText(testText, "C07455", "NAIVAS");
+  console.log("Testing Jazaribu parser");
+  const result = await parsePOText(testText, "C07455", "JAZARIBU");
 
-  console.log(`\n📋 Jazaribu results:`);
+  console.log(`Jazaribu results:`);
   console.log(`LPO Number: ${result.lpoNumber}`);
   console.log(`Total Items: ${result.summary.totalItems}`);
   console.log(`Total Quantity: ${result.summary.totalQuantity}`);
   console.log(`Customer Type: ${result.customerType}`);
 
-  // Show all items
   result.items.forEach((item, index) => {
     console.log(
-      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} → ${item.fgCode}: ${item.quantity} units (${item.description})`,
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
     );
   });
 
   return result;
 };
 
-// ============================================
-// DEBUG FUNCTION FOR N-CODES
-// ============================================
+const testWithCleanshelfCopyPasteFormat = async () => {
+  const testText = `CLEAN SHELF SUPERMARKETS LIMITED
+P.O. BOX 1208-00217,LIMURU
+FRESHMARKET
+Pending Purchase Orders
+Code
+Description
+Orderd Qty. Received Qty. Outstanding Qty.
+M044 - MINI BAKERIES (NAIROBI
+111,638
+LPO No.
+400329
+400334
+400337
+400338
+400339
+400343
+400347
+400348
+SUPA BUTTER TOAST WHITE 400GM
+SUPALOAF  WHITE 400GM
+SUPALOAF BARREL WHITE 400GM
+SUPALOAF BARREL WHITE 600GM
+SUPALOAF BARREL WHITE 800GM
+SUPALOAF BUTTER TOAST 600GM
+SUPALOAF WHITE 600GM
+SUPALOAF WHITE 800GM
+ 8.00
+ 15.00
+ 6.00
+ 5.00
+ 6.00
+ 12.00
+ 12.00
+ 15.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 8.00
+ 15.00
+ 6.00
+ 5.00
+ 6.00
+ 12.00
+ 12.00
+ 15.00`;
+
+  console.log("Testing Cleanshelf copy-paste format parser");
+  const result = await parsePOText(testText, "C00494", "CLEANSHELF");
+
+  console.log(`Cleanshelf Copy-Paste Format results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
+    );
+  });
+
+  return result;
+};
 
 const debugNCodeParsing = (text) => {
-  console.log("=== N-CODE DEBUGGING ===");
+  console.log("N-code debugging");
 
-  // Show mappings
   console.log("Mappings check:");
   console.log(
     "N051055 in ITEM_CODE_MAPPING:",
@@ -2922,11 +4291,9 @@ const debugNCodeParsing = (text) => {
     ITEM_CODE_MAPPING["N051056"],
   );
 
-  // Clean text
   const cleaned = cleanOCRText(text);
   console.log("\nCleaned text (first 300 chars):", cleaned.substring(0, 300));
 
-  // Search for N-code patterns
   const patterns = [
     "N051055",
     "NO51055",
@@ -2942,7 +4309,7 @@ const debugNCodeParsing = (text) => {
     const regex = new RegExp(pattern, "gi");
     const matches = cleaned.match(regex);
     if (matches) {
-      console.log(`✓ Pattern "${pattern}" found ${matches.length} times`);
+      console.log(`Pattern "${pattern}" found ${matches.length} times`);
     }
   });
 
@@ -2955,75 +4322,70 @@ const debugNCodeParsing = (text) => {
   };
 };
 
-// ============================================
-// EXPORT
-// ============================================
-
 export default {
-  // Product fetching
   getNaivasProducts,
   getProductsByCustomer,
-
-  // Parsing functions
   parsePOText,
   parsePOFromDroppedFile,
   parsePOFromImage: parsePOFromDroppedFile,
   parseManualTextInput: async (text, customerCode, customerType = "NAIVAS") =>
     parsePOText(text, customerCode, customerType),
-
-  // Order creation
   createOrderFromPO,
-
-  // File handling
   setupDragAndDrop,
   processDroppedFile,
-
-  // OCR functions
   extractTextFromImage,
   extractTextFromPDF,
   extractTextWithOCRSpace,
-
-  // Extraction functions
   extractLPONumber,
   findItemsAndQuantities,
   detectTextFormat,
   detectCustomerTypeByCode,
   cleanOCRText,
-
-  // Parsers
   parseUniversalFormat,
   parseCopyPasteTextFormat,
   parseDetailedPOFormat,
   parseCleanshelfLocalPO,
   parseCleanshelfPendingOrders,
+  parseCleanshelfCopyPasteText,
   parseJazaribuFormat,
-
-  // N-code functions
+  parseKhetiaFormat,
+  parseQuickmartFormat,
+  parseMajidFormat,
+  parseChandaranaFormat,
   ultimateNCodeDetection,
   hasClearEvidenceOfNCodes,
-
-  // Test functions
   testWithNCodes,
   testWithCopyPasteFormat,
   testWithCleanshelfFormat,
   testWithJazaribuFormat,
+  testWithCleanshelfCopyPasteFormat,
+  testWithKhetiaFormat,
+  testWithQuickmartFormat,
+  testWithMajidFormat,
+  testWithChandaranaFormat,
   debugNCodeParsing,
-
-  // Mappings and config
   ITEM_CODE_MAPPING,
   ITEM_NAMES_MAPPING,
   CLEANSHELF_ITEM_CODE_MAPPING,
   JAZARIBU_ITEM_CODE_MAPPING,
   CLEANSHELF_CUSTOMER_CODES,
   JAZARIBU_CUSTOMER_CODES,
+  KHETIA_ITEM_CODE_MAPPING,
+  MAJID_BARCODE_MAPPING,
+  CHANDARANA_BARCODE_MAPPING,
+  QUICKMART_BARCODE_MAPPING,
+  KHETIA_CUSTOMER_CODES,
+  MAJID_CUSTOMER_CODES,
+  CHANDARANA_CUSTOMER_CODES,
+  QUICKMART_CUSTOMER_CODES,
   CUSTOMER_CONFIG,
+  CUSTOMER_PRICE_LISTS,
   getFGCode,
   getProductName,
-
-  // Config getters
   getConfig: () => ({
     DEFAULT_SETTINGS,
     PERFORMANCE_SETTINGS,
     VALIDATION_SETTINGS,
+    CUSTOMER_PRICE_LISTS,
   }),
 };

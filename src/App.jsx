@@ -306,10 +306,8 @@ const DocumentReaderModal = memo(
           style={{ maxWidth: "800px", maxHeight: "90vh" }}
         >
           <div className="modal-header">
-            <h3>
-              {selectedCustomer.name}
-              {isNaivasCustomer && <span className="naivas-badge">NAIVAS</span>}
-            </h3>
+            {/* CHANGE #6: Removed NAIVAS tag from document reader modal header */}
+            <h3>{selectedCustomer.name}</h3>
             <button
               onClick={() => {
                 setShowDocumentReader(false);
@@ -397,7 +395,7 @@ const DocumentReaderModal = memo(
                   }}
                 >
                   <label style={{ fontWeight: "bold", fontSize: "16px" }}>
-                    Paste Naivas PO Text:
+                    Paste PO Text:
                   </label>
                   <button
                     onClick={handlePasteFromClipboard}
@@ -425,12 +423,7 @@ const DocumentReaderModal = memo(
                       setPoText(e.target.value);
                       setValidationErrors([]);
                     }}
-                    placeholder={`Paste Naivas PO text here...
-
-The system will automatically detect:
-• LPO Numbers (P0XXXXXXXX format)
-• Item Codes (13505757, 13505844, etc.)
-• Quantities`}
+                    placeholder=""
                     disabled={isProcessing || parsedOrderData}
                     style={{
                       width: "100%",
@@ -500,7 +493,7 @@ The system will automatically detect:
                   }}
                 >
                   <label style={{ fontWeight: "bold", fontSize: "16px" }}>
-                    Upload Naivas PO Document:
+                    Upload PO Document:
                   </label>
                   <div>
                     <button
@@ -703,43 +696,7 @@ The system will automatically detect:
               </div>
             )}
 
-            {/* Item Codes Reference */}
-            <div
-              style={{
-                background: "#e8f5e9",
-                padding: "15px",
-                borderRadius: "8px",
-                marginTop: "20px",
-                border: "1px solid #c8e6c9",
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: "bold",
-                  marginBottom: "10px",
-                  color: "#2E7D32",
-                }}
-              >
-                Naivas Bread Item Codes Reference
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "8px",
-                  fontSize: "13px",
-                }}
-              >
-                {Object.entries(CONFIG.ITEM_CODE_MAPPING).map(
-                  ([code, productCode]) => (
-                    <div key={code}>
-                      {code} → {CONFIG.ITEM_NAMES_MAPPING[code] || productCode}{" "}
-                      ({productCode})
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
+            {/* CHANGE #7: REMOVED ENTIRE "Naivas Bread Item Codes Reference" section */}
 
             {/* Processing Status */}
             {isProcessing && (
@@ -799,24 +756,7 @@ The system will automatically detect:
                     marginBottom: "15px",
                   }}
                 >
-                  <div>
-                    <h4
-                      style={{ margin: 0, color: "#2E7D32", fontSize: "18px" }}
-                    >
-                      PO Parsed Successfully
-                    </h4>
-                    <p
-                      style={{
-                        margin: "5px 0 0 0",
-                        color: "#555",
-                        fontSize: "14px",
-                      }}
-                    >
-                      Found {parsedOrderData.items?.length || 0} items
-                      {parsedOrderData.lpoNumber &&
-                        ` • LPO: ${parsedOrderData.lpoNumber}`}
-                    </p>
-                  </div>
+                  <div>{/* Removed the "PO Parsed Successfully" header */}</div>
                   <button
                     onClick={() => {
                       setParsedOrderData(null);
@@ -1173,7 +1113,8 @@ const CustomerModal = memo(
           style={{ maxWidth: "1000px", maxHeight: "80vh" }}
         >
           <div className="modal-header">
-            <h3>Select Customer for Order Creation</h3>
+            {/* CHANGE #3: Changed "Select Customer for Order Creation" to "Select Customer" */}
+            <h3>Select Customer</h3>
             <button
               onClick={() => setShowCustomerModal(false)}
               className="modal-close-btn"
@@ -1239,20 +1180,14 @@ const CustomerModal = memo(
             ) : filteredCustomers.length > 0 ? (
               <div className="customers-list">
                 {filteredCustomers.map((customer) => {
-                  const isNaivas =
-                    customer.name?.toLowerCase().includes("naivas") ||
-                    customer.customerType
-                      ?.toLowerCase()
-                      .includes("supermarket");
+                  // CHANGE #5: Removed isNaivas check and NAIVAS badge entirely
                   return (
                     <div
                       key={`${customer.id}-${customer.branch}-${customer.code}`}
                       className={`customer-card ${selectedCustomer?.id === customer.id ? "selected" : ""}`}
                       onClick={() => handleSelectCustomer(customer)}
                       style={{
-                        borderLeft: isNaivas
-                          ? "4px solid #4CAF50"
-                          : "4px solid #2196F3",
+                        borderLeft: "4px solid #2196F3",
                         cursor: "pointer",
                         transition: "transform 0.2s, box-shadow 0.2s",
                       }}
@@ -1267,24 +1202,7 @@ const CustomerModal = memo(
                       }}
                     >
                       <div className="customer-card-header">
-                        <div className="customer-name">
-                          {customer.name}
-                          {isNaivas && (
-                            <span
-                              style={{
-                                marginLeft: "10px",
-                                background: "#4CAF50",
-                                color: "white",
-                                padding: "2px 8px",
-                                borderRadius: "10px",
-                                fontSize: "12px",
-                                fontWeight: "600",
-                              }}
-                            >
-                              NAIVAS
-                            </span>
-                          )}
-                        </div>
+                        <div className="customer-name">{customer.name}</div>
                         <div
                           className="customer-code"
                           style={{ fontWeight: "500", color: "#666" }}
@@ -1312,26 +1230,7 @@ const CustomerModal = memo(
                           </span>
                         </div>
                       </div>
-                      <div
-                        className="customer-action-hint"
-                        style={{
-                          marginTop: "10px",
-                          padding: "8px",
-                          background: isNaivas ? "#e8f5e9" : "#f0f0f0",
-                          borderRadius: "4px",
-                          fontSize: "13px",
-                          color: isNaivas ? "#2E7D32" : "#666",
-                          textAlign: "center",
-                          fontWeight: "500",
-                          border: isNaivas
-                            ? "1px solid #4CAF50"
-                            : "1px solid #ddd",
-                        }}
-                      >
-                        {isNaivas
-                          ? "Click to upload Naivas PO"
-                          : "Click to upload PO"}
-                      </div>
+                      {/* CHANGE #4: Removed "Click to upload PO" hint entirely */}
                     </div>
                   );
                 })}
@@ -2491,7 +2390,8 @@ function App() {
                               className="calendar-input"
                               disabled={isLoading}
                             />
-                            <span className="calendar-icon">Calendar</span>
+                            {/* CHANGE #2: Changed "Calendar" text to calendar emoji */}
+                            <span className="calendar-icon">📅</span>
                           </div>
 
                           {showCalendar && (
@@ -2858,13 +2758,10 @@ function App() {
             </div>
           </main>
 
+          {/* CHANGE #1: Removed version info from footer, kept only API */}
           <footer className="app-footer">
             <div className="footer-content">
-              <span>
-                {CONFIG.APP_NAME} v{import.meta.env.VITE_APP_VERSION || "1.0.0"}
-              </span>
               <span>API: mbnl.ddsolutions.tech</span>
-              <span>{new Date().getFullYear()} © CT226 Slices of Math</span>
             </div>
           </footer>
 
