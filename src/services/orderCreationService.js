@@ -682,6 +682,7 @@ const extractTextFromPDF = async (pdfFile) => {
 const extractTextWithOCRSpace = async (imageFile) => {
   try {
     console.log("Using OCR.Space API with private key...");
+<<<<<<< Updated upstream
 
     // Use file upload instead of base64 for better performance
     const formData = new FormData();
@@ -689,6 +690,15 @@ const extractTextWithOCRSpace = async (imageFile) => {
     
     const ocrConfig = getOCRSpaceConfig();
     
+=======
+
+    // Use file upload instead of base64 for better performance
+    const formData = new FormData();
+    formData.append("file", imageFile);
+
+    const ocrConfig = getOCRSpaceConfig();
+
+>>>>>>> Stashed changes
     formData.append("language", ocrConfig.language);
     formData.append("isTable", ocrConfig.isTable ? "true" : "false");
     formData.append("OCREngine", ocrConfig.OCREngine);
@@ -696,6 +706,15 @@ const extractTextWithOCRSpace = async (imageFile) => {
     formData.append("isOverlayRequired", "false");
     formData.append("detectOrientation", "false");
     formData.append("isCreateSearchablePdf", "false");
+<<<<<<< Updated upstream
+=======
+
+    // Set timeout for faster failover
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds
+
+    console.time("OCR_Space_API_Call");
+>>>>>>> Stashed changes
 
     // Set timeout for faster failover
     const controller = new AbortController();
@@ -742,11 +761,19 @@ const extractTextWithOCRSpace = async (imageFile) => {
     return fullText;
   } catch (error) {
     console.error("OCR.Space failed:", error.message);
+<<<<<<< Updated upstream
     
     if (error.name === 'AbortError') {
       throw new Error("OCR.Space timeout - took too long to respond");
     }
     
+=======
+
+    if (error.name === "AbortError") {
+      throw new Error("OCR.Space timeout - took too long to respond");
+    }
+
+>>>>>>> Stashed changes
     throw error;
   }
 };
@@ -1290,6 +1317,7 @@ const parseKhetiaFormat = (text) => {
     console.log(`Line parts (${parts.length}):`, parts);
 
     let quantity = null;
+<<<<<<< Updated upstream
     
     // FIX: Get the actual order quantity (e.g., 12.00) not the pack size (1)
     // Look for the decimal number before the last "PCS"
@@ -1301,6 +1329,21 @@ const parseKhetiaFormat = (text) => {
       }
     }
     
+=======
+
+    // FIX: Get the actual order quantity (e.g., 12.00) not the pack size (1)
+    // Look for the decimal number before the last "PCS"
+    for (let j = parts.length - 2; j >= 0; j--) {
+      if (parts[j] === "PCS" && j > 0 && /^\d+\.\d{2}$/.test(parts[j - 1])) {
+        quantity = parseFloat(parts[j - 1]);
+        console.log(
+          `Found quantity for ${itemCode}: ${quantity} (actual order quantity)`,
+        );
+        break;
+      }
+    }
+
+>>>>>>> Stashed changes
     // Fallback: Look for any decimal number that could be quantity
     if (quantity === null) {
       for (let j = parts.length - 1; j >= 0; j--) {
@@ -1309,7 +1352,13 @@ const parseKhetiaFormat = (text) => {
           // Check if it's a reasonable quantity (not a price)
           if (potentialQty >= 1 && potentialQty <= 1000) {
             quantity = potentialQty;
+<<<<<<< Updated upstream
             console.log(`Found quantity for ${itemCode}: ${quantity} (fallback)`);
+=======
+            console.log(
+              `Found quantity for ${itemCode}: ${quantity} (fallback)`,
+            );
+>>>>>>> Stashed changes
             break;
           }
         }
@@ -1541,6 +1590,7 @@ const parseMajidFormat = (text) => {
     console.log("Processing Majid line:", line);
 
     // FIX: Handle the special case where header is merged with first data row
+<<<<<<< Updated upstream
     const hasHeaderInLine = line.includes("BAR CODE") && line.includes("SUPPLIER REF");
     
     if (hasHeaderInLine) {
@@ -1554,31 +1604,74 @@ const parseMajidFormat = (text) => {
       
       const barcode = barcodeMatch[1];
       
+=======
+    const hasHeaderInLine =
+      line.includes("BAR CODE") && line.includes("SUPPLIER REF");
+
+    if (hasHeaderInLine) {
+      console.log("Detected merged header+data line, extracting quantity...");
+
+      // Example: "BAR CODE SUPPLIER REF EAM.ITEM DESCRITION OTY UC IP.PRI B.TAX  TOTAL B.6161102320404 000074580 009 SUPALOAE WHITE SLICED BREAD CT 400G 15  57.900 868.5"
+
+      // Find barcode
+      const barcodeMatch = line.match(/\b(\d{13})\b/);
+      if (!barcodeMatch) continue;
+
+      const barcode = barcodeMatch[1];
+
+>>>>>>> Stashed changes
       if (seenBarcodes.has(barcode)) {
         console.log(`Skipping duplicate Majid barcode: ${barcode}`);
         continue;
       }
+<<<<<<< Updated upstream
       
       console.log(`Found Majid barcode in merged line: ${barcode} in line: ${line}`);
       
+=======
+
+      console.log(
+        `Found Majid barcode in merged line: ${barcode} in line: ${line}`,
+      );
+
+>>>>>>> Stashed changes
       // Extract quantity - look for number after barcode and description
       // The pattern is: barcode supplier_ref fam description quantity price total
       const parts = line.split(/\s+/);
       let quantity = null;
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
       // Method 1: Look for a standalone number (not part of barcode or price)
       for (let j = 0; j < parts.length; j++) {
         if (parts[j] === barcode) {
           // Look forward for a standalone number that could be quantity
           for (let k = j + 1; k < parts.length; k++) {
             const num = parseInt(parts[k]);
+<<<<<<< Updated upstream
             if (!isNaN(num) && num >= 1 && num <= 1000 && parts[k].length <= 4) {
+=======
+            if (
+              !isNaN(num) &&
+              num >= 1 &&
+              num <= 1000 &&
+              parts[k].length <= 4
+            ) {
+>>>>>>> Stashed changes
               // Make sure it's not part of a barcode or price
               const isBarcode = /\d{13}/.test(parts[k]);
               const isPrice = /^\d+\.\d{3}$/.test(parts[k]);
               if (!isBarcode && !isPrice) {
                 quantity = num;
+<<<<<<< Updated upstream
                 console.log(`Found quantity for ${barcode} in merged line: ${quantity}`);
+=======
+                console.log(
+                  `Found quantity for ${barcode} in merged line: ${quantity}`,
+                );
+>>>>>>> Stashed changes
                 break;
               }
             }
@@ -1586,18 +1679,36 @@ const parseMajidFormat = (text) => {
           break;
         }
       }
+<<<<<<< Updated upstream
       
       // Method 2: Try regex pattern for the merged format
       if (quantity === null) {
         const pattern = new RegExp(`${barcode}\\s+\\d+\\s+\\d+\\s+.+?\\s+(\\d+)\\s+\\d+\\.\\d{3}`);
+=======
+
+      // Method 2: Try regex pattern for the merged format
+      if (quantity === null) {
+        const pattern = new RegExp(
+          `${barcode}\\s+\\d+\\s+\\d+\\s+.+?\\s+(\\d+)\\s+\\d+\\.\\d{3}`,
+        );
+>>>>>>> Stashed changes
         const match = line.match(pattern);
         if (match) {
           quantity = parseInt(match[1]);
           console.log(`Found quantity for ${barcode} via regex: ${quantity}`);
         }
       }
+<<<<<<< Updated upstream
       
       if (quantity !== null && !isNaN(quantity) && MAJID_BARCODE_MAPPING[barcode]) {
+=======
+
+      if (
+        quantity !== null &&
+        !isNaN(quantity) &&
+        MAJID_BARCODE_MAPPING[barcode]
+      ) {
+>>>>>>> Stashed changes
         seenBarcodes.add(barcode);
         items.push({
           ocrItemCode: barcode,
@@ -1609,7 +1720,13 @@ const parseMajidFormat = (text) => {
           lineNumber: i + 1,
           rawLine: line.substring(0, 100),
         });
+<<<<<<< Updated upstream
         console.log(`Majid: ${barcode} -> ${MAJID_BARCODE_MAPPING[barcode]} x ${quantity}`);
+=======
+        console.log(
+          `Majid: ${barcode} -> ${MAJID_BARCODE_MAPPING[barcode]} x ${quantity}`,
+        );
+>>>>>>> Stashed changes
         continue;
       }
     }
@@ -1637,7 +1754,13 @@ const parseMajidFormat = (text) => {
 
     if (qtyMatch) {
       quantity = parseInt(qtyMatch[1], 10);
+<<<<<<< Updated upstream
       console.log(`Found quantity from QTY UC column for ${barcode}: ${quantity}`);
+=======
+      console.log(
+        `Found quantity from QTY UC column for ${barcode}: ${quantity}`,
+      );
+>>>>>>> Stashed changes
     }
 
     if (quantity === null) {
@@ -1656,8 +1779,15 @@ const parseMajidFormat = (text) => {
 
             // Check if this number is likely a quantity (not part of barcode, not a price)
             const isPrice = /^\d+\.\d{3}$/.test(numStr);
+<<<<<<< Updated upstream
             const isInBarcode = line.includes(numStr + barcode) || line.includes(barcode + numStr);
             
+=======
+            const isInBarcode =
+              line.includes(numStr + barcode) ||
+              line.includes(barcode + numStr);
+
+>>>>>>> Stashed changes
             if (!isPrice && !isInBarcode) {
               quantity = num;
               console.log(`Found quantity for ${barcode}: ${quantity}`);
@@ -1786,27 +1916,49 @@ const parseChandaranaFormat = (text) => {
 
     // Extract quantity - look for decimal numbers after barcode
     let quantity = null;
+<<<<<<< Updated upstream
     
     // Method 1: Look for pattern like "4.00 0.00 1 4.00"
     const decimalPattern = /(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+)\s+(\d+\.\d{2})/;
     const decimalMatch = line.match(decimalPattern);
     
+=======
+
+    // Method 1: Look for pattern like "4.00 0.00 1 4.00"
+    const decimalPattern = /(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+)\s+(\d+\.\d{2})/;
+    const decimalMatch = line.match(decimalPattern);
+
+>>>>>>> Stashed changes
     if (decimalMatch) {
       // First decimal is Scan Qty (e.g., 4.00)
       quantity = parseFloat(decimalMatch[1]);
       console.log(`Found quantity for ${barcode}: ${quantity} (from Scan Qty)`);
     }
+<<<<<<< Updated upstream
     
+=======
+
+>>>>>>> Stashed changes
     // Method 2: Look for the first decimal number after barcode
     if (quantity === null) {
       const parts = line.split(/\s+/);
       const barcodeIndex = parts.indexOf(barcode);
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
       if (barcodeIndex !== -1) {
         for (let j = barcodeIndex + 1; j < parts.length; j++) {
           if (/^\d+\.\d{2}$/.test(parts[j])) {
             quantity = parseFloat(parts[j]);
+<<<<<<< Updated upstream
             console.log(`Found quantity for ${barcode}: ${quantity} (first decimal after barcode)`);
+=======
+            console.log(
+              `Found quantity for ${barcode}: ${quantity} (first decimal after barcode)`,
+            );
+>>>>>>> Stashed changes
             break;
           }
         }
@@ -1815,7 +1967,13 @@ const parseChandaranaFormat = (text) => {
 
     // Method 3: Try regex pattern for table format
     if (quantity === null) {
+<<<<<<< Updated upstream
       const pattern = new RegExp(`${barcode}\\s+.+?\\s+(\\d+\\.\\d{2})\\s+\\d+\\.\\d{2}\\s+\\d+\\s+\\d+\\.\\d{2}`);
+=======
+      const pattern = new RegExp(
+        `${barcode}\\s+.+?\\s+(\\d+\\.\\d{2})\\s+\\d+\\.\\d{2}\\s+\\d+\\s+\\d+\\.\\d{2}`,
+      );
+>>>>>>> Stashed changes
       const match = line.match(pattern);
       if (match) {
         quantity = parseFloat(match[1]);
@@ -1875,7 +2033,12 @@ const parseChandaranaFormat = (text) => {
     console.log("Trying regex pattern matching for Chandarana table format...");
 
     // Pattern for: number barcode description scan_qty foc_qty pack_size quantity
+<<<<<<< Updated upstream
     const pattern = /\b(\d+)\s+(\d{13})\s+(.+?)\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+)\s+(\d+\.\d{2})/g;
+=======
+    const pattern =
+      /\b(\d+)\s+(\d{13})\s+(.+?)\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+)\s+(\d+\.\d{2})/g;
+>>>>>>> Stashed changes
     let match;
 
     while ((match = pattern.exec(text)) !== null) {
@@ -2137,18 +2300,33 @@ const parseCleanshelfLocalPO = (text) => {
     // FIX: The quantity is the number BEFORE the price
     // Format: 400347 SUPALOAF WHITE 600GM 1 15 88.700 1,330.50
     // Code = 400347, Quantity = 15 (before 88.700)
+<<<<<<< Updated upstream
     
     let quantity = null;
     
+=======
+
+    let quantity = null;
+
+>>>>>>> Stashed changes
     // Find the price pattern (like 88.700, 117.000, 57.900)
     for (let j = 0; j < parts.length; j++) {
       if (/^\d+\.\d{3}$/.test(parts[j])) {
         // Found price, quantity should be before it
         if (j > 0) {
+<<<<<<< Updated upstream
           const potentialQty = parseFloat(parts[j-1]);
           if (!isNaN(potentialQty) && potentialQty > 0 && potentialQty < 1000) {
             quantity = potentialQty;
             console.log(`Found quantity for ${code}: ${quantity} (before price ${parts[j]})`);
+=======
+          const potentialQty = parseFloat(parts[j - 1]);
+          if (!isNaN(potentialQty) && potentialQty > 0 && potentialQty < 1000) {
+            quantity = potentialQty;
+            console.log(
+              `Found quantity for ${code}: ${quantity} (before price ${parts[j]})`,
+            );
+>>>>>>> Stashed changes
             break;
           }
         }
@@ -2162,9 +2340,22 @@ const parseCleanshelfLocalPO = (text) => {
           // Look forward from code for quantity
           for (let k = j + 1; k < parts.length; k++) {
             const num = parseFloat(parts[k]);
+<<<<<<< Updated upstream
             if (!isNaN(num) && num >= 1 && num <= 1000 && !parts[k].includes('.')) {
               quantity = num;
               console.log(`Found quantity for ${code}: ${quantity} (numeric after code)`);
+=======
+            if (
+              !isNaN(num) &&
+              num >= 1 &&
+              num <= 1000 &&
+              !parts[k].includes(".")
+            ) {
+              quantity = num;
+              console.log(
+                `Found quantity for ${code}: ${quantity} (numeric after code)`,
+              );
+>>>>>>> Stashed changes
               break;
             }
           }
@@ -2217,7 +2408,12 @@ const parseCleanshelfLocalPO = (text) => {
     console.log("Trying regex pattern matching...");
 
     // Pattern: code description pack pieces unit_price amount
+<<<<<<< Updated upstream
     const pattern = /(4003\d{2})\s+(.+?)\s+(\d+)\s+(\d+)\s+(\d+\.\d{3})\s+([\d,]+\.\d{2})/g;
+=======
+    const pattern =
+      /(4003\d{2})\s+(.+?)\s+(\d+)\s+(\d+)\s+(\d+\.\d{3})\s+([\d,]+\.\d{2})/g;
+>>>>>>> Stashed changes
     let match;
 
     while ((match = pattern.exec(text)) !== null) {
@@ -2684,6 +2880,7 @@ const extractLPONumber = (text, customerType = "NAIVAS") => {
       // Pattern 1: Look for "LPO No." or "L. P. O. No:" with optional commas in number
       const cleanshelfPattern1 = /L\.?\s*P\.?\s*O\.?\s*No\.?\s*:?\s*([\d,]+)/i;
       const cleanshelfMatch1 = text.match(cleanshelfPattern1);
+<<<<<<< Updated upstream
       
       if (cleanshelfMatch1) {
         // Remove commas from the LPO number
@@ -2716,6 +2913,50 @@ const extractLPONumber = (text, customerType = "NAIVAS") => {
           if (context.includes("LPO") || context.includes("No.") || 
               (standaloneMatch[1].length >= 5 && standaloneMatch[1].length <= 7)) {
             const lpoNumber = standaloneMatch[1].replace(/,/g, '');
+=======
+
+      if (cleanshelfMatch1) {
+        // Remove commas from the LPO number
+        const lpoNumber = cleanshelfMatch1[1].replace(/,/g, "");
+        console.log(`Cleanshelf LPO found (with commas handled): ${lpoNumber}`);
+        return lpoNumber;
+      }
+
+      // Pattern 2: Look for "LPO" followed by number with commas
+      const cleanshelfPattern2 = /LPO\s*No\.?\s*:?\s*([\d,]+)/i;
+      const cleanshelfMatch2 = text.match(cleanshelfPattern2);
+
+      if (cleanshelfMatch2) {
+        const lpoNumber = cleanshelfMatch2[1].replace(/,/g, "");
+        console.log(`Cleanshelf LPO found: ${lpoNumber}`);
+        return lpoNumber;
+      }
+
+      // Pattern 3: Look for standalone 5-6 digit numbers with optional commas
+      if (
+        text.includes("CLEAN SHELF") ||
+        text.includes("CLEANSHELF") ||
+        text.includes("FRESHMARKET")
+      ) {
+        // Look for patterns like "111,793" or "111793" in Cleanshelf context
+        const standalonePattern = /\b(\d{1,3}(?:,\d{3})*\d{0,3})\b/;
+        const standaloneMatch = text.match(standalonePattern);
+
+        if (standaloneMatch) {
+          // Check if this number appears near "LPO" or in a Cleanshelf context
+          const matchIndex = text.indexOf(standaloneMatch[1]);
+          const context = text.substring(
+            Math.max(0, matchIndex - 30),
+            Math.min(text.length, matchIndex + 30),
+          );
+
+          if (
+            context.includes("LPO") ||
+            context.includes("No.") ||
+            (standaloneMatch[1].length >= 5 && standaloneMatch[1].length <= 7)
+          ) {
+            const lpoNumber = standaloneMatch[1].replace(/,/g, "");
+>>>>>>> Stashed changes
             console.log(`Possible Cleanshelf LPO: ${lpoNumber}`);
             return lpoNumber;
           }
