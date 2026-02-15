@@ -1,11 +1,9 @@
 import React from "react";
-// Remove this import since we'll use inline styles or move the CSS
-// import "./Footer.css";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
 
-  // Inline styles to avoid file not found error
+  // Inline styles
   const styles = {
     footer: {
       background: "rgba(0, 30, 0, 0.95)",
@@ -87,7 +85,7 @@ const Footer = () => {
           }
         `}
       </style>
-      
+
       <div style={styles.content} className="footer-content">
         <div>
           <span style={styles.brand}>CT226 • DDS Integration System</span>
@@ -96,7 +94,13 @@ const Footer = () => {
         <div>
           <div style={styles.status}>
             <span style={styles.dot}></span>
-            <span style={{color: "#00aa00", fontSize: "0.8rem", fontFamily: "'Courier New', monospace"}}>
+            <span
+              style={{
+                color: "#00aa00",
+                fontSize: "0.8rem",
+                fontFamily: "'Courier New', monospace",
+              }}
+            >
               System Online
             </span>
           </div>
@@ -122,10 +126,10 @@ const Footer = () => {
       </div>
 
       <div style={styles.bottom} className="footer-bottom">
-        <span style={{opacity: "0.8"}}>
+        <span style={{ opacity: "0.8" }}>
           © {currentYear} CT226 Systems. All rights reserved.
         </span>
-        <span style={{color: "#00aa00", fontWeight: "bold", opacity: "0.8"}}>
+        <span style={{ color: "#00aa00", fontWeight: "bold", opacity: "0.8" }}>
           v1.0.0
         </span>
       </div>

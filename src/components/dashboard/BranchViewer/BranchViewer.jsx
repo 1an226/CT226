@@ -7,24 +7,27 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
+  // Get API base URL from environment
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   // Filter branches based on user's accessible branches
   const accessibleBranches = user?.details?.userBranches || [];
 
   // Filtered branches based on search
   const filteredBranches = accessibleBranches.filter((branch) =>
-    branch.toLowerCase().includes(searchQuery.toLowerCase())
+    branch.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // Function to fetch orders for a branch
+  // Fetch orders for a specific branch
   const fetchBranchOrders = async (branchName) => {
     if (!user?.token || loadingBranches[branchName]) return;
 
     setLoadingBranches((prev) => ({ ...prev, [branchName]: true }));
 
     try {
-      // Switch to branch and fetch orders
-      const response = await fetch(
-        "https://mbnl.ddsolutions.tech/dds-backend/api/v1/auth/switchbranch/",
+      // Switch to the selected branch
+      await fetch(
+        `${API_BASE_URL}${import.meta.env.VITE_API_ENDPOINT_AUTH_SWITCHBRANCH}`,
         {
           method: "POST",
           headers: {
@@ -36,27 +39,28 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
             branch: branchName,
             loginOnWeb: true,
           }),
-        }
+        },
       );
 
-      // Get orders
+      // Fetch orders for the branch
       const ordersResponse = await fetch(
-        "https://mbnl.ddsolutions.tech/dds-backend/api/v1/orders/list",
+        `${API_BASE_URL}${import.meta.env.VITE_API_ENDPOINT_ORDERS_TODAY}`,
         {
           headers: {
             "x-auth-token": user.token,
             "x-requested-with": "XMLHttpRequest",
           },
-        }
+        },
       );
 
       const data = await ordersResponse.json();
 
-      // Process customer data
+      // Process customer data from orders
       const customersMap = {};
       const orders = data.payload || [];
 
       orders.forEach((order) => {
+        // Extract customer code from customer name if not present
         if (!order.customerCode && order.customerName) {
           const codeMatch = order.customerName.match(/\[(.*?)\]/);
           order.customerCode = codeMatch ? codeMatch[1] : "N/A";
@@ -80,7 +84,7 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
           customer.orderCount++;
 
           const value = parseFloat(
-            order.totalValue?.replace(/[^\d.-]/g, "") || 0
+            order.totalValue?.replace(/[^\d.-]/g, "") || 0,
           );
           customer.totalValue += value;
         }
@@ -94,7 +98,7 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
           totalOrders: orders.length,
           totalValue: orders.reduce((sum, order) => {
             const value = parseFloat(
-              order.totalValue?.replace(/[^\d.-]/g, "") || 0
+              order.totalValue?.replace(/[^\d.-]/g, "") || 0,
             );
             return sum + value;
           }, 0),
@@ -107,7 +111,7 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
     }
   };
 
-  // Load data for current branch on mount
+  // Load data for current branch on component mount
   useEffect(() => {
     if (currentBranch && !allOrders[currentBranch]) {
       fetchBranchOrders(currentBranch);
@@ -139,7 +143,7 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
 
   return (
     <div className="branch-viewer">
-      {/* Top Controls - SIMPLIFIED HEADER */}
+      {/* Header with search and refresh controls */}
       <div className="branch-viewer-header">
         <div className="header-left">
           <h2>
@@ -162,15 +166,13 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
             onClick={() => fetchBranchOrders(currentBranch)}
             disabled={loadingBranches[currentBranch]}
           >
-            {loadingBranches[currentBranch]
-              ? "🔄 Refreshing..."
-              : "🔄 Refresh Data"}
+            {loadingBranches[currentBranch] ? "Refreshing..." : "Refresh Data"}
           </button>
         </div>
       </div>
 
       <div className="branch-viewer-content">
-        {/* Left Column - Branch List */}
+        {/* Left column - branch list */}
         <div className="branch-list-panel">
           <h3>
             <i className="fas fa-filter"></i> SELECT BRANCH
@@ -191,11 +193,11 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
                   </div>
                   <div className="branch-status">
                     {loadingBranches[branch] ? (
-                      <span className="loading">🔄</span>
+                      <span className="loading">Loading...</span>
                     ) : allOrders[branch] ? (
-                      <span className="loaded">✅</span>
+                      <span className="loaded">Loaded</span>
                     ) : (
-                      <span className="pending">⏳</span>
+                      <span className="pending">Pending</span>
                     )}
                   </div>
                 </div>
@@ -248,9 +250,9 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
           </div>
         </div>
 
-        {/* Right Column - Orders & Customers */}
+        {/* Right column - orders and customers */}
         <div className="details-panel">
-          {/* Current Branch Orders */}
+          {/* Orders section */}
           <div className="orders-section">
             <div className="section-header">
               <h3>
@@ -316,7 +318,7 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
             )}
           </div>
 
-          {/* Customers Section */}
+          {/* Customers section */}
           <div className="customers-section">
             <div className="section-header">
               <h3>
@@ -366,7 +368,7 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
         </div>
       </div>
 
-      {/* Customer Detail Modal */}
+      {/* Customer detail modal */}
       {selectedCustomer && (
         <div
           className="customer-modal-overlay"
@@ -411,7 +413,7 @@ const BranchViewer = ({ user, currentBranch, onBranchSelect }) => {
                   <span className="label">Average Order:</span>
                   <span className="value">
                     {formatCurrency(
-                      selectedCustomer.totalValue / selectedCustomer.orderCount
+                      selectedCustomer.totalValue / selectedCustomer.orderCount,
                     )}
                   </span>
                 </div>

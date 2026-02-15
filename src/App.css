@@ -1,4 +1,4 @@
-/* ===== CSS VARIABLES (THEME) ===== */
+/* CSS Variables (Theme) */
 :root {
   /* Color Palette - Black/Green Theme */
   --color-black: #000000;
@@ -17,12 +17,12 @@
   --color-gray-light: #999999;
 
   /* Spacing Scale */
-  --space-xs: 0.25rem; /* 4px */
-  --space-sm: 0.5rem; /* 8px */
-  --space-md: 1rem; /* 16px */
-  --space-lg: 1.5rem; /* 24px */
-  --space-xl: 2rem; /* 32px */
-  --space-xxl: 3rem; /* 48px */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-xxl: 3rem;
 
   /* Typography - Professional Font Stack */
   --font-primary:
@@ -32,12 +32,12 @@
   --font-code: "JetBrains Mono", "Courier New", monospace;
   --font-heading: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
 
-  --text-xs: 0.75rem; /* 12px */
-  --text-sm: 0.875rem; /* 14px */
-  --text-base: 1rem; /* 16px */
-  --text-lg: 1.125rem; /* 18px */
-  --text-xl: 1.25rem; /* 20px */
-  --text-2xl: 1.5rem; /* 24px */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
 
   /* Border Radius */
   --radius-sm: 2px;
@@ -54,7 +54,7 @@
   --z-sticky: 100;
 }
 
-/* ===== BASE STYLES ===== */
+/* Base Styles */
 *,
 *::before,
 *::after {
@@ -88,7 +88,7 @@ body {
   flex-direction: column;
 }
 
-/* ===== LOADING SCREEN ===== */
+/* Loading Screen */
 .app-loading {
   display: flex;
   align-items: center;
@@ -149,7 +149,7 @@ body {
   }
 }
 
-/* ===== HEADER ===== */
+/* Header */
 .app-header {
   background: rgba(0, 0, 0, 0.95);
   backdrop-filter: blur(20px);
@@ -342,7 +342,7 @@ body {
   cursor: not-allowed;
 }
 
-/* ===== CREATE ORDER MODAL ===== */
+/* Create Order Modal */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -808,7 +808,7 @@ body {
   cursor: not-allowed;
 }
 
-/* ===== MAIN CONTENT ===== */
+/* Main Content */
 .app-main {
   flex: 1;
   padding: var(--space-xl);
@@ -825,7 +825,7 @@ body {
   min-height: calc(100vh - 200px);
 }
 
-/* ===== DASHBOARD CARD ===== */
+/* Dashboard Card */
 .card {
   background: rgba(10, 10, 10, 0.8);
   border: 1px solid var(--color-green);
@@ -856,7 +856,7 @@ body {
   display: block;
 }
 
-/* ===== STATS SUMMARY ===== */
+/* Stats Summary */
 .stats-summary {
   display: flex;
   gap: var(--space-lg);
@@ -900,7 +900,7 @@ body {
   margin-top: var(--space-xs);
 }
 
-/* ===== DATE FILTER ===== */
+/* Date Filter */
 .date-filter-container {
   display: flex;
   flex-direction: column;
@@ -913,7 +913,7 @@ body {
   gap: var(--space-sm);
 }
 
-/* ===== CALENDAR ===== */
+/* Calendar */
 .calendar-trigger-container {
   position: relative;
   margin-top: var(--space-sm);
@@ -1266,7 +1266,7 @@ body {
   box-shadow: 0 0 10px rgba(255, 51, 51, 0.3);
 }
 
-/* ===== SEARCH ===== */
+/* Search */
 .search-container {
   margin-bottom: var(--space-lg);
 }
@@ -1328,7 +1328,7 @@ body {
   margin-top: var(--space-xs);
 }
 
-/* ===== ORDERS CONTAINER ===== */
+/* Orders Container */
 .orders-container {
   margin-top: var(--space-xl);
 }
@@ -1356,7 +1356,7 @@ body {
   color: var(--color-gray-light);
 }
 
-/* ===== TABLE ===== */
+/* Table */
 .table-container {
   border: 1px solid var(--color-green-transparent);
   border-radius: var(--radius-md);
@@ -1502,7 +1502,7 @@ body {
   border: 1px solid rgba(255, 51, 51, 0.3);
 }
 
-/* ===== PAGINATION ===== */
+/* Pagination */
 .pagination-controls {
   margin-top: var(--space-lg);
   padding: var(--space-lg);
@@ -1579,7 +1579,7 @@ body {
   padding: 0 var(--space-xs);
 }
 
-/* ===== STATES ===== */
+/* States */
 .loading-state {
   font-family: var(--font-primary);
   text-align: center;
@@ -1620,7 +1620,7 @@ body {
   margin-top: var(--space-md);
 }
 
-/* ===== FOOTER ===== */
+/* Footer */
 .app-footer {
   background: rgba(0, 0, 0, 0.9);
   backdrop-filter: blur(10px);
@@ -1652,7 +1652,7 @@ body {
   font-size: var(--text-xs);
 }
 
-/* ===== RESPONSIVE ===== */
+/* Responsive */
 @media (max-width: 1024px) {
   .stats-summary {
     flex-direction: column;
@@ -1836,7 +1836,7 @@ body {
   }
 }
 
-/* ===== FONT SUPPORT FOR VARIABLE FONTS ===== */
+/* Font Support for Variable Fonts */
 @supports (font-variation-settings: normal) {
   :root {
     --font-primary:
@@ -1847,7 +1847,7 @@ body {
   }
 }
 
-/* CUSTOMER MODAL STYLES */
+/* Customer Modal Styles */
 .customer-stats {
   background: rgba(0, 30, 0, 0.2);
   border: 1px solid var(--color-green-transparent);
@@ -2221,9 +2221,7 @@ body {
   }
 }
 
-/* Add these styles to your existing App.css */
-
-/* CUSTOMER SELECTION MODAL */
+/* Customer Selection Modal */
 .customer-search-section {
   margin-bottom: var(--space-lg);
 }
@@ -2239,7 +2237,7 @@ body {
   text-align: center;
 }
 
-/* CUSTOMERS LIST */
+/* Customers List */
 .customers-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -2331,7 +2329,7 @@ body {
   text-align: center;
 }
 
-/* SELECTED CUSTOMER INFO */
+/* Selected Customer Info */
 .selected-customer-info {
   padding: var(--space-sm);
   background: rgba(0, 30, 0, 0.2);
@@ -2346,39 +2344,7 @@ body {
   gap: var(--space-sm);
 }
 
-/* CREATE ORDER BUTTON */
-.create-order-btn {
-  font-family: var(--font-primary);
-  font-weight: 600;
-  font-size: var(--text-sm);
-  background: var(--color-green);
-  color: var(--color-black);
-  border: none;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  min-height: 36px;
-}
-
-.create-order-btn:hover:not(:disabled) {
-  background: var(--color-green-light);
-  box-shadow: 0 0 15px var(--color-green-glow);
-  transform: translateY(-1px);
-}
-
-.create-order-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--color-gray);
-}
-
-/* RESPONSIVE */
+/* Responsive */
 @media (max-width: 768px) {
   .customers-list {
     grid-template-columns: 1fr;
@@ -2395,208 +2361,4 @@ body {
   .modal-actions .btn {
     width: 100%;
   }
-
-  /* Calendar styles */
-.calendar-popup {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 1000;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  padding: 16px;
-  min-width: 300px;
-  margin-top: 4px;
-}
-
-.calendar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.calendar-month-year {
-  font-weight: 600;
-  font-size: 16px;
-}
-
-.calendar-nav-btn {
-  background: none;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 4px 8px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.calendar-nav-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-}
-
-.calendar-day-header {
-  text-align: center;
-  font-weight: 600;
-  font-size: 12px;
-  padding: 4px;
-  color: #666;
-}
-
-.calendar-day {
-  aspect-ratio: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  font-size: 14px;
-  position: relative;
-  transition: all 0.2s;
-}
-
-.calendar-day.current-month {
-  background: #f8f9fa;
-}
-
-.calendar-day.current-month:hover {
-  background: #e9ecef;
-}
-
-.calendar-day.other-month {
-  color: #adb5bd;
-  background: #f8f9fa;
-}
-
-.calendar-day.today {
-  background: #e7f5ff;
-  border: 2px solid #228be6;
-}
-
-.calendar-day.selected {
-  background: #228be6;
-  color: white;
-}
-
-.calendar-day.has-orders {
-  background: #fff3cd;
-}
-
-.calendar-day.has-orders:hover {
-  background: #ffeaa7;
-}
-
-.calendar-day-number {
-  font-weight: 500;
-}
-
-.calendar-day-indicator {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.order-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ff6b6b;
-}
-
-.order-dot-multiple {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #ff6b6b;
-  position: relative;
-}
-
-.order-dot-multiple::after {
-  content: '';
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: white;
-  top: 2px;
-  left: 2px;
-}
-
-.order-count-small {
-  font-size: 10px;
-  font-weight: bold;
-  color: #d63031;
-}
-
-.calendar-loading {
-  text-align: center;
-  padding: 20px;
-}
-
-.calendar-loading p {
-  margin-top: 8px;
-  font-size: 14px;
-  color: #666;
-}
-
-/* Calendar input */
-.calendar-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.calendar-input {
-  padding: 8px 12px;
-  padding-right: 40px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  width: 200px;
-  background: white;
-  cursor: pointer;
-}
-
-.calendar-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.calendar-icon {
-  position: absolute;
-  right: 12px;
-  font-size: 16px;
-  color: #666;
-}
-
-/* Empty state */
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: #666;
-}
-
-.empty-state-hint {
-  font-size: 14px;
-  margin-top: 8px;
-  color: #999;
-}
-
-.empty-state-actions {
-  margin-top: 16px;
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-}
 }

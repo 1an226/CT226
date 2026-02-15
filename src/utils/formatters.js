@@ -1,5 +1,5 @@
 /**
- * Currency formatting utilities
+ * Utility functions for formatting and data processing
  */
 
 export const formatCurrency = (value, currency = "Ksh") => {
@@ -132,11 +132,17 @@ export const normalizeOrderData = (order) => {
     customerName: order.customerName || order.customer?.name || "Unknown",
     customerId: order.customerId || order.customer?.id,
     total: order.total || order.totalValue || order.amount || 0,
-    totalValue: formatCurrency(order.totalValue || order.total || order.amount || 0),
+    totalValue: formatCurrency(
+      order.totalValue || order.total || order.amount || 0,
+    ),
     tax: order.tax || order.vat || 0,
     discount: order.discount || 0,
     netTotal: order.netTotal || (order.total || 0) - (order.discount || 0),
-    orderDate: order.orderDate || order.createdDate || order.date || new Date().toISOString(),
+    orderDate:
+      order.orderDate ||
+      order.createdDate ||
+      order.date ||
+      new Date().toISOString(),
     deliveryDate: order.deliveryDate || order.expectedDelivery,
     orderStatus: order.orderStatus || order.status || "Pending",
     status: order.status || order.orderStatus || "Pending",
@@ -146,22 +152,27 @@ export const normalizeOrderData = (order) => {
     branch: order.branch || "",
     notes: order.notes || order.comments || "",
     items: order.items || order.orderItems || [],
-    formattedDate: formatDate(order.orderDate || order.createdDate || order.date),
+    formattedDate: formatDate(
+      order.orderDate || order.createdDate || order.date,
+    ),
     _raw: order,
   };
 };
 
 export const getStatusColor = (status) => {
   const statusLower = (status || "").toLowerCase();
-  
-  if (statusLower.includes("pending")) return "#ff9900"; // Orange
-  if (statusLower.includes("confirmed")) return "#00aaff"; // Blue
-  if (statusLower.includes("processing")) return "#9966ff"; // Purple
-  if (statusLower.includes("journey") || statusLower.includes("transit")) return "#00aaff"; // Light Blue
-  if (statusLower.includes("delivered") || statusLower.includes("completed")) return "#00ff00"; // Green
-  if (statusLower.includes("cancelled") || statusLower.includes("rejected")) return "#ff3333"; // Red
-  
-  return "#666666"; // Gray
+
+  if (statusLower.includes("pending")) return "#ff9900";
+  if (statusLower.includes("confirmed")) return "#00aaff";
+  if (statusLower.includes("processing")) return "#9966ff";
+  if (statusLower.includes("journey") || statusLower.includes("transit"))
+    return "#00aaff";
+  if (statusLower.includes("delivered") || statusLower.includes("completed"))
+    return "#00ff00";
+  if (statusLower.includes("cancelled") || statusLower.includes("rejected"))
+    return "#ff3333";
+
+  return "#666666";
 };
 
 export const truncateText = (text, maxLength = 50) => {
@@ -196,9 +207,12 @@ export const generateOrderStats = (orders) => {
     if (status.includes("pending")) statusCounts.pending++;
     else if (status.includes("confirmed")) statusCounts.confirmed++;
     else if (status.includes("processing")) statusCounts.processing++;
-    else if (status.includes("journey") || status.includes("transit")) statusCounts.inJourney++;
-    else if (status.includes("delivered") || status.includes("completed")) statusCounts.delivered++;
-    else if (status.includes("cancelled") || status.includes("rejected")) statusCounts.cancelled++;
+    else if (status.includes("journey") || status.includes("transit"))
+      statusCounts.inJourney++;
+    else if (status.includes("delivered") || status.includes("completed"))
+      statusCounts.delivered++;
+    else if (status.includes("cancelled") || status.includes("rejected"))
+      statusCounts.cancelled++;
   });
 
   const averageOrderValue = total > 0 ? totalValue / total : 0;

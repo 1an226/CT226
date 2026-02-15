@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check if user is already authenticated on mount
+    // Check if user is already authenticated on component mount
     const checkAuth = async () => {
       try {
         if (authService.isAuthenticated()) {

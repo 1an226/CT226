@@ -6,8 +6,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
-  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
+  // Load env file based on `mode` in the current working directory
   const env = loadEnv(mode, process.cwd(), "");
 
   return {
@@ -62,7 +61,7 @@ export default defineConfig(({ mode }) => {
       include: ["react", "react-dom", "axios"],
       exclude: [],
     },
-    // Optional: Define global constants
+    // Define global constants
     define: {
       __APP_ENV__: JSON.stringify(env.APP_ENV || mode),
     },

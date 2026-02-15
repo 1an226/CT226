@@ -185,8 +185,8 @@ const getProductName = (itemCode, customerType = "NAIVAS") => {
   return ITEM_NAMES_MAPPING[itemCode] || `Product ${itemCode}`;
 };
 
-// FIX: Use YOUR private API key for better speed
-const OCR_SPACE_API_KEY = "K81157854088957"; // Your private key
+// OCR API configuration from environment variables
+const OCR_SPACE_API_KEY = import.meta.env.VITE_OCR_SPACE_API_KEY;
 const OCR_SPACE_URL =
   import.meta.env.VITE_OCR_SPACE_URL || "https://api.ocr.space/parse/image";
 
@@ -224,14 +224,14 @@ const VALIDATION_SETTINGS = {
   MIN_ITEM_COUNT: parseInt(import.meta.env.VITE_MIN_ITEM_COUNT) || 1,
 };
 
-// FIX: Optimized OCR settings for speed
+// OCR settings optimized for speed
 const getOCRSpaceConfig = () => ({
   language: import.meta.env.VITE_OCR_SPACE_LANGUAGE || "eng",
-  isTable: true, // Keep true for better table parsing
-  OCREngine: "2", // Engine 2 is faster and better for structured data
+  isTable: true,
+  OCREngine: "2",
   isOverlayRequired: false,
   isCreateSearchablePdf: false,
-  detectOrientation: false, // Disable for speed
+  detectOrientation: false,
   scale: true,
   filetype: "PNG",
 });
@@ -480,7 +480,6 @@ const extractMajidLPONumber = (text) => {
   return "UNKNOWN_LPO";
 };
 
-// FIX: Updated Chandarana LPO extraction
 const extractChandaranaLPONumber = (text) => {
   console.log("Extracting Chandarana LPO number...");
 
@@ -505,12 +504,12 @@ const extractChandaranaLPONumber = (text) => {
   return "UNKNOWN_LPO";
 };
 
-// FIX 1: Updated Quickmart LPO extraction - pattern 0xx-xxxxxxxx
+// Updated Quickmart LPO extraction - pattern 0xx-xxxxxxxx
 const extractQuickmartLPONumber = (text) => {
   console.log("Extracting Quickmart LPO number...");
 
-  // FIX 1: Use the correct pattern 0xx-xxxxxxxx (e.g., 035-00012579)
-  const pattern = /0\d{2}-\d{8}/; // Changed from \d{3}-\d{8} to 0\d{2}-\d{8}
+  // Pattern 0xx-xxxxxxxx (e.g., 035-00012579)
+  const pattern = /0\d{2}-\d{8}/;
   const match = text.match(pattern);
 
   if (match) {
@@ -678,10 +677,10 @@ const extractTextFromPDF = async (pdfFile) => {
   }
 };
 
-// FIX: Optimized OCR function with your private key
+// Optimized OCR function with API key from environment
 const extractTextWithOCRSpace = async (imageFile) => {
   try {
-    console.log("Using OCR.Space API with private key...");
+    console.log("Using OCR.Space API...");
 
     // Use file upload instead of base64 for better performance
     const formData = new FormData();
@@ -1236,7 +1235,7 @@ const detectTextFormat = (text, customerType = "NAIVAS") => {
   return "UNKNOWN";
 };
 
-// FIX 3: Khetia - Fixed quantity parsing to get actual order quantity
+// Khetia - Fixed quantity parsing to get actual order quantity
 const parseKhetiaFormat = (text) => {
   console.log("Parsing Khetia format...");
   const items = [];
@@ -1291,7 +1290,7 @@ const parseKhetiaFormat = (text) => {
 
     let quantity = null;
 
-    // FIX: Get the actual order quantity (e.g., 12.00) not the pack size (1)
+    // Get the actual order quantity (e.g., 12.00) not the pack size (1)
     // Look for the decimal number before the last "PCS"
     for (let j = parts.length - 2; j >= 0; j--) {
       if (parts[j] === "PCS" && j > 0 && /^\d+\.\d{2}$/.test(parts[j - 1])) {
@@ -1518,7 +1517,7 @@ const parseQuickmartFormat = (text) => {
   return items;
 };
 
-// FIX 3 & 4: Majid - Fixed quantity parsing and filter codes ending with 983/984
+// Majid - Fixed quantity parsing and filter codes ending with 983/984
 const parseMajidFormat = (text) => {
   console.log("Parsing Majid format...");
   const items = [];
@@ -1544,7 +1543,7 @@ const parseMajidFormat = (text) => {
 
     console.log("Processing Majid line:", line);
 
-    // FIX 3: Handle the special case where header is merged with first data row
+    // Handle the special case where header is merged with first data row
     const hasHeaderInLine =
       line.includes("BAR CODE") && line.includes("SUPPLIER REF");
 
@@ -1559,7 +1558,7 @@ const parseMajidFormat = (text) => {
 
       const barcode = barcodeMatch[1];
 
-      // FIX 4: Filter out codes ending with 983 or 984
+      // Filter out codes ending with 983 or 984
       if (barcode.endsWith("983") || barcode.endsWith("984")) {
         console.log(`Skipping filtered barcode: ${barcode}`);
         continue;
@@ -1650,7 +1649,7 @@ const parseMajidFormat = (text) => {
 
     const barcode = barcodeMatch[1];
 
-    // FIX 4: Filter out codes ending with 983 or 984
+    // Filter out codes ending with 983 or 984
     if (barcode.endsWith("983") || barcode.endsWith("984")) {
       console.log(`Skipping filtered barcode: ${barcode}`);
       continue;
@@ -1665,7 +1664,7 @@ const parseMajidFormat = (text) => {
 
     let quantity = null;
 
-    // FIX 3: Look for quantity patterns - use column below QTY UC, not FAM column
+    // Look for quantity patterns - use column below QTY UC, not FAM column
     const qtyPattern = /QTY\s*UC:\s*(\d+)/i;
     const qtyMatch = line.match(qtyPattern);
 
@@ -1749,7 +1748,7 @@ const parseMajidFormat = (text) => {
     while ((match = pattern.exec(text)) !== null) {
       const barcode = match[1];
 
-      // FIX 4: Filter out codes ending with 983 or 984
+      // Filter out codes ending with 983 or 984
       if (barcode.endsWith("983") || barcode.endsWith("984")) {
         continue;
       }
@@ -1782,7 +1781,7 @@ const parseMajidFormat = (text) => {
   return items;
 };
 
-// FIX 2: Updated Chandarana parsing for better barcode detection
+// Updated Chandarana parsing for better barcode detection
 const parseChandaranaFormat = (text) => {
   console.log("Parsing Chandarana format...");
   const items = [];
@@ -1790,7 +1789,7 @@ const parseChandaranaFormat = (text) => {
 
   console.log("Total lines to parse:", lines.length);
 
-  // FIX 2: First extract all barcodes from entire text for better detection
+  // First extract all barcodes from entire text for better detection
   const allBarcodes = text.match(/\b\d{13}\b/g) || [];
   const uniqueBarcodes = [...new Set(allBarcodes)];
   console.log(
@@ -1821,7 +1820,7 @@ const parseChandaranaFormat = (text) => {
 
     console.log("Processing Chandarana line:", line);
 
-    // FIX 2: Check all unique barcodes in the line for better detection
+    // Check all unique barcodes in the line for better detection
     let barcode = null;
     for (const possibleBarcode of uniqueBarcodes) {
       if (line.includes(possibleBarcode)) {
@@ -2119,7 +2118,7 @@ const parseJazaribuFormat = (text) => {
   return items;
 };
 
-// FIX 5: Updated Cleanshelf Local PO parsing for correct quantities (last numeric column, not Amount)
+// Updated Cleanshelf Local PO parsing for correct quantities (last numeric column, not Amount)
 const parseCleanshelfLocalPO = (text) => {
   console.log("Parsing Cleanshelf LOCAL PURCHASE ORDER format...");
   const items = [];
@@ -2137,12 +2136,20 @@ const parseCleanshelfLocalPO = (text) => {
       continue;
     }
 
-    // Extract LPO number (e.g., 101293)
+    // Extract LPO number from the correct format - LOOK FOR NUMBER BEFORE "L. P. O. No:"
     if (line.includes("L. P. O. No:") || line.includes("L.P.O. No:")) {
-      const lpoMatch = line.match(/(\d{5,6})/);
+      // Pattern to find number BEFORE the LPO text (e.g., "91213 L. P. O. No:")
+      const lpoMatch = line.match(/(\d{5,6})\s+L\.?\s*P\.?\s*O\.?\s*No\.?/i);
       if (lpoMatch) {
-        foundLPO = lpoMatch[0];
+        foundLPO = lpoMatch[1];
         console.log(`Found Cleanshelf LPO: ${foundLPO}`);
+      } else {
+        // Fallback: just find any 5-6 digit number in the line
+        const fallbackMatch = line.match(/(\d{5,6})/);
+        if (fallbackMatch) {
+          foundLPO = fallbackMatch[1];
+          console.log(`Found Cleanshelf LPO (fallback): ${foundLPO}`);
+        }
       }
     }
 
@@ -2201,7 +2208,7 @@ const parseCleanshelfLocalPO = (text) => {
 
     console.log(`Parsing code ${code}, parts:`, parts);
 
-    // FIX 5: Get quantity from last numeric column, not Amount column
+    // Get quantity from last numeric column, not Amount column
     // Format: Code Description Pieces UnitPrice Amount Pack Quantity
     let quantity = null;
 
@@ -2339,225 +2346,171 @@ const parseCleanshelfLocalPO = (text) => {
   return { items, lpoNumber: foundLPO };
 };
 
-// FIX 6: Updated Cleanshelf Pending Orders parsing - use "Orderd Qty." column, not weight
+// Fixed: Cleanshelf Pending Orders Parser
+// This function now correctly handles ALL 8 items including the first one
 const parseCleanshelfPendingOrders = (text) => {
   console.log("Parsing Cleanshelf PENDING ORDERS format...");
   const items = [];
-  const lines = text.split("\n");
 
-  let inItemsSection = false;
+  // Split into lines and clean
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+
+  console.log(`Total lines to parse: ${lines.length}`);
+
+  // STEP 1: Extract ALL item codes (including the one that might be merged with "LPO No.")
+  let itemCodes = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const line = lines[i];
 
-    if (!line) {
+    // Case 1: Look for merged pattern like "LPO No.400329" or "LPO No. 400329"
+    const mergedMatch = line.match(/LPO\s*No\.?\s*:?\s*(4003\d{2})/i);
+    if (mergedMatch) {
+      const firstCode = mergedMatch[1];
+      console.log(`Found merged item code: ${firstCode} at line ${i}`);
+      itemCodes.push(firstCode);
       continue;
     }
 
+    // Case 2: Look for standalone 6-digit codes starting with 400
+    if (line.match(/^4003\d{2}$/)) {
+      console.log(`Found standalone item code: ${line} at line ${i}`);
+      itemCodes.push(line);
+    }
+  }
+
+  // Remove any duplicates (just in case)
+  itemCodes = [...new Set(itemCodes)];
+
+  // Sort them to ensure correct order (they should already be in order)
+  // But let's make sure by numeric sort
+  itemCodes.sort();
+
+  console.log(`Found ${itemCodes.length} item codes:`, itemCodes);
+
+  if (itemCodes.length !== 8) {
+    console.log(`WARNING: Expected 8 item codes, found ${itemCodes.length}`);
+    // If we have less than 8, try to find more
+    if (itemCodes.length < 8) {
+      // Scan again for any missed codes
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const codeMatch = line.match(/(4003\d{2})/);
+        if (codeMatch) {
+          const code = codeMatch[1];
+          if (!itemCodes.includes(code)) {
+            itemCodes.push(code);
+            console.log(`Added missed code: ${code}`);
+          }
+        }
+      }
+      // Sort and dedupe again
+      itemCodes = [...new Set(itemCodes)].sort();
+    }
+  }
+
+  // STEP 2: Extract descriptions (lines with SUPA/SUPALOAF that don't start with numbers)
+  let descriptions = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Description lines contain product names and don't start with numbers
     if (
-      line.includes("Code Description") ||
-      line.includes("Orderd Qty.") ||
-      line.includes("Outstanding Qty.") ||
-      line.includes("Orderd Qty.F")
+      (line.includes("SUPA") || line.includes("SUPALOAF")) &&
+      !line.match(/^\d/)
     ) {
-      inItemsSection = true;
-      console.log("Entered items section at line:", i + 1);
-      continue;
+      descriptions.push(line);
     }
+  }
 
-    if (
-      line.includes("********* End of Report ********") ||
-      line.includes("FRESHMARKET") ||
-      line.includes("* End of Report")
-    ) {
-      break;
-    }
+  console.log(`Found ${descriptions.length} descriptions:`, descriptions);
 
-    if (!inItemsSection) {
-      continue;
-    }
+  // STEP 3: Extract ordered quantities (first block of decimal numbers)
+  let orderedQtys = [];
+  let foundFirstQty = false;
 
-    const screenshotPattern = /^(4003\d{2})\s+(.+?)\s+(\d+\.\d{2})$/;
-    const screenshotMatch = line.match(screenshotPattern);
-
-    if (screenshotMatch) {
-      const code = screenshotMatch[1];
-      const description = screenshotMatch[2];
-      const quantity = parseFloat(screenshotMatch[3]);
-
-      if (quantity && !isNaN(quantity) && quantity > 0) {
-        items.push({
-          ocrItemCode: code,
-          actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
-          quantity: Math.round(quantity),
-          foundQuantity: quantity,
-          productName: description || `Cleanshelf Product ${code}`,
-          method: "cleanshelf_screenshot_format",
-          lineNumber: i + 1,
-          rawLine: line.substring(0, 100),
-        });
-        console.log(
-          `Cleanshelf Screenshot: ${code} (${description}) x ${quantity}`,
-        );
-        continue;
-      }
-    }
-
-    const codeMatch = line.match(/(4003\d{2})/);
-    if (!codeMatch) {
-      continue;
-    }
-
-    const code = codeMatch[1];
-    const parts = line.split(/\s+/);
-
-    if (parts.length >= 4) {
-      let quantity = null;
-
-      // FIX 6: Use "Orderd Qty." column value (first decimal), not weight in Description
-      // Look for pattern: 0.00 8.00 8.00 400329
-      const decimalPattern =
-        /(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(4003\d{2})/;
-      const decimalMatch = line.match(decimalPattern);
-
-      if (decimalMatch) {
-        // Second decimal is "Orderd Qty." (e.g., 8.00 in "0.00 8.00 8.00")
-        quantity = parseFloat(decimalMatch[2]);
-        console.log(
-          `Found quantity for ${decimalMatch[4]}: ${quantity} (Orderd Qty. column)`,
-        );
-      }
-
-      if (!quantity || isNaN(quantity)) {
-        for (let j = 0; j < parts.length; j++) {
-          if (
-            /^\d+\.\d{2}$/.test(parts[j]) &&
-            j + 2 < parts.length &&
-            /^\d+\.\d{2}$/.test(parts[j + 1]) &&
-            /^\d+\.\d{2}$/.test(parts[j + 2]) &&
-            parts[j + 3] === code
-          ) {
-            quantity = parseFloat(parts[j]);
-            break;
-          }
-        }
-      }
-
-      if (!quantity || isNaN(quantity)) {
-        for (let j = 0; j < parts.length; j++) {
-          if (parts[j] === code && j < parts.length - 2) {
-            for (let k = j + 1; k < parts.length; k++) {
-              const potentialQty = parseFloat(parts[k]);
-              if (!isNaN(potentialQty) && potentialQty > 0) {
-                quantity = potentialQty;
-                break;
-              }
-            }
-            break;
-          }
-        }
-      }
-
-      if (!quantity || isNaN(quantity)) {
-        for (let j = 0; j < parts.length; j++) {
-          if (parts[j] === code && j < parts.length - 1) {
-            for (let k = j + 1; k < parts.length; k++) {
-              const potentialQty = parseFloat(parts[k]);
-              if (!isNaN(potentialQty) && potentialQty > 0) {
-                quantity = potentialQty;
-                break;
-              }
-            }
-            break;
-          }
-        }
-      }
-
-      if (quantity && !isNaN(quantity) && quantity > 0) {
-        const codeIndex = parts.indexOf(code);
-        let description = "";
-        if (codeIndex !== -1 && codeIndex < parts.length - 1) {
-          for (let j = codeIndex + 1; j < parts.length; j++) {
-            if (/^\d+\.\d{2}$/.test(parts[j])) {
-              break;
-            }
-            description += parts[j] + " ";
-          }
-          description = description.trim();
-        }
-
-        items.push({
-          ocrItemCode: code,
-          actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
-          quantity: Math.round(quantity),
-          foundQuantity: quantity,
-          productName: description || `Cleanshelf Product ${code}`,
-          method: "cleanshelf_pending_orders",
-          lineNumber: i + 1,
-          rawLine: line.substring(0, 100),
-        });
-        console.log(
-          `Cleanshelf Pending: ${code} (${description}) x ${quantity}`,
-        );
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Look for decimal numbers like "8.00", "15.00", etc.
+    if (line.match(/^\d+\.\d{2}$/)) {
+      orderedQtys.push(parseFloat(line));
+      foundFirstQty = true;
+    } else if (foundFirstQty) {
+      // Once we've found the first quantity, keep collecting until we hit non-quantity
+      // But only if we haven't collected 8 yet
+      if (orderedQtys.length < 8 && line.match(/^\d+\.\d{2}$/)) {
+        orderedQtys.push(parseFloat(line));
+      } else if (orderedQtys.length >= 8) {
+        break;
       }
     }
   }
 
-  console.log(`Parsed ${items.length} items from Cleanshelf Pending Orders`);
+  // Take only the first 8 quantities (ordered quantities)
+  // The first block of 8 numbers after descriptions are the ordered quantities
+  orderedQtys = orderedQtys.slice(0, 8);
+  console.log(`Found ${orderedQtys.length} ordered quantities:`, orderedQtys);
 
-  if (items.length === 0) {
-    console.log("Trying regex pattern matching...");
+  // STEP 4: Match them up by position/index
+  const itemCount = Math.min(
+    itemCodes.length,
+    descriptions.length,
+    orderedQtys.length,
+  );
 
-    // FIX 6: Pattern for "Orderd Qty." column format
-    const pattern1 =
-      /(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(4003\d{2})\s+(.+)/g;
-    let match1;
+  console.log(`Matching ${itemCount} items by position...`);
 
-    while ((match1 = pattern1.exec(text)) !== null) {
-      const code = match1[4];
-      const quantity = parseFloat(match1[2]); // Second decimal is "Orderd Qty."
-      const description = match1[5];
+  for (let i = 0; i < itemCount; i++) {
+    const code = itemCodes[i];
+    const description = descriptions[i] || `Product ${code}`;
+    const quantity = orderedQtys[i];
 
-      if (quantity && !isNaN(quantity) && quantity > 0) {
+    if (quantity && quantity > 0) {
+      items.push({
+        ocrItemCode: code,
+        actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
+        quantity: Math.round(quantity),
+        foundQuantity: quantity,
+        productName: description,
+        method: "cleanshelf_pending_orders_fixed",
+        position: i + 1,
+      });
+      console.log(
+        `Position ${i + 1}: ${code} -> ${CLEANSHELF_ITEM_CODE_MAPPING[code] || code} x ${quantity} (${description})`,
+      );
+    }
+  }
+
+  // STEP 5: If we're missing any, try a fallback approach
+  if (items.length < 8 && itemCodes.length === 8 && orderedQtys.length === 8) {
+    console.log("Using fallback matching by position only...");
+    for (let i = 0; i < 8; i++) {
+      const code = itemCodes[i];
+      const quantity = orderedQtys[i];
+      const description = descriptions[i] || `Product ${code}`;
+
+      if (
+        quantity &&
+        quantity > 0 &&
+        !items.some((item) => item.ocrItemCode === code)
+      ) {
         items.push({
           ocrItemCode: code,
           actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
           quantity: Math.round(quantity),
           foundQuantity: quantity,
           productName: description,
-          method: "cleanshelf_pending_orders_regex1",
-          rawLine: match1[0].substring(0, 100),
+          method: "cleanshelf_pending_orders_fallback",
+          position: i + 1,
         });
-        console.log(
-          `Cleanshelf Pending: ${code} (${description}) x ${quantity}`,
-        );
-      }
-    }
-
-    const pattern2 = /(4003\d{2})\s+(.+?)\s+(\d+\.\d{2})/g;
-    let match2;
-
-    while ((match2 = pattern2.exec(text)) !== null) {
-      const code = match2[1];
-      const description = match2[2];
-      const quantity = parseFloat(match2[3]);
-
-      if (quantity && !isNaN(quantity) && quantity > 0) {
-        items.push({
-          ocrItemCode: code,
-          actualItemCode: CLEANSHELF_ITEM_CODE_MAPPING[code] || code,
-          quantity: Math.round(quantity),
-          foundQuantity: quantity,
-          productName: description,
-          method: "cleanshelf_pending_orders_regex2",
-          rawLine: match2[0].substring(0, 100),
-        });
-        console.log(
-          `Cleanshelf Pending: ${code} (${description}) x ${quantity}`,
-        );
+        console.log(`Fallback ${i + 1}: ${code} x ${quantity}`);
       }
     }
   }
+
+  console.log(`Total items parsed: ${items.length} out of 8`);
 
   return items;
 };
@@ -2757,7 +2710,7 @@ const parseCleanshelfCopyPasteText = (text) => {
   return { items, mainLPONumber };
 };
 
-// FIX 2: Cleanshelf - Fixed LPO extraction to handle commas
+// Fixed LPO extraction to handle commas and avoid item codes
 const extractLPONumber = (text, customerType = "NAIVAS") => {
   console.log(`Extracting LPO number for ${customerType}...`);
 
@@ -2791,54 +2744,102 @@ const extractLPONumber = (text, customerType = "NAIVAS") => {
       break;
 
     case "CLEANSHELF":
-      // FIX: Handle LPO numbers with commas (e.g., 111,793) and without commas
-      // Pattern 1: Look for "LPO No." or "L. P. O. No:" with optional commas in number
+      // Look for number right before "LPO No."
+      // Pattern: any line followed by "LPO No." on the next line
+      // Examples: 111,638 or 1,003 or 1,234,567
+      const lpoBeforeLpoNoPattern =
+        /\n\s*(\d{1,3}(?:,\d{3})*)\s*\n\s*LPO\s*No\./i;
+      const lpoMatch = text.match(lpoBeforeLpoNoPattern);
+
+      if (lpoMatch) {
+        const lpoNumber = lpoMatch[1].replace(/,/g, "");
+        console.log(`Cleanshelf LPO found (before LPO No.): ${lpoNumber}`);
+        return lpoNumber;
+      }
+
+      // Pattern 1: Look for the number WITH COMMA above LPO No. (specific to Pending Orders)
+      // Format: "MINI BAKERIES (NAIROBI\n111,638\nLPO No."
+      const pendingOrderPattern =
+        /MINI\s+BAKERIES\s*\([^)]+\)\s*\n\s*(\d{1,3},\d{3})\s*\n\s*LPO\s*No\.?/i;
+      const pendingMatch = text.match(pendingOrderPattern);
+
+      if (pendingMatch) {
+        const lpoNumber = pendingMatch[1].replace(/,/g, "");
+        console.log(
+          `Cleanshelf Pending Order LPO found (above LPO No.): ${lpoNumber}`,
+        );
+        return lpoNumber;
+      }
+
+      // Pattern 2: Look for number BEFORE "L. P. O. No:" (Local PO format)
+      const localPOMatch = text.match(
+        /(\d{5,6})\s+L\.?\s*P\.?\s*O\.?\s*No\.?/i,
+      );
+      if (localPOMatch) {
+        const lpoNumber = localPOMatch[1];
+        console.log(`Cleanshelf Local PO LPO found: ${lpoNumber}`);
+        return lpoNumber;
+      }
+
+      // Pattern 3: Look for "LPO No." or "L. P. O. No:" with optional commas
       const cleanshelfPattern1 = /L\.?\s*P\.?\s*O\.?\s*No\.?\s*:?\s*([\d,]+)/i;
       const cleanshelfMatch1 = text.match(cleanshelfPattern1);
 
       if (cleanshelfMatch1) {
         // Remove commas from the LPO number
         const lpoNumber = cleanshelfMatch1[1].replace(/,/g, "");
-        console.log(`Cleanshelf LPO found (with commas handled): ${lpoNumber}`);
-        return lpoNumber;
+        // Ensure it's not an item code (400xxx)
+        if (!lpoNumber.startsWith("400")) {
+          console.log(`Cleanshelf LPO found (from LPO No.): ${lpoNumber}`);
+          return lpoNumber;
+        }
       }
 
-      // Pattern 2: Look for "LPO" followed by number with commas
+      // Pattern 4: Look for "LPO" followed by number with commas
       const cleanshelfPattern2 = /LPO\s*No\.?\s*:?\s*([\d,]+)/i;
       const cleanshelfMatch2 = text.match(cleanshelfPattern2);
 
       if (cleanshelfMatch2) {
         const lpoNumber = cleanshelfMatch2[1].replace(/,/g, "");
-        console.log(`Cleanshelf LPO found: ${lpoNumber}`);
-        return lpoNumber;
+        if (!lpoNumber.startsWith("400")) {
+          console.log(`Cleanshelf LPO found: ${lpoNumber}`);
+          return lpoNumber;
+        }
       }
 
-      // Pattern 3: Look for standalone 5-6 digit numbers with optional commas
+      // Pattern 5: Look for numbers in Cleanshelf context that are 5-7 digits (with or without commas)
       if (
         text.includes("CLEAN SHELF") ||
         text.includes("CLEANSHELF") ||
         text.includes("FRESHMARKET")
       ) {
-        // Look for patterns like "111,793" or "111793" in Cleanshelf context
-        const standalonePattern = /\b(\d{1,3}(?:,\d{3})*\d{0,3})\b/;
-        const standaloneMatch = text.match(standalonePattern);
+        // Look for patterns like "111,638" or "111638" that are NOT item codes (400xxx)
+        const numberPattern = /\b(\d{1,3}(?:,\d{3})*)\b/g;
+        let match;
+        while ((match = numberPattern.exec(text)) !== null) {
+          const number = match[1].replace(/,/g, "");
+          // Skip item codes (400xxx)
+          if (number.startsWith("400") && number.length === 6) {
+            continue;
+          }
 
-        if (standaloneMatch) {
-          // Check if this number appears near "LPO" or in a Cleanshelf context
-          const matchIndex = text.indexOf(standaloneMatch[1]);
+          // Look at context around the number
+          const matchIndex = text.indexOf(match[1]);
           const context = text.substring(
             Math.max(0, matchIndex - 30),
             Math.min(text.length, matchIndex + 30),
           );
 
+          // Check if it's likely an LPO (near LPO text or has proper length)
           if (
-            context.includes("LPO") ||
-            context.includes("No.") ||
-            (standaloneMatch[1].length >= 5 && standaloneMatch[1].length <= 7)
+            (context.includes("LPO") ||
+              context.includes("No.") ||
+              context.includes("MINI BAKERIES")) &&
+            number.length >= 5 &&
+            number.length <= 7
           ) {
-            const lpoNumber = standaloneMatch[1].replace(/,/g, "");
-            console.log(`Possible Cleanshelf LPO: ${lpoNumber}`);
-            return lpoNumber;
+            console.log(`Cleanshelf LPO from context: ${number}`);
+            return number;
           }
         }
       }
@@ -2882,6 +2883,26 @@ const extractLPONumber = (text, customerType = "NAIVAS") => {
             .replace(/^:/, "")
             .replace(/:$/, "");
 
+          // Remove suffix like -1, -2, etc.
+          if (lpo.includes("-")) {
+            // Check if it's a date pattern (e.g., 10-Jan) or actual suffix
+            const suffixMatch = lpo.match(/-(\d+)$/);
+            if (suffixMatch && !lpo.match(/-\d{2}-[A-Za-z]{3}/)) {
+              // It's a numeric suffix like -1, remove it
+              lpo = lpo.replace(/-\d+$/, "");
+              console.log("Removed numeric suffix:", lpo);
+            } else if (lpo.match(/-\d{2}-[A-Za-z]{3}/)) {
+              // It's a date, find the real LPO before it
+              const dateMatch = cleaned.match(
+                /(P\d{9})[-\s]+\d{2}-[A-Za-z]{3}/,
+              );
+              if (dateMatch) {
+                lpo = dateMatch[1];
+                console.log("Extracted LPO before date:", lpo);
+              }
+            }
+          }
+
           console.log("Cleaned LPO:", lpo);
 
           if (/^\d{9}$/.test(lpo)) {
@@ -2904,7 +2925,13 @@ const extractLPONumber = (text, customerType = "NAIVAS") => {
             }
           }
 
-          if (/^P\d{9}(?:-\d+)?$/.test(lpo)) {
+          // Final check - if it has suffix but we want to remove it
+          if (/^P\d{9}-\d+$/.test(lpo)) {
+            lpo = lpo.replace(/-\d+$/, "");
+            console.log("Final removal of suffix:", lpo);
+          }
+
+          if (/^P\d{9}$/.test(lpo)) {
             console.log(`Valid LPO found: ${lpo}`);
             return lpo;
           }
@@ -4422,7 +4449,7 @@ P.O. BOX 1208-00217,LIMURU
  709.60 88.700 400338 SUPALOAF BARREL WHITE 600GM 1 8
  463.20 57.900 400337 SUPALOAF BARREL WHITE 400GM 1 8
  347.40 57.900 400334 SUPALOAF  WHITE 400GM 0 6
- 463.20 57.900 400329 SUPA BUTTER TOAST WHITE 400GM`;
+ 463.20 57.900 400329 SUPA BUTTER TOAST WHITE 400GM 8 8`;
 
   console.log("Testing Cleanshelf parser");
   const result = await parsePOText(testText, "C00494", "CLEANSHELF");

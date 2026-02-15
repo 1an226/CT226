@@ -1,9 +1,12 @@
 import axios from "axios";
 
 // Load configuration from environment variables
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://mbnl.ddsolutions.tech/dds-backend/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+if (!API_BASE_URL) {
+  console.error("VITE_API_BASE_URL environment variable is required");
+}
+
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT) || 45000;
 const MAX_CONCURRENT_REQUESTS =
   parseInt(import.meta.env.VITE_MAX_CONCURRENT_REQUESTS) || 2;

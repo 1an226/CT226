@@ -70,9 +70,7 @@ const useOrders = (initialBranch = null, initialDate = null) => {
         return { orders: [], summary: null };
       }
 
-      console.log(
-        `Fetching orders for ${branch}${date ? ` on ${date}` : ""}`,
-      );
+      console.log(`Fetching orders for ${branch}${date ? ` on ${date}` : ""}`);
 
       // Abort previous request if still running
       if (abortControllerRef.current) {
@@ -139,7 +137,7 @@ const useOrders = (initialBranch = null, initialDate = null) => {
       console.log(`Changing branch to: ${newBranch}`);
 
       if (!newBranch) {
-        console.error("Cannot change to undefined/null branch");
+        console.error("Cannot change to undefined branch");
         return { orders: [], summary: null };
       }
 
@@ -155,7 +153,7 @@ const useOrders = (initialBranch = null, initialDate = null) => {
   // Date changing
   const changeDate = useCallback(
     async (newDate) => {
-      console.log(`📅 Changing date to: ${newDate}`);
+      console.log(`Changing date to: ${newDate}`);
 
       if (!currentBranch) {
         console.error("Cannot change date without a branch selected");
@@ -199,7 +197,7 @@ const useOrders = (initialBranch = null, initialDate = null) => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split("T")[0];
     console.log(
-      `📅 Getting tomorrow's orders for ${currentBranch}: ${tomorrowStr}`,
+      `Getting tomorrow's orders for ${currentBranch}: ${tomorrowStr}`,
     );
 
     if (isMountedRef.current) {
@@ -213,7 +211,7 @@ const useOrders = (initialBranch = null, initialDate = null) => {
   const searchOrders = useCallback(
     async (query, filters = {}) => {
       if (!currentBranch || !query?.trim()) {
-        console.log("⚠️ No branch or query provided for search");
+        console.log("No branch or query provided for search");
         return { orders: [], summary: null };
       }
 
@@ -223,7 +221,7 @@ const useOrders = (initialBranch = null, initialDate = null) => {
           ...filters,
         });
       } catch (err) {
-        console.error("❌ Search error:", err);
+        console.error("Search error:", err);
         return { orders: [], summary: null };
       }
     },
@@ -234,15 +232,15 @@ const useOrders = (initialBranch = null, initialDate = null) => {
   const getAllBranchesOrders = useCallback(
     async (branches, date = selectedDate) => {
       if (!branches?.length) {
-        console.error("❌ No branches provided");
+        console.error("No branches provided");
         return [];
       }
 
-      console.log(`🌐 Getting orders for ${branches.length} branches`);
+      console.log(`Getting orders for ${branches.length} branches`);
       try {
         return await ordersService.getAllBranchesOrders(branches, date);
       } catch (err) {
-        console.error("❌ Error getting all branches orders:", err);
+        console.error("Error getting all branches orders:", err);
         return [];
       }
     },
@@ -308,7 +306,7 @@ const useOrders = (initialBranch = null, initialDate = null) => {
 
   // Auto-fetch when branch or date changes
   useEffect(() => {
-    console.log(`useEffect: branch=${currentBranch}, date=${selectedDate}`);
+    console.log(`Auto-fetch: branch=${currentBranch}, date=${selectedDate}`);
 
     if (currentBranch) {
       fetchOrders(currentBranch, selectedDate);

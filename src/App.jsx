@@ -306,7 +306,6 @@ const DocumentReaderModal = memo(
           style={{ maxWidth: "800px", maxHeight: "90vh" }}
         >
           <div className="modal-header">
-            {/* CHANGE #6: Removed NAIVAS tag from document reader modal header */}
             <h3>{selectedCustomer.name}</h3>
             <button
               onClick={() => {
@@ -343,7 +342,7 @@ const DocumentReaderModal = memo(
                     key={index}
                     style={{ color: "#d32f2f", fontSize: "14px" }}
                   >
-                    ⚠️ {error}
+                    {error}
                   </div>
                 ))}
               </div>
@@ -696,8 +695,6 @@ const DocumentReaderModal = memo(
               </div>
             )}
 
-            {/* CHANGE #7: REMOVED ENTIRE "Naivas Bread Item Codes Reference" section */}
-
             {/* Processing Status */}
             {isProcessing && (
               <div
@@ -756,7 +753,7 @@ const DocumentReaderModal = memo(
                     marginBottom: "15px",
                   }}
                 >
-                  <div>{/* Removed the "PO Parsed Successfully" header */}</div>
+                  <div></div>
                   <button
                     onClick={() => {
                       setParsedOrderData(null);
@@ -1113,7 +1110,6 @@ const CustomerModal = memo(
           style={{ maxWidth: "1000px", maxHeight: "80vh" }}
         >
           <div className="modal-header">
-            {/* CHANGE #3: Changed "Select Customer for Order Creation" to "Select Customer" */}
             <h3>Select Customer</h3>
             <button
               onClick={() => setShowCustomerModal(false)}
@@ -1180,7 +1176,6 @@ const CustomerModal = memo(
             ) : filteredCustomers.length > 0 ? (
               <div className="customers-list">
                 {filteredCustomers.map((customer) => {
-                  // CHANGE #5: Removed isNaivas check and NAIVAS badge entirely
                   return (
                     <div
                       key={`${customer.id}-${customer.branch}-${customer.code}`}
@@ -1230,7 +1225,6 @@ const CustomerModal = memo(
                           </span>
                         </div>
                       </div>
-                      {/* CHANGE #4: Removed "Click to upload PO" hint entirely */}
                     </div>
                   );
                 })}
@@ -2390,7 +2384,6 @@ function App() {
                               className="calendar-input"
                               disabled={isLoading}
                             />
-                            {/* CHANGE #2: Changed "Calendar" text to calendar emoji */}
                             <span className="calendar-icon">📅</span>
                           </div>
 
@@ -2758,7 +2751,6 @@ function App() {
             </div>
           </main>
 
-          {/* CHANGE #1: Removed version info from footer, kept only API */}
           <footer className="app-footer">
             <div className="footer-content">
               <span>API: mbnl.ddsolutions.tech</span>

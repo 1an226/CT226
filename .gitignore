@@ -1,6 +1,4 @@
-# ============================================
-# ENVIRONMENT VARIABLES
-# ============================================
+# Environment Variables
 .env
 .env.local
 .env.development
@@ -9,9 +7,7 @@
 .env.*
 !.env.example
 
-# ============================================
-# DEPENDENCIES
-# ============================================
+# Dependencies
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -21,9 +17,7 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
-# ============================================
-# BUILD OUTPUTS
-# ============================================
+# Build Outputs
 dist/
 build/
 out/
@@ -37,9 +31,7 @@ out/
 *~
 ~$*
 
-# ============================================
-# OPERATING SYSTEM FILES
-# ============================================
+# Operating System Files
 .DS_Store
 .DS_Store?
 ._*
@@ -49,16 +41,12 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# ============================================
-# TEST & COVERAGE
-# ============================================
+# Test & Coverage
 coverage/
 .nyc_output/
 *.lcov
 
-# ============================================
-# LOGS
-# ============================================
+# Logs
 logs/
 *.log
 npm-debug.log*
@@ -66,9 +54,7 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# ============================================
-# OCR SERVER FILES
-# ============================================
+# OCR Server Files
 tesseract-cache/
 *.traineddata
 eng.traineddata
@@ -81,16 +67,12 @@ uploads/
 processed/
 temp/
 
-# ============================================
-# DEVELOPMENT & DEBUG FILES
-# ============================================
+# Development & Debug Files
 *.pid
 *.seed
 *.pid.lock
 
-# ============================================
-# EDITOR/IDE FILES
-# ============================================
+# Editor/IDE Files
 .vscode/
 .idea/
 *.swp
@@ -99,9 +81,7 @@ temp/
 ~$*
 *.code-workspace
 
-# ============================================
-# MISC
-# ============================================
+# Misc
 .history/
 .sass-cache/
 .tmp/
@@ -116,9 +96,7 @@ temp/
 .vercel/
 .netlify/
 
-# ============================================
-# SECURITY SENSITIVE FILES
-# ============================================
+# Security Sensitive Files
 *.pem
 *.key
 *.crt
@@ -130,9 +108,7 @@ temp/
 *.env.localhost
 *.env.staging
 
-# ============================================
-# DATABASE & STORAGE
-# ============================================
+# Database & Storage
 *.db
 *.sqlite
 *.sqlite3
@@ -140,46 +116,24 @@ temp/
 *.ldb
 *.fdb
 
-# ============================================
-# WINDOWS
-# ============================================
-# Windows thumbnail cache files
+# Windows
 Thumbs.db
 ehthumbs.db
 ehthumbs_vista.db
-
-# Dump file
 *.stackdump
-
-# Folder config file
 [Dd]esktop.ini
-
-# Recycle Bin used on file shares
 $RECYCLE.BIN/
-
-# Windows Installer files
 *.msi
 *.msm
 *.msp
-
-# Windows shortcuts
 *.lnk
 
-# ============================================
-# MACOS
-# ============================================
-# General
+# macOS
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Icon must end with two \r
 Icon
-
-# Thumbnails
 ._*
-
-# Files that might appear in the root of a volume
 .DocumentRevisions-V100
 .fseventsd
 .Spotlight-V100
@@ -187,27 +141,15 @@ Icon
 .Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
-
-# Directories potentially created on remote AFP share
 .AppleDB
 .AppleDesktop
 Network Trash Folder
 Temporary Items
 .apdisk
 
-# ============================================
-# LINUX
-# ============================================
+# Linux
 *~
-
-# temporary files which can be created if a process still has a handle open of a deleted file
 .fuse_hidden*
-
-# KDE directory preferences
 .directory
-
-# Linux trash folder which might appear on any partition or disk
 .Trash-*
-
-# .nfs files are created when an open file is removed but is still being accessed
 .nfs*

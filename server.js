@@ -18,23 +18,25 @@ const config = {
   timeout: process.env.VITE_OCR_SERVER_TIMEOUT || 60000,
   retryAttempts: process.env.VITE_OCR_SERVER_RETRY_ATTEMPTS || 3,
   retryDelay: process.env.VITE_OCR_SERVER_RETRY_DELAY || 2000,
-  
+
   // Tesseract configuration
   tesseract: {
     language: process.env.VITE_TESSERACT_LANGUAGE || "eng",
-    charWhitelist: process.env.VITE_TESSERACT_CHAR_WHITELIST || "0123456789PabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -/,.",
+    charWhitelist:
+      process.env.VITE_TESSERACT_CHAR_WHITELIST ||
+      "0123456789PabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -/,.",
     psm: parseInt(process.env.VITE_TESSERACT_PSM) || 3,
     oem: parseInt(process.env.VITE_TESSERACT_OEM) || 1,
-    debug: process.env.VITE_TESSERACT_DEBUG === "true"
+    debug: process.env.VITE_TESSERACT_DEBUG === "true",
   },
-  
+
   // Item mapping from environment variable
-  itemMapping: process.env.VITE_ITEM_CODE_MAPPING 
+  itemMapping: process.env.VITE_ITEM_CODE_MAPPING
     ? Object.fromEntries(
-        process.env.VITE_ITEM_CODE_MAPPING.split(',').map(pair => {
-          const [key, value] = pair.split(':');
+        process.env.VITE_ITEM_CODE_MAPPING.split(",").map((pair) => {
+          const [key, value] = pair.split(":");
           return [key.trim(), value.trim()];
-        })
+        }),
       )
     : {
         13505757: "FG867",
@@ -44,24 +46,24 @@ const config = {
         13505758: "FG869",
         13505790: "FG863",
       },
-  
+
   // Item names mapping (optional)
   itemNames: process.env.VITE_ITEM_NAMES_MAPPING
     ? Object.fromEntries(
-        process.env.VITE_ITEM_NAMES_MAPPING.split(',').map(pair => {
-          const [key, value] = pair.split(':');
+        process.env.VITE_ITEM_NAMES_MAPPING.split(",").map((pair) => {
+          const [key, value] = pair.split(":");
           return [key.trim(), value.trim()];
-        })
+        }),
       )
     : {},
 };
 
 // File upload setup
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: config.maxFileSize
-  }
+    fileSize: config.maxFileSize,
+  },
 });
 
 // Simple OCR endpoint
@@ -71,7 +73,7 @@ app.post("/api/naivas/ocr", upload.single("image"), async (req, res) => {
     console.log("Config:", {
       language: config.tesseract.language,
       psm: config.tesseract.psm,
-      itemCount: Object.keys(config.itemMapping).length
+      itemCount: Object.keys(config.itemMapping).length,
     });
 
     // 1. Extract text from image
@@ -110,7 +112,7 @@ app.post("/api/naivas/ocr", upload.single("image"), async (req, res) => {
               itemName: config.itemNames[code] || productCode,
               foundInText: match[0],
             });
-            console.log(`✅ Found: ${code} -> ${productCode} x ${quantity}`);
+            console.log(`Found: ${code} -> ${productCode} x ${quantity}`);
           }
         }
       }
@@ -132,20 +134,20 @@ app.post("/api/naivas/ocr", upload.single("image"), async (req, res) => {
         config: {
           language: config.tesseract.language,
           charWhitelistLength: config.tesseract.charWhitelist.length,
-          itemMappingCount: Object.keys(config.itemMapping).length
-        }
+          itemMappingCount: Object.keys(config.itemMapping).length,
+        },
       },
     });
   } catch (error) {
-    console.error("❌ Error processing image:", error);
+    console.error("Error processing image:", error);
     res.status(500).json({
       success: false,
       error: error.message,
       message: "Failed to process image. Please try again.",
       config: {
         maxFileSize: config.maxFileSize,
-        timeout: config.timeout
-      }
+        timeout: config.timeout,
+      },
     });
   }
 });
@@ -158,13 +160,13 @@ app.get("/test", (req, res) => {
       port: config.port,
       maxFileSize: config.maxFileSize,
       timeout: config.timeout,
-      itemCodes: Object.keys(config.itemMapping)
+      itemCodes: Object.keys(config.itemMapping),
     },
     endpoints: {
       upload: `POST http://localhost:${config.port}/api/naivas/ocr`,
-      test: `GET http://localhost:${config.port}/test`
+      test: `GET http://localhost:${config.port}/test`,
     },
-    itemMapping: config.itemMapping
+    itemMapping: config.itemMapping,
   });
 });
 
@@ -174,7 +176,7 @@ app.get("/health", (req, res) => {
     status: "healthy",
     timestamp: new Date().toISOString(),
     server: "Naivas PO OCR Server",
-    version: "1.0.0"
+    version: "1.0.0",
   });
 });
 

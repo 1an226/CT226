@@ -1,3 +1,4 @@
+/* Branch viewer component styles */
 .branch-viewer {
   background: rgba(0, 20, 0, 0.7);
   border: 1px solid #003300;
@@ -9,6 +10,7 @@
   flex-direction: column;
 }
 
+/* Header section */
 .branch-viewer-header {
   display: flex;
   justify-content: space-between;
@@ -46,6 +48,7 @@
   gap: 15px;
 }
 
+/* Search box */
 .search-box {
   display: flex;
   align-items: center;
@@ -69,6 +72,7 @@
   color: #006600;
 }
 
+/* Refresh button */
 .refresh-all-btn {
   background: rgba(0, 100, 0, 0.5);
   color: #00ff00;
@@ -90,6 +94,7 @@
   cursor: not-allowed;
 }
 
+/* Main content area */
 .branch-viewer-content {
   display: flex;
   gap: 20px;
@@ -97,6 +102,7 @@
   overflow: hidden;
 }
 
+/* Left panel - branch list */
 .branch-list-panel {
   width: 350px;
   min-width: 350px;
@@ -122,7 +128,7 @@
   padding-right: 5px;
 }
 
-/* Scrollbar styling for branch list */
+/* Custom scrollbar */
 .branches-container::-webkit-scrollbar {
   width: 5px;
 }
@@ -136,6 +142,7 @@
   border-radius: 3px;
 }
 
+/* Branch card */
 .branch-card {
   background: rgba(0, 30, 0, 0.6);
   border: 1px solid #003300;
@@ -195,6 +202,7 @@
   }
 }
 
+/* Branch statistics */
 .branch-card-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -223,6 +231,7 @@
   font-weight: bold;
 }
 
+/* Branch action buttons */
 .branch-card-actions {
   display: flex;
   gap: 10px;
@@ -270,6 +279,7 @@
   border-color: #00aaff;
 }
 
+/* Right panel - details */
 .details-panel {
   flex: 1;
   display: flex;
@@ -278,6 +288,7 @@
   overflow: hidden;
 }
 
+/* Orders section */
 .orders-section,
 .customers-section {
   background: rgba(0, 20, 0, 0.6);
@@ -316,6 +327,7 @@
   border-radius: 12px;
 }
 
+/* Orders table */
 .orders-table-container {
   flex: 1;
   overflow-y: auto;
@@ -348,6 +360,7 @@
   background: rgba(0, 50, 0, 0.4);
 }
 
+/* Customer cell in orders table */
 .customer-cell {
   display: flex;
   flex-direction: column;
@@ -373,6 +386,7 @@
   font-weight: bold;
 }
 
+/* Order status badges */
 .status-badge {
   padding: 4px 8px;
   border-radius: 12px;
@@ -399,6 +413,7 @@
   border: 1px solid #28a745;
 }
 
+/* Empty state */
 .no-orders {
   flex: 1;
   display: flex;
@@ -414,6 +429,7 @@
   opacity: 0.5;
 }
 
+/* Customers grid */
 .customers-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -423,6 +439,7 @@
   padding-right: 5px;
 }
 
+/* Customer card */
 .customer-card {
   background: rgba(0, 30, 0, 0.6);
   border: 1px solid #003300;
@@ -491,7 +508,7 @@
   font-size: 0.7rem;
 }
 
-/* Customer Modal */
+/* Customer detail modal */
 .customer-modal-overlay {
   position: fixed;
   top: 0;

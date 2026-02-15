@@ -4,18 +4,27 @@ class AuthService {
   constructor() {
     this.refreshInterval = null;
     this.refreshAttempts = 0;
-    
+
     // Load configuration from environment variables
-    this.MAX_REFRESH_ATTEMPTS = parseInt(import.meta.env.VITE_MAX_REFRESH_ATTEMPTS) || 3;
-    this.TOKEN_REFRESH_THRESHOLD = parseInt(import.meta.env.VITE_TOKEN_REFRESH_THRESHOLD) || 1800;
-    this.TOKEN_EXPIRY_BUFFER = parseInt(import.meta.env.VITE_TOKEN_EXPIRY_BUFFER) || 60;
-    this.TOKEN_MONITOR_INTERVAL = parseInt(import.meta.env.VITE_TOKEN_MONITOR_INTERVAL) || 30000;
-    this.BRANCH_SWITCH_DELAY = parseInt(import.meta.env.VITE_BRANCH_SWITCH_DELAY) || 100;
+    this.MAX_REFRESH_ATTEMPTS =
+      parseInt(import.meta.env.VITE_MAX_REFRESH_ATTEMPTS) || 3;
+    this.TOKEN_REFRESH_THRESHOLD =
+      parseInt(import.meta.env.VITE_TOKEN_REFRESH_THRESHOLD) || 1800;
+    this.TOKEN_EXPIRY_BUFFER =
+      parseInt(import.meta.env.VITE_TOKEN_EXPIRY_BUFFER) || 60;
+    this.TOKEN_MONITOR_INTERVAL =
+      parseInt(import.meta.env.VITE_TOKEN_MONITOR_INTERVAL) || 30000;
+    this.BRANCH_SWITCH_DELAY =
+      parseInt(import.meta.env.VITE_BRANCH_SWITCH_DELAY) || 100;
     this.OPERATION_DELAY = parseInt(import.meta.env.VITE_OPERATION_DELAY) || 50;
-    this.BETWEEN_BRANCH_DELAY = parseInt(import.meta.env.VITE_BETWEEN_BRANCH_DELAY) || 300;
-    this.DEFAULT_USER_ID = parseInt(import.meta.env.VITE_DEFAULT_USER_ID) || 1134;
-    this.DEFAULT_USER_ROLE = import.meta.env.VITE_DEFAULT_USER_ROLE || "Reliever";
-    this.ENABLE_TOKEN_MONITOR = import.meta.env.VITE_ENABLE_TOKEN_MONITOR === "true";
+    this.BETWEEN_BRANCH_DELAY =
+      parseInt(import.meta.env.VITE_BETWEEN_BRANCH_DELAY) || 300;
+    this.DEFAULT_USER_ID =
+      parseInt(import.meta.env.VITE_DEFAULT_USER_ID) || 1134;
+    this.DEFAULT_USER_ROLE =
+      import.meta.env.VITE_DEFAULT_USER_ROLE || "Reliever";
+    this.ENABLE_TOKEN_MONITOR =
+      import.meta.env.VITE_ENABLE_TOKEN_MONITOR === "true";
 
     // Branch state management
     this.currentBranch = null;
@@ -32,7 +41,9 @@ class AuthService {
       if (userStr) {
         const user = JSON.parse(userStr);
         this.currentBranch = user.details?.branch || "";
-        console.log(`Loaded branch from storage: ${this.currentBranch || "none"}`);
+        console.log(
+          `Loaded branch from storage: ${this.currentBranch || "none"}`,
+        );
       }
     } catch (error) {
       console.error("Error loading from storage:", error);
@@ -90,7 +101,9 @@ class AuthService {
 
   // Switch branch
   async switchBranch(branch) {
-    console.log(`Switching branch: ${this.currentBranch || "none"} → ${branch}`);
+    console.log(
+      `Switching branch: ${this.currentBranch || "none"} → ${branch}`,
+    );
 
     // If already on this branch, return immediately
     if (this.currentBranch === branch) {
@@ -154,10 +167,14 @@ class AuthService {
           console.log(`API call: ${apiSuccess ? "Success" : "Fallback"}`);
 
           // Small delay for stability
-          await new Promise((resolve) => setTimeout(resolve, this.BRANCH_SWITCH_DELAY));
+          await new Promise((resolve) =>
+            setTimeout(resolve, this.BRANCH_SWITCH_DELAY),
+          );
           return true;
         } else {
-          console.warn(`Branch mismatch after switch: expected ${branch}, got ${finalBranch}`);
+          console.warn(
+            `Branch mismatch after switch: expected ${branch}, got ${finalBranch}`,
+          );
           // Force one more time
           this.forceUpdateBranch(branch);
           return true;
@@ -198,7 +215,8 @@ class AuthService {
           details: {
             id: payload?.auth?.details?.id || this.DEFAULT_USER_ID,
             mobile: payload?.auth?.details?.mobile || "",
-            userRole: payload?.auth?.details?.userRole || this.DEFAULT_USER_ROLE,
+            userRole:
+              payload?.auth?.details?.userRole || this.DEFAULT_USER_ROLE,
             branch: branch,
             userBranches: payload?.auth?.details?.userBranches || [],
             authenticated: true,
@@ -351,7 +369,7 @@ class AuthService {
           branch,
           async () => {
             return await fetchOperation(branch, date);
-          }
+          },
         );
 
         // Process results
@@ -361,13 +379,22 @@ class AuthService {
         if (Array.isArray(operationResult)) {
           data = operationResult;
           count = operationResult.length;
-        } else if (operationResult?.orders && Array.isArray(operationResult.orders)) {
+        } else if (
+          operationResult?.orders &&
+          Array.isArray(operationResult.orders)
+        ) {
           data = operationResult.orders;
           count = operationResult.orders.length;
-        } else if (operationResult?.data && Array.isArray(operationResult.data)) {
+        } else if (
+          operationResult?.data &&
+          Array.isArray(operationResult.data)
+        ) {
           data = operationResult.data;
           count = operationResult.data.length;
-        } else if (operationResult?.customers && Array.isArray(operationResult.customers)) {
+        } else if (
+          operationResult?.customers &&
+          Array.isArray(operationResult.customers)
+        ) {
           data = operationResult.customers;
           count = operationResult.customers.length;
         } else if (typeof operationResult === "object") {
@@ -392,7 +419,9 @@ class AuthService {
         console.log(`${branch}: ${count} items`);
 
         // Delay between branches
-        await new Promise((resolve) => setTimeout(resolve, this.BETWEEN_BRANCH_DELAY));
+        await new Promise((resolve) =>
+          setTimeout(resolve, this.BETWEEN_BRANCH_DELAY),
+        );
       } catch (error) {
         console.error(`${branch} failed:`, error.message);
         errors.push({ branch, error: error.message });
@@ -405,7 +434,9 @@ class AuthService {
         };
 
         // Delay even on error
-        await new Promise((resolve) => setTimeout(resolve, this.BETWEEN_BRANCH_DELAY));
+        await new Promise((resolve) =>
+          setTimeout(resolve, this.BETWEEN_BRANCH_DELAY),
+        );
       }
     }
 
@@ -432,7 +463,9 @@ class AuthService {
         console.log(`Updated axios headers for branch: ${this.currentBranch}`);
       }
 
-      console.log(`Auth data set for branch: ${this.currentBranch || "unknown"}`);
+      console.log(
+        `Auth data set for branch: ${this.currentBranch || "unknown"}`,
+      );
       return true;
     } catch (error) {
       console.error("Error setting auth data:", error);
@@ -491,7 +524,9 @@ class AuthService {
     const verified = current === branch;
 
     if (!verified) {
-      console.warn(`Branch verification failed: expected ${branch}, got ${current}`);
+      console.warn(
+        `Branch verification failed: expected ${branch}, got ${current}`,
+      );
       // Auto-correct
       this.forceUpdateBranch(branch);
     }
@@ -528,7 +563,7 @@ class AuthService {
           .map(function (c) {
             return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
           })
-          .join("")
+          .join(""),
       );
 
       return JSON.parse(jsonPayload);
@@ -623,7 +658,7 @@ class AuthService {
           headers: {
             "X-Refresh-Token": "true",
           },
-        }
+        },
       );
 
       const newToken = response.headers["x-auth-token"] || response.data?.token;
@@ -834,7 +869,9 @@ class AuthService {
       const payload = this.decodeJWT(token);
       return {
         branch: payload?.auth?.details?.branch,
-        expires: payload?.exp ? new Date(payload.exp * 1000).toISOString() : null,
+        expires: payload?.exp
+          ? new Date(payload.exp * 1000).toISOString()
+          : null,
         user: payload?.auth?.name,
         id: payload?.jti,
       };

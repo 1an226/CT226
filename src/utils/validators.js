@@ -1,304 +1,228 @@
 /**
- * Validation utilities for the CT226 system
+ * Utility functions for formatting and data processing
  */
 
-export const validatePhoneNumber = (phone) => {
-  if (!phone) return { isValid: false, error: "Phone number is required" };
-
-  const phoneStr = phone.toString().trim();
-
-  // Remove all non-numeric characters
-  const numericPhone = phoneStr.replace(/\D/g, "");
-
-  // Check if it's empty after removing non-digits
-  if (numericPhone.length === 0) {
-    return { isValid: false, error: "Phone number must contain digits" };
+export const formatCurrency = (value, currency = "Ksh") => {
+  if (value === null || value === undefined || value === "") {
+    return `${currency} 0.00`;
   }
 
-  // Check length - should be 9 digits (without 254 prefix) or 12 digits (with 254)
-  if (numericPhone.length === 9) {
-    // Format: 0XXXXXXXXX
-    if (!/^0/.test(numericPhone)) {
-      return { isValid: false, error: "Phone number should start with 0" };
+  let numericValue = 0;
+
+  try {
+    if (typeof value === "string") {
+      // Remove any currency symbols and non-numeric characters except decimal point
+      const cleaned = value.replace(/[^\d.-]/g, "");
+      numericValue = parseFloat(cleaned) || 0;
+    } else if (typeof value === "number") {
+      numericValue = value;
     }
-    return { isValid: true, formatted: numericPhone };
-  } else if (numericPhone.length === 12) {
-    // Format: 254XXXXXXXXX
-    if (!/^254/.test(numericPhone)) {
-      return {
-        isValid: false,
-        error: "International format should start with 254",
-      };
-    }
-    // Convert to local format
-    const localFormat = "0" + numericPhone.substring(3);
-    return { isValid: true, formatted: localFormat };
-  } else {
-    return {
-      isValid: false,
-      error:
-        "Phone number should be 9 digits (0XXXXXXXXX) or 12 digits (254XXXXXXXXX)",
-    };
+  } catch (error) {
+    numericValue = 0;
   }
+
+  return `${currency} ${numericValue.toLocaleString("en-KE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 };
 
-export const validatePassword = (password) => {
-  if (!password) return { isValid: false, error: "Password is required" };
-
-  const passwordStr = password.toString();
-
-  if (passwordStr.length < 6) {
-    return { isValid: false, error: "Password must be at least 6 characters" };
-  }
-
-  // Optional: Add more complex validation if needed
-  // if (!/[A-Z]/.test(passwordStr)) {
-  //   return { isValid: false, error: "Password must contain at least one uppercase letter" };
-  // }
-  // if (!/\d/.test(passwordStr)) {
-  //   return { isValid: false, error: "Password must contain at least one number" };
-  // }
-
-  return { isValid: true };
-};
-
-export const validateEmail = (email) => {
-  if (!email) return { isValid: false, error: "Email is required" };
-
-  const emailStr = email.toString().trim();
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  if (!emailRegex.test(emailStr)) {
-    return { isValid: false, error: "Please enter a valid email address" };
-  }
-
-  return { isValid: true };
-};
-
-export const validateRequired = (value, fieldName) => {
-  if (!value || (typeof value === "string" && value.trim() === "")) {
-    return { isValid: false, error: `${fieldName} is required` };
-  }
-  return { isValid: true };
-};
-
-export const validateNumber = (value, fieldName, options = {}) => {
-  const { min, max, required = true } = options;
-
-  if (required) {
-    const requiredCheck = validateRequired(value, fieldName);
-    if (!requiredCheck.isValid) return requiredCheck;
-  } else if (!value && value !== 0) {
-    return { isValid: true }; // Not required and empty
-  }
-
-  const num = Number(value);
-  if (isNaN(num)) {
-    return { isValid: false, error: `${fieldName} must be a valid number` };
-  }
-
-  if (min !== undefined && num < min) {
-    return { isValid: false, error: `${fieldName} must be at least ${min}` };
-  }
-
-  if (max !== undefined && num > max) {
-    return { isValid: false, error: `${fieldName} must be at most ${max}` };
-  }
-
-  return { isValid: true };
-};
-
-export const validateDate = (dateString, fieldName) => {
-  if (!dateString) {
-    return { isValid: false, error: `${fieldName} is required` };
-  }
+export const formatDate = (dateString, format = "medium") => {
+  if (!dateString) return "N/A";
 
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) {
-    return { isValid: false, error: `${fieldName} must be a valid date` };
-  }
+  if (isNaN(date.getTime())) return "Invalid Date";
 
-  // Check if date is not in the future (for order dates)
-  if (date > new Date()) {
-    return { isValid: false, error: `${fieldName} cannot be in the future` };
-  }
+  const formats = {
+    short: {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    },
+    medium: {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    },
+    long: {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    },
+    dateOnly: {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    },
+    timeOnly: {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    },
+  };
 
-  return { isValid: true };
+  const options = formats[format] || formats.medium;
+  return date.toLocaleDateString("en-KE", options);
 };
 
-export const validateOrderData = (order) => {
-  const errors = [];
+export const formatPhoneNumber = (phone) => {
+  if (!phone) return "";
 
-  // Required fields
-  const requiredFields = [
-    { name: "customerCode", label: "Customer Code" },
-    { name: "customerName", label: "Customer Name" },
-    { name: "totalValue", label: "Total Value" },
+  let formatted = phone.toString().trim();
+
+  // Remove all non-numeric characters
+  formatted = formatted.replace(/\D/g, "");
+
+  // Convert 254XXXXXXXXX to 0XXXXXXXXX
+  if (formatted.startsWith("254") && formatted.length === 12) {
+    formatted = "0" + formatted.substring(3);
+  }
+
+  // Format as 0XXX XXX XXX for display
+  if (formatted.length === 10 && formatted.startsWith("0")) {
+    return formatted.replace(/(\d{4})(\d{3})(\d{3})/, "$1 $2 $3");
+  }
+
+  return formatted;
+};
+
+export const extractCustomerCode = (customerName) => {
+  if (!customerName) return "N/A";
+
+  const patterns = [
+    /\[(.*?)\]/, // [CODE]
+    /\((.*?)\)/, // (CODE)
+    /#(\w+)/, // #CODE
+    /CODE:\s*(\w+)/i, // CODE: XYZ
+    /CUST[\s\-]?(\w+)/i, // CUST-123 or CUST123
   ];
 
-  requiredFields.forEach((field) => {
-    const check = validateRequired(order[field.name], field.label);
-    if (!check.isValid) errors.push(check.error);
-  });
-
-  // Validate total value is a positive number
-  if (order.totalValue) {
-    const numCheck = validateNumber(order.totalValue, "Total Value", {
-      min: 0,
-    });
-    if (!numCheck.isValid) errors.push(numCheck.error);
+  for (const pattern of patterns) {
+    const match = customerName.match(pattern);
+    if (match) return match[1];
   }
 
-  // Validate order date if provided
-  if (order.orderDate) {
-    const dateCheck = validateDate(order.orderDate, "Order Date");
-    if (!dateCheck.isValid) errors.push(dateCheck.error);
+  // Look for patterns like AB123, XYZ456
+  const words = customerName.split(/\s+/);
+  for (const word of words) {
+    if (/^[A-Z]{2,}\d+$/.test(word) || /^CUST\d+$/i.test(word)) {
+      return word;
+    }
   }
 
+  return "N/A";
+};
+
+export const normalizeOrderData = (order) => {
   return {
-    isValid: errors.length === 0,
-    errors,
-    hasErrors: errors.length > 0,
+    id: order.id || order.orderId || order.orderNo || Date.now(),
+    orderNo: order.orderNo || order.orderNumber || order.orderId || "",
+    orderNumber: order.orderNumber || order.orderNo || order.orderId || "",
+    customerCode:
+      order.customerCode || extractCustomerCode(order.customerName) || "N/A",
+    customerName: order.customerName || order.customer?.name || "Unknown",
+    customerId: order.customerId || order.customer?.id,
+    total: order.total || order.totalValue || order.amount || 0,
+    totalValue: formatCurrency(
+      order.totalValue || order.total || order.amount || 0,
+    ),
+    tax: order.tax || order.vat || 0,
+    discount: order.discount || 0,
+    netTotal: order.netTotal || (order.total || 0) - (order.discount || 0),
+    orderDate:
+      order.orderDate ||
+      order.createdDate ||
+      order.date ||
+      new Date().toISOString(),
+    deliveryDate: order.deliveryDate || order.expectedDelivery,
+    orderStatus: order.orderStatus || order.status || "Pending",
+    status: order.status || order.orderStatus || "Pending",
+    customerRoute: order.customerRoute || order.route || "",
+    lpo: order.lpo || order.lpoNumber || "",
+    sellingPriceList: order.sellingPriceList || order.priceList || "Standard",
+    branch: order.branch || "",
+    notes: order.notes || order.comments || "",
+    items: order.items || order.orderItems || [],
+    formattedDate: formatDate(
+      order.orderDate || order.createdDate || order.date,
+    ),
+    _raw: order,
   };
 };
 
-export const validateBranchName = (branchName) => {
-  const check = validateRequired(branchName, "Branch Name");
-  if (!check.isValid) return check;
+export const getStatusColor = (status) => {
+  const statusLower = (status || "").toLowerCase();
 
-  // Branch name should not contain special characters
-  const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
-  if (specialCharRegex.test(branchName)) {
-    return {
-      isValid: false,
-      error: "Branch name cannot contain special characters",
-    };
-  }
+  if (statusLower.includes("pending")) return "#ff9900";
+  if (statusLower.includes("confirmed")) return "#00aaff";
+  if (statusLower.includes("processing")) return "#9966ff";
+  if (statusLower.includes("journey") || statusLower.includes("transit"))
+    return "#00aaff";
+  if (statusLower.includes("delivered") || statusLower.includes("completed"))
+    return "#00ff00";
+  if (statusLower.includes("cancelled") || statusLower.includes("rejected"))
+    return "#ff3333";
 
-  return { isValid: true };
+  return "#666666";
 };
 
-export const validateCustomerData = (customer) => {
-  const errors = [];
+export const truncateText = (text, maxLength = 50) => {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
+};
 
-  // Required fields
-  if (!customer.name || customer.name.trim() === "") {
-    errors.push("Customer name is required");
-  }
+export const calculatePercentage = (part, total) => {
+  if (!total || total === 0) return 0;
+  return Math.round((part / total) * 100);
+};
 
-  if (!customer.code || customer.code.trim() === "") {
-    errors.push("Customer code is required");
-  }
+export const generateOrderStats = (orders) => {
+  const total = orders.length;
+  const totalValue = orders.reduce((sum, order) => {
+    const value = parseFloat(order.totalValue?.replace(/[^\d.-]/g, "") || 0);
+    return sum + value;
+  }, 0);
 
-  // Validate phone if provided
-  if (customer.phone) {
-    const phoneCheck = validatePhoneNumber(customer.phone);
-    if (!phoneCheck.isValid) errors.push(phoneCheck.error);
-  }
-
-  // Validate email if provided
-  if (customer.email) {
-    const emailCheck = validateEmail(customer.email);
-    if (!emailCheck.isValid) errors.push(emailCheck.error);
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-    hasErrors: errors.length > 0,
+  const statusCounts = {
+    pending: 0,
+    confirmed: 0,
+    processing: 0,
+    inJourney: 0,
+    delivered: 0,
+    cancelled: 0,
   };
-};
 
-export const validateSearchQuery = (query) => {
-  if (!query || query.trim() === "") {
-    return { isValid: false, error: "Search query cannot be empty" };
-  }
-
-  if (query.length < 2) {
-    return {
-      isValid: false,
-      error: "Search query must be at least 2 characters",
-    };
-  }
-
-  return { isValid: true };
-};
-
-export const sanitizeInput = (input) => {
-  if (typeof input !== "string") return input;
-
-  // Remove potential XSS attack vectors
-  return input
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .replace(/\//g, "&#x2F;")
-    .trim();
-};
-
-export const validateToken = (token) => {
-  if (!token) return { isValid: false, error: "Token is required" };
-
-  const tokenStr = token.toString().trim();
-
-  // Basic JWT validation (starts with eyJ and has three parts)
-  const parts = tokenStr.split(".");
-  if (parts.length !== 3) {
-    return { isValid: false, error: "Invalid token format" };
-  }
-
-  if (!tokenStr.startsWith("eyJ")) {
-    return { isValid: false, error: "Invalid token format" };
-  }
-
-  return { isValid: true };
-};
-
-// Form validation helper
-export const validateForm = (formData, rules) => {
-  const errors = {};
-
-  Object.keys(rules).forEach((fieldName) => {
-    const fieldRules = rules[fieldName];
-    const value = formData[fieldName];
-
-    // Check required
-    if (fieldRules.required && !value) {
-      errors[fieldName] = fieldRules.message || `${fieldName} is required`;
-      return;
-    }
-
-    // Check pattern if provided
-    if (fieldRules.pattern && value) {
-      const regex = new RegExp(fieldRules.pattern);
-      if (!regex.test(value)) {
-        errors[fieldName] =
-          fieldRules.patternMessage || `Invalid ${fieldName} format`;
-      }
-    }
-
-    // Check min length
-    if (fieldRules.minLength && value && value.length < fieldRules.minLength) {
-      errors[fieldName] = `Must be at least ${fieldRules.minLength} characters`;
-    }
-
-    // Check max length
-    if (fieldRules.maxLength && value && value.length > fieldRules.maxLength) {
-      errors[fieldName] = `Cannot exceed ${fieldRules.maxLength} characters`;
-    }
-
-    // Custom validation function
-    if (fieldRules.validate && value) {
-      const customError = fieldRules.validate(value, formData);
-      if (customError) {
-        errors[fieldName] = customError;
-      }
-    }
+  orders.forEach((order) => {
+    const status = (order.status || "").toLowerCase();
+    if (status.includes("pending")) statusCounts.pending++;
+    else if (status.includes("confirmed")) statusCounts.confirmed++;
+    else if (status.includes("processing")) statusCounts.processing++;
+    else if (status.includes("journey") || status.includes("transit"))
+      statusCounts.inJourney++;
+    else if (status.includes("delivered") || status.includes("completed"))
+      statusCounts.delivered++;
+    else if (status.includes("cancelled") || status.includes("rejected"))
+      statusCounts.cancelled++;
   });
 
+  const averageOrderValue = total > 0 ? totalValue / total : 0;
+
   return {
-    isValid: Object.keys(errors).length === 0,
-    errors,
+    total,
+    totalValue,
+    averageOrderValue,
+    statusCounts,
+    pendingPercentage: calculatePercentage(statusCounts.pending, total),
+    deliveredPercentage: calculatePercentage(statusCounts.delivered, total),
   };
 };

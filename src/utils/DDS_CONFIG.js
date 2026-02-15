@@ -12,9 +12,7 @@ export const DDS_CONFIG = {
     .filter((branch) => branch.length > 0),
 
   // API Base URL
-  API_BASE_URL:
-    import.meta.env.VITE_API_BASE_URL ||
-    "https://mbnl.ddsolutions.tech/dds-backend/api/v1",
+  API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
 
   // API Endpoints - read from environment variables with fallbacks
   API_ENDPOINTS: {

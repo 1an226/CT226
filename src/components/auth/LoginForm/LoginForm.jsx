@@ -48,7 +48,7 @@ const LoginForm = ({ onLoginSuccess }) => {
         !formattedUsername.startsWith("0")
       ) {
         formattedUsername = "0" + formattedUsername;
-        console.log("Added leading 0 to username:", formattedUsername);
+        console.log("Added leading zero to username:", formattedUsername);
       }
 
       console.log("Sending formatted username:", formattedUsername);
@@ -57,7 +57,7 @@ const LoginForm = ({ onLoginSuccess }) => {
         password: credentials.password,
       });
 
-      console.log("Login successful, calling onLoginSuccess");
+      console.log("Login successful");
       if (onLoginSuccess) {
         onLoginSuccess(userData);
       }
@@ -149,7 +149,7 @@ const LoginForm = ({ onLoginSuccess }) => {
                 disabled={loading}
                 tabIndex="-1"
               >
-                {showPassword ? "👁️" : "👁️‍🗨️"}
+                {showPassword ? "HIDE" : "SHOW"}
               </button>
             )}
           </div>
@@ -173,7 +173,7 @@ const LoginForm = ({ onLoginSuccess }) => {
 
       <div className="login-footer">
         <div className="system-info">
-          {/* CT226 v1.0 has been removed from here */}
+          {/* System information placeholder */}
         </div>
       </div>
     </div>

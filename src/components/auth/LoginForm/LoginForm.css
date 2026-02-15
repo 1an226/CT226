@@ -152,11 +152,6 @@
   cursor: not-allowed;
 }
 
-/* Input hint removed */
-.input-hint {
-  display: none;
-}
-
 /* Password input container */
 .password-input {
   position: relative;

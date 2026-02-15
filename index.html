@@ -44,7 +44,7 @@
         position: relative;
       }
 
-      /* Grid overlay -->
+      /* Grid overlay */
       body::before {
         content: "";
         position: fixed;
@@ -60,7 +60,7 @@
         opacity: 0.3;
       }
 
-      /* Border effect -->
+      /* Border effect */
       body::after {
         content: "";
         position: fixed;
@@ -79,7 +79,7 @@
         z-index: 1;
       }
 
-      /* Scrollbar -->
+      /* Scrollbar */
       ::-webkit-scrollbar {
         width: 10px;
       }
@@ -98,13 +98,13 @@
         background: #00cc00;
       }
 
-      /* Selection -->
+      /* Selection */
       ::selection {
         background: rgba(0, 255, 0, 0.3);
         color: #00ff00;
       }
 
-      /* Animations -->
+      /* Animations */
       @keyframes fadeIn {
         from {
           opacity: 0;
@@ -126,7 +126,7 @@
         }
       }
 
-      /* OCR animation -->
+      /* OCR animation */
       @keyframes ocrScan {
         0% {
           background-position: -200px 0;
@@ -163,7 +163,7 @@
         setTimeout(() => {
           if (typeof Tesseract !== "undefined") {
             console.log("Tesseract.js OCR Engine Loaded");
-            console.log("Screenshot OCR: READY");
+            console.log("Screenshot OCR: Ready");
           } else {
             console.warn(
               "Tesseract.js not loaded - Screenshot OCR unavailable",

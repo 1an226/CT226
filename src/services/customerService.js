@@ -170,7 +170,7 @@ const customerService = {
 
         console.log(`Got ${customers?.length || 0} customers for ${branch}`);
 
-        // Return in a format that won't get transformed by executeForMultipleBranches
+        // Return in a format that won't get transformed
         return {
           success: true,
           data: customers || [],

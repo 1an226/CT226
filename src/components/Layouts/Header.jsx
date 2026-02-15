@@ -171,7 +171,7 @@ const Header = ({ user, branch, onLogout, onRefresh }) => {
           }
         `}
       </style>
-      
+
       <div>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <span style={styles.logoMain}>CT226</span>
@@ -182,17 +182,13 @@ const Header = ({ user, branch, onLogout, onRefresh }) => {
       <div style={styles.center}>
         <div style={styles.switcher} className="dashboard-switcher">
           <button
-            style={{...styles.btn, ...styles.btnActive}}
+            style={{ ...styles.btn, ...styles.btnActive }}
             onClick={() => {}}
           >
-            📊 Orders Dashboard
+            Orders Dashboard
           </button>
-          <button
-            style={styles.btn}
-            onClick={() => {}}
-            className="header-btn"
-          >
-            📈 Main Dashboard
+          <button style={styles.btn} onClick={() => {}} className="header-btn">
+            Main Dashboard
           </button>
         </div>
       </div>
@@ -200,7 +196,9 @@ const Header = ({ user, branch, onLogout, onRefresh }) => {
       <div style={styles.right}>
         <div style={styles.userInfo}>
           <span style={styles.userName}>{user?.name || "Guest"}</span>
-          <span style={styles.userRole}>{user?.details?.userRole || "User"}</span>
+          <span style={styles.userRole}>
+            {user?.details?.userRole || "User"}
+          </span>
           <span style={styles.userBranch}>{branch || "No Branch"}</span>
         </div>
 
@@ -211,7 +209,7 @@ const Header = ({ user, branch, onLogout, onRefresh }) => {
             className="refresh-btn"
             title="Refresh Data"
           >
-            🔄 Refresh
+            Refresh
           </button>
           <button
             onClick={onLogout}
@@ -226,5 +224,4 @@ const Header = ({ user, branch, onLogout, onRefresh }) => {
   );
 };
 
-// Make sure this line exists and is correct:
 export default Header;

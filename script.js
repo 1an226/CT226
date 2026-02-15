@@ -195,8 +195,8 @@ const elements = {
 // ============================================
 
 document.addEventListener("DOMContentLoaded", async () => {
-  console.log("🚀 Initializing DDS Dashboard...");
-  console.log("📊 Configuration:", {
+  console.log("Initializing DDS Dashboard...");
+  console.log("Configuration:", {
     API_BASE: DDS_API_BASE,
     BRANCHES_COUNT: BRANCHES.length,
     DEFAULT_BRANCH: DEFAULT_BRANCH,
@@ -214,7 +214,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   removeBranchHeaders();
 
   state.isInitialized = true;
-  console.log("✅ Dashboard initialized successfully");
+  console.log("Dashboard initialized successfully");
 });
 
 function cacheDOMElements() {
@@ -401,17 +401,17 @@ async function testConnection() {
     clearTimeout(timeoutId);
 
     if (response.ok) {
-      alert("✅ Connection successful! Token is valid.");
+      alert("Connection successful! Token is valid.");
     } else {
       alert(
-        `❌ Connection failed (Status: ${response.status}). Please check your token.`,
+        `Connection failed (Status: ${response.status}). Please check your token.`,
       );
     }
   } catch (error) {
     if (error.name === "AbortError") {
-      alert("❌ Connection timeout. Please check your network.");
+      alert("Connection timeout. Please check your network.");
     } else {
-      alert(`❌ Connection error: ${error.message}`);
+      alert(`Connection error: ${error.message}`);
     }
   } finally {
     hideLoading();
@@ -504,13 +504,13 @@ async function fetchBranchData(branchName) {
     console.error("Error fetching branch data:", error);
 
     if (ENABLE_SAMPLE_DATA) {
-      console.log("📋 Showing sample data...");
+      console.log("Showing sample data...");
       showSampleData();
       alert(
-        `⚠️ Using sample data for ${branchName}. API Error: ${error.message}`,
+        `Using sample data for ${branchName}. API Error: ${error.message}`,
       );
     } else {
-      alert(`❌ Failed to fetch data for ${branchName}: ${error.message}`);
+      alert(`Failed to fetch data for ${branchName}: ${error.message}`);
     }
   } finally {
     hideLoading();
@@ -756,7 +756,7 @@ function renderCustomersGrid() {
           <div class="stat-label">this month</div>
         </div>
         <div class="stat-box">
-          <div class="stat-number">${customer.orderCount > 5 ? "⭐" : "📊"}</div>
+          <div class="stat-number">${customer.orderCount > 5 ? "HIGH" : "STANDARD"}</div>
           <div class="stat-label">rating</div>
         </div>
       </div>
@@ -882,11 +882,11 @@ async function switchToBranch() {
     });
 
     if (response.ok) {
-      alert(`✅ Successfully switched to ${state.currentBranch} branch!`);
+      alert(`Successfully switched to ${state.currentBranch} branch!`);
       // Refresh data after switch
       fetchBranchData(state.currentBranch);
     } else {
-      alert("❌ Failed to switch branch");
+      alert("Failed to switch branch");
     }
   } catch (error) {
     alert(`Error: ${error.message}`);

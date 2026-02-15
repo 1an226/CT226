@@ -104,7 +104,7 @@ const ordersService = {
     const allOrders = [];
     const branchResults = {};
     const errors = [];
-    const timeout = options.timeout || ORDERS_CONFIG.DEFAULT_TIMEOUT; // Default from config
+    const timeout = options.timeout || ORDERS_CONFIG.DEFAULT_TIMEOUT;
 
     // Use Promise.allSettled for parallel fetching with timeout
     const promises = branches.map(async (branch) => {
@@ -193,7 +193,7 @@ const ordersService = {
     };
   },
 
-  // Get TODAY'S orders for a branch
+  // Get today's orders for a branch
   getTodaysOrdersForBranch: async (branch, options = {}) => {
     try {
       const today = new Date().toISOString().split("T")[0];
@@ -212,7 +212,7 @@ const ordersService = {
     }
   },
 
-  // GET DATE STATS with timeout handling
+  // Get date statistics with timeout handling
   getDateStats: async (branches, date, options = {}) => {
     try {
       const result = await ordersService.getMultiBranchOrders(branches, date, {
@@ -339,7 +339,7 @@ const fetchOrdersForCurrentBranch = async (
   try {
     let ordersData = [];
 
-    // ALWAYS use /orders/getFiltered with date parameter
+    // Always use /orders/getFiltered with date parameter
     const params = {
       branchId: branch,
       routeId: "",
@@ -429,7 +429,7 @@ const extractOrdersFromResponse = (responseData) => {
   return [];
 };
 
-// Normalize order data correctly
+// Normalize order data
 const normalizeOrderData = (order, branch = "", queryDate = null) => {
   if (!order || typeof order !== "object") {
     return null;

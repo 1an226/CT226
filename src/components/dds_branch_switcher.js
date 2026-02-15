@@ -10,9 +10,16 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
+require("dotenv").config(); // Load environment variables
 
-// Configuration
-const BASE_URL = "https://mbnl.ddsolutions.tech/dds-backend/api/v1";
+// Validate required environment variables
+if (!process.env.DDS_API_BASE_URL) {
+  console.error("ERROR: DDS_API_BASE_URL environment variable is required");
+  console.error("Please set it in your .env file or environment");
+  process.exit(1);
+}
+
+const BASE_URL = process.env.DDS_API_BASE_URL;
 const ALL_BRANCHES = [
   "Eldoret",
   "Bungoma",
@@ -94,14 +101,14 @@ class DDSBranchSwitcher {
       const newToken = response.headers["x-auth-token"];
       if (newToken) {
         this.currentToken = newToken;
-        console.log(`   🔑 Token updated`);
+        console.log(`   Token updated`);
       }
 
       return response.data;
     } catch (error) {
       if (error.response) {
         console.log(
-          `   ❌ API Error: ${error.response.status} - ${error.response.statusText}`
+          `   API Error: ${error.response.status} - ${error.response.statusText}`
         );
         throw new Error(
           `API Error: ${error.response.status} - ${JSON.stringify(
@@ -109,10 +116,10 @@ class DDSBranchSwitcher {
           )}`
         );
       } else if (error.request) {
-        console.log(`   ❌ Network Error: No response received`);
+        console.log(`   Network Error: No response received`);
         throw new Error("Network Error: No response received");
       } else {
-        console.log(`   ❌ Request Error: ${error.message}`);
+        console.log(`   Request Error: ${error.message}`);
         throw error;
       }
     }
@@ -137,7 +144,7 @@ class DDSBranchSwitcher {
   }
 
   async processBranch(branchName) {
-    console.log(`\n🔍 Processing: ${branchName}`);
+    console.log(`\nProcessing: ${branchName}`);
 
     const result = {
       branch: branchName,
@@ -151,14 +158,14 @@ class DDSBranchSwitcher {
     };
 
     try {
-      // 1. Switch branch
-      console.log(`   🔄 Switching branch...`);
+      // Switch to branch
+      console.log(`   Switching branch...`);
       const switchResult = await this.switchBranch(branchName);
       result.switchStatus = switchResult.message;
-      console.log(`   ✅ ${switchResult.message}`);
+      console.log(`   ${switchResult.message}`);
 
-      // 2. Get orders
-      console.log(`   📦 Fetching orders...`);
+      // Get orders for the branch
+      console.log(`   Fetching orders...`);
       const ordersData = await this.getBranchOrders();
       result.ordersCount = ordersData.payload?.length || 0;
       result.sampleOrders =
@@ -168,23 +175,23 @@ class DDSBranchSwitcher {
           branch: order.branch,
           totalValue: order.totalValue || "N/A",
         })) || [];
-      console.log(`   ✅ Found ${result.ordersCount} orders`);
+      console.log(`   Found ${result.ordersCount} orders`);
 
-      // 3. Get routes
-      console.log(`   🚚 Fetching routes...`);
+      // Get routes for the branch
+      console.log(`   Fetching routes...`);
       const routesData = await this.getBranchRoutes(branchName);
       result.routes = routesData.payload || routesData;
       result.routesCount = Array.isArray(result.routes)
         ? result.routes.length
         : 0;
-      console.log(`   ✅ Found ${result.routesCount} routes`);
+      console.log(`   Found ${result.routesCount} routes`);
 
       result.success = true;
       this.results.push(result);
 
-      // Show sample data
+      // Display sample orders
       if (result.sampleOrders.length > 0) {
-        console.log(`   📋 Sample orders:`);
+        console.log(`   Sample orders:`);
         result.sampleOrders.forEach((order, idx) => {
           console.log(
             `      ${idx + 1}. ${
@@ -197,17 +204,17 @@ class DDSBranchSwitcher {
       result.error = error.message;
       result.success = false;
       this.failedBranches.push({ branch: branchName, error: error.message });
-      console.log(`   ❌ Failed: ${error.message}`);
+      console.log(`   Failed: ${error.message}`);
     }
 
     return result;
   }
 
   async processBranches(branchList, delaySeconds = 3) {
-    console.log(`\n🚀 Starting DDS Branch Switcher`);
-    console.log(`📁 Output directory: ${this.outputDir}`);
-    console.log(`⏱️  Delay between requests: ${delaySeconds} seconds`);
-    console.log(`📊 Total branches to process: ${branchList.length}\n`);
+    console.log(`\nStarting DDS Branch Switcher`);
+    console.log(`Output directory: ${this.outputDir}`);
+    console.log(`Delay between requests: ${delaySeconds} seconds`);
+    console.log(`Total branches to process: ${branchList.length}\n`);
 
     const startTime = Date.now();
 
@@ -221,12 +228,12 @@ class DDSBranchSwitcher {
       // Save progress every 5 branches
       if ((i + 1) % 5 === 0 || i === branchList.length - 1) {
         this.saveProgress();
-        console.log(`   💾 Progress saved (${i + 1}/${branchList.length})`);
+        console.log(`   Progress saved (${i + 1}/${branchList.length})`);
       }
 
       // Delay before next request (except for last branch)
       if (i < branchList.length - 1) {
-        console.log(`   ⏳ Waiting ${delaySeconds} seconds...`);
+        console.log(`   Waiting ${delaySeconds} seconds...`);
         await this.sleep(delaySeconds * 1000);
       }
     }
@@ -234,9 +241,9 @@ class DDSBranchSwitcher {
     const endTime = Date.now();
     const duration = Math.round((endTime - startTime) / 1000);
 
-    console.log(`\n✅ Processing completed in ${duration} seconds`);
-    console.log(`📊 Processed: ${this.results.length} branches`);
-    console.log(`❌ Failed: ${this.failedBranches.length} branches`);
+    console.log(`\nProcessing completed in ${duration} seconds`);
+    console.log(`Processed: ${this.results.length} branches`);
+    console.log(`Failed: ${this.failedBranches.length} branches`);
 
     // Generate final reports
     this.generateReports();
@@ -257,7 +264,7 @@ class DDSBranchSwitcher {
   }
 
   generateReports() {
-    // 1. Save all results as JSON
+    // Save all results as JSON
     const resultsFile = path.join(
       this.outputDir,
       `dds_results_${new Date().toISOString().replace(/[:.]/g, "-")}.json`
@@ -267,12 +274,12 @@ class DDSBranchSwitcher {
       JSON.stringify(this.results, null, 2),
       "utf8"
     );
-    console.log(`   📄 Full results saved to: ${resultsFile}`);
+    console.log(`   Full results saved to: ${resultsFile}`);
 
-    // 2. Generate CSV report
+    // Generate CSV report
     this.generateCSV();
 
-    // 3. Generate summary report
+    // Generate summary report
     this.generateSummary();
   }
 
@@ -289,7 +296,7 @@ class DDSBranchSwitcher {
     });
 
     fs.writeFileSync(csvFile, csvContent, "utf8");
-    console.log(`   📊 CSV summary saved to: ${csvFile}`);
+    console.log(`   CSV summary saved to: ${csvFile}`);
   }
 
   generateSummary() {
@@ -341,7 +348,7 @@ class DDSBranchSwitcher {
     summary += `• This Report: summary_report.txt\n`;
 
     fs.writeFileSync(summaryFile, summary, "utf8");
-    console.log(`   📋 Summary report saved to: ${summaryFile}`);
+    console.log(`   Summary report saved to: ${summaryFile}`);
 
     // Display summary in console
     console.log(`\n${summary}`);
@@ -374,7 +381,7 @@ async function main() {
     // Get authentication token
     const token = await new Promise((resolve) => {
       rl.question(
-        "🔑 Enter your DDS auth token (starts with eyJhbGci...):\n> ",
+        "Enter your DDS auth token (starts with eyJhbGci...):\n> ",
         (answer) => {
           resolve(answer.trim());
         }
@@ -382,13 +389,13 @@ async function main() {
     });
 
     if (!token || token.length < 100) {
-      console.log("\n❌ Invalid token! Please provide a valid JWT token.");
+      console.log("\nInvalid token! Please provide a valid JWT token.");
       rl.close();
       process.exit(1);
     }
 
     // Select branches
-    console.log("\n📌 BRANCH SELECTION:");
+    console.log("\nBRANCH SELECTION:");
     console.log("───────────────────");
     console.log("1. Process ALL 38 branches");
     console.log("2. Process specific branches");
@@ -404,7 +411,7 @@ async function main() {
     switch (choice) {
       case "1":
         selectedBranches = [...ALL_BRANCHES];
-        console.log(`✅ Selected ALL ${ALL_BRANCHES.length} branches`);
+        console.log(`Selected ALL ${ALL_BRANCHES.length} branches`);
         break;
       case "2":
         console.log("\nAvailable branches:");
@@ -425,21 +432,21 @@ async function main() {
         selectedBranches = branchNumbers
           .filter((idx) => idx >= 0 && idx < ALL_BRANCHES.length)
           .map((idx) => ALL_BRANCHES[idx]);
-        console.log(`✅ Selected ${selectedBranches.length} branches`);
+        console.log(`Selected ${selectedBranches.length} branches`);
         break;
       case "3":
         selectedBranches = ["Eldoret", "Kitengela", "Nakuru"];
-        console.log("✅ Selected test branches");
+        console.log("Selected test branches");
         break;
       default:
-        console.log("❌ Invalid choice. Using test branches.");
+        console.log("Invalid choice. Using test branches.");
         selectedBranches = ["Eldoret", "Kitengela", "Nakuru"];
     }
 
     // Get delay between requests
     const delayInput = await new Promise((resolve) => {
       rl.question(
-        "\n⏱️  Delay between requests in seconds (recommended: 2-5): ",
+        "\nDelay between requests in seconds (recommended: 2-5): ",
         (answer) => {
           resolve(answer.trim());
         }
@@ -453,10 +460,10 @@ async function main() {
     const switcher = new DDSBranchSwitcher(token);
     await switcher.processBranches(selectedBranches, delay);
 
-    console.log("\n🎉 Script execution completed!");
-    console.log(`📁 Check the 'dds_output' folder for results.`);
+    console.log("\nScript execution completed!");
+    console.log(`Check the 'dds_output' folder for results.`);
   } catch (error) {
-    console.error(`\n💥 Script failed: ${error.message}`);
+    console.error(`\nScript failed: ${error.message}`);
     rl.close();
     process.exit(1);
   }
@@ -464,6 +471,9 @@ async function main() {
 
 // Run the script
 if (require.main === module) {
+  // Load .env file
+  require("dotenv").config();
+  
   main().catch((error) => {
     console.error("Fatal error:", error);
     process.exit(1);
