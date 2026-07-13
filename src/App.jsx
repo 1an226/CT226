@@ -1588,44 +1588,16 @@ function App() {
         });
         setOrders(orders);
         setSearchQuery("");
-        setOrders(result.orders);
-        setSearchQuery("");
-
-        const branchCounts = {};
-        result.orders.forEach((order) => {
-          branchCounts[order.branch] = (branchCounts[order.branch] || 0) + 1;
-        });
-
+        const totalValue = orders.reduce((sum, order) => sum + (order.totalValue || 0), 0);
         setStats({
-          totalOrders: result.summary.totalOrders,
-          totalValue: result.summary.totalValue,
-          branchCounts: branchCounts,
-          summary: result.summary,
-          branchResults: result.branchResults,
+          totalOrders: orders.length,
+          totalValue: totalValue,
+          branchCounts: { [currentBranch]: orders.length },
+          summary: { totalOrders: orders.length, totalValue: totalValue, date: date },
+          branchResults: {},
         });
-
-        if (result.errors && result.errors.length > 0) {
-          const errorMsg = `${result.errors.length} branch(es) failed: ${result.errors.map((e) => e.branch).join(", ")}`;
-          setOrdersError(errorMsg);
-        } else {
-          setOrdersError(null);
-        }
-
-        return result.orders;
-      } catch (err) {
-        const errorMessage =
-          err.response?.data?.message ||
-          err.message ||
-          "Failed to fetch orders";
-        setOrdersError(errorMessage);
-        setOrders([]);
-        setStats({
-          totalOrders: 0,
-          totalValue: 0,
-          branchCounts: {},
-          summary: {},
-        });
-        throw err;
+        setOrdersError(null);
+        return orders;
       } finally {
         setOrdersLoading(false);
       }
