@@ -282,9 +282,5 @@ body {
     gap: 10px;
     text-align: center;
   }
-
-  .boot-content {
-    font-size: 1rem;
-    padding: 20px;
   }
 }
