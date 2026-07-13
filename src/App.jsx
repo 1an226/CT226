@@ -1839,6 +1839,59 @@ function App() {
   };
 
 
+  const handleBranchChange = useCallback(async (branch) => {
+    if (authService.getCurrentBranch() === branch) return;
+    setBranchSwitching(true);
+    try {
+      await authService.switchBranch(branch);
+      ordersService.clearCache();
+      customerService.clearCache();
+      setSelectedBranches([branch]);
+      setSelectedDate("");
+      setOrders([]);
+      setCustomers([]);
+      setSearchQuery("");
+      setCustomerSearchQuery("");
+      setSelectedCustomer(null);
+      setStats({ totalOrders: 0, totalValue: 0, branchCounts: {}, summary: {} });
+      setOrdersError(null);
+      setCustomersError("");
+      setCurrentPage(1);
+      setShowCustomerModal(false);
+      setShowDocumentReader(false);
+      setPoText("");
+      setParsedOrderData(null);
+    } catch (error) {
+      console.error(`Failed to switch branch: ${error.message}`);
+      setOrdersError(`Failed to switch branch: ${error.message}`);
+    } finally {
+      setBranchSwitching(false);
+    }
+  }, [selectedBranches]);
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      if (initializedRef.current) return;
+      if (authService.isAuthenticated()) {
+        const userData = authService.getCurrentUser();
+        setUser(userData);
+        const branches = authService.getUserBranches() || CONFIG.BRANCHES;
+        setUserBranches(branches);
+        const currentBranch = authService.getCurrentBranch();
+        const initialBranches = currentBranch ? [currentBranch] : (branches.length > 0 ? [branches[0]] : []);
+        setSelectedBranches(initialBranches);
+        setSelectedDate("");
+        setOrders([]);
+        setStats({ totalOrders: 0, totalValue: 0, branchCounts: {}, summary: {} });
+        initializedRef.current = true;
+      } else {
+        initializedRef.current = true;
+      }
+      setLoading(false);
+    };
+    if (!initializedRef.current) initializeApp();
+  }, []);
+
   const handleLogout = async () => {
     initializedRef.current = false;
     await authService.logout();
