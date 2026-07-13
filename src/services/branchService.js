@@ -1,24 +1,12 @@
 import apiClient from "@services/api.js";
+import authService from "@services/authService";
 import { DDS_CONFIG } from "@utils/ddsConfig.js";
 
 const branchService = {
-  // Get all warehouses
+  // Get all warehouses (API only – no fallback)
   getWarehouses: async () => {
-    try {
-      const response = await apiClient.get(DDS_CONFIG.API_ENDPOINTS.WAREHOUSES);
-      return response.data || [];
-    } catch (error) {
-      console.warn("Warehouse API failed, using fallback branches:", error);
-
-      // Check if fallback is enabled
-      if (DDS_CONFIG.FEATURES.ENABLE_BRANCH_FALLBACK) {
-        return DDS_CONFIG.BRANCHES.map((branch) => ({
-          name: branch,
-          id: branch,
-        }));
-      }
-      return [];
-    }
+    const response = await apiClient.get(DDS_CONFIG.API_ENDPOINTS.WAREHOUSES);
+    return response.data || [];
   },
 
   // Get routes for a specific branch
@@ -34,32 +22,13 @@ const branchService = {
     }
   },
 
-  // Get all branches with their route counts
-  getAllBranchesWithStats: async () => {
-    const branches = DDS_CONFIG.BRANCHES;
-    const branchesWithStats = [];
-
-    for (const branch of branches) {
-      try {
-        const routes = await this.getBranchRoutes(branch);
-        branchesWithStats.push({
-          id: branch,
-          name: branch,
-          routeCount: routes.length,
-          isActive: true,
-        });
-      } catch (error) {
-        branchesWithStats.push({
-          id: branch,
-          name: branch,
-          routeCount: 0,
-          isActive: false,
-          error: error.message,
-        });
-      }
+  // Get routes for the currently active branch
+  getCurrentBranchRoutes: async () => {
+    const currentBranch = authService.getCurrentBranch();
+    if (!currentBranch) {
+      throw new Error("No active branch context");
     }
-
-    return branchesWithStats;
+    return await branchService.getBranchRoutes(currentBranch);
   },
 };
 
