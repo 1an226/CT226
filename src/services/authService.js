@@ -33,7 +33,6 @@ class AuthService {
 
     // Fix (critical): serializes every ensureBranchContext call end-to-end
     // (switch AND operation together), not just the switch step. This is
-    // what actually closes the race in ordersService.getMultiBranchOrders
     // when ENABLE_BRANCH_PARALLEL=true — previously the branch-switch lock
     // released as soon as the switch completed, so a second branch's switch
     // could sneak in before the first branch's fetch actually ran, causing

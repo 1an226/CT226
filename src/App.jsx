@@ -1580,16 +1580,14 @@ function App() {
       setCurrentPage(1);
 
       try {
-        const result = await ordersService.getMultiBranchOrders(
-          selectedBranches,
-          date,
-          {
-            forceRefresh: true,
-            silent: false,
-            timeout: CONFIG.ORDERS_TIMEOUT,
-          },
-        );
-
+        const currentBranch = authService.getCurrentBranch();
+        const orders = await ordersService.getOrders(currentBranch, date, {
+          forceRefresh: true,
+          silent: false,
+          timeout: CONFIG.ORDERS_TIMEOUT,
+        });
+        setOrders(orders);
+        setSearchQuery("");
         setOrders(result.orders);
         setSearchQuery("");
 
@@ -1829,20 +1827,20 @@ function App() {
         const tempHighlights = {};
 
         if (selectedDate) {
-          const selectedStats = await ordersService.getDateStats(
-            selectedBranches,
-            selectedDate,
-            {
+          try {
+            const currentBranch = authService.getCurrentBranch();
+            const orders = await ordersService.getOrders(currentBranch, selectedDate, {
               silent: true,
-            },
-          );
+            });
 
-          if (selectedStats.success) {
+            const totalValue = orders.reduce((sum, order) => sum + (order.totalValue || 0), 0);
             tempHighlights[selectedDate] = {
-              hasOrders: selectedStats.totalOrders > 0,
-              orderCount: selectedStats.totalOrders,
-              totalValue: selectedStats.totalValue,
+              hasOrders: orders.length > 0,
+              orderCount: orders.length,
+              totalValue: totalValue,
             };
+          } catch (error) {
+            // Calendar highlight fetch failed silently
           }
         }
 
