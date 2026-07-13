@@ -166,7 +166,6 @@ async getBranchOrders() {    const currentBranch = authService.getCurrentBranch(
 
       // Get orders for the branch
       console.log(`   Fetching orders...`);
-      const ordersData = await this.getBranchOrders();
       const orders = await this.getBranchOrders();
       result.ordersCount = orders.length;
       result.sampleOrders = orders.slice(0, 5).map((order) => ({
