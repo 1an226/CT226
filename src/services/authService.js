@@ -1,4 +1,7 @@
-import apiClient from "@services/api.js";
+import apiClient, {
+  isTokenExpired as sharedIsTokenExpired,
+  cancelAllPendingRequests,
+} from "@services/api.js";
 
 class AuthService {
   constructor() {
@@ -17,8 +20,6 @@ class AuthService {
     this.BRANCH_SWITCH_DELAY =
       parseInt(import.meta.env.VITE_BRANCH_SWITCH_DELAY) || 100;
     this.OPERATION_DELAY = parseInt(import.meta.env.VITE_OPERATION_DELAY) || 50;
-    this.BETWEEN_BRANCH_DELAY =
-      parseInt(import.meta.env.VITE_BETWEEN_BRANCH_DELAY) || 300;
     this.DEFAULT_USER_ID =
       parseInt(import.meta.env.VITE_DEFAULT_USER_ID) || 1134;
     this.DEFAULT_USER_ROLE =
@@ -29,6 +30,18 @@ class AuthService {
     // Branch state management
     this.currentBranch = null;
     this.switchLock = null;
+
+    // Fix (critical): serializes every ensureBranchContext call end-to-end
+    // (switch AND operation together), not just the switch step. This is
+    // what actually closes the race in ordersService.getMultiBranchOrders
+    // when ENABLE_BRANCH_PARALLEL=true — previously the branch-switch lock
+    // released as soon as the switch completed, so a second branch's switch
+    // could sneak in before the first branch's fetch actually ran, causing
+    // Branch A's operation to silently execute while global session state
+    // pointed at Branch B. Every ensureBranchContext call now chains onto
+    // this queue and runs strictly after the previous one fully finishes,
+    // regardless of which service or how many branches call it concurrently.
+    this.contextQueue = Promise.resolve();
 
     // Load from storage
     this.initializeFromStorage();
@@ -121,6 +134,14 @@ class AuthService {
         return true;
       }
     }
+
+    // Fix: cancel any in-flight requests before switching. Without this,
+    // a request that started under the OLD branch context can still resolve
+    // AFTER the switch, arriving with data implicitly scoped to whichever
+    // branch was active at response time — not the branch the caller
+    // originally asked for. This doesn't replace the contextQueue fix above
+    // (that handles ordering), it handles requests already in flight.
+    cancelAllPendingRequests(`Branch switching to ${branch}`);
 
     // Create lock for this switch
     this.switchLock = (async () => {
@@ -322,125 +343,57 @@ class AuthService {
   }
 
   // Ensure branch context
+  //
+  // Fix (critical): the switch-to-branch and run-the-operation steps are now
+  // chained onto this.contextQueue, so calls to ensureBranchContext from
+  // ANY service (ordersService, customerService, etc.) execute strictly
+  // one-at-a-time in the order they were invoked — even if the callers
+  // themselves fired them off in parallel via Promise.allSettled. This is
+  // what makes ENABLE_BRANCH_PARALLEL=true SAFE to use again: previously
+  // "parallel" branch fetches could interleave their switch+fetch steps and
+  // silently return one branch's data under another branch's label. Now
+  // "parallel" callers just get correctly serialized under the hood instead
+  // of corrupting data — the concurrency limiting in api.js still caps how
+  // many HTTP requests are actually in flight, this queue caps how many
+  // branch-context operations are logically active (always 1).
   async ensureBranchContext(branch, operation) {
     if (!branch) {
       throw new Error("Branch is required");
     }
 
-    // Get current branch
-    const currentBranch = this.getCurrentBranch();
+    const runInContext = async () => {
+      const currentBranch = this.getCurrentBranch();
 
-    // If already on correct branch, execute immediately
-    if (currentBranch === branch) {
-      console.log(`Already in correct branch context: ${branch}`);
-      return await operation();
-    }
-
-    // Switch to correct branch
-    console.log(`Switching from ${currentBranch || "none"} to ${branch}`);
-
-    // Wait for switch to complete
-    await this.switchBranch(branch);
-
-    // Verify switch worked
-    const verifiedBranch = this.getCurrentBranch();
-    if (verifiedBranch !== branch) {
-      console.warn(`Branch switch verification failed. Forcing to ${branch}`);
-      this.forceUpdateBranch(branch);
-    }
-
-    // Small delay for stability
-    await new Promise((resolve) => setTimeout(resolve, this.OPERATION_DELAY));
-
-    // Execute the operation
-    return await operation();
-  }
-
-  // Execute for multiple branches
-  async executeForMultipleBranches(branches, date, fetchOperation) {
-    const results = {};
-    const errors = [];
-
-    for (const branch of branches) {
-      try {
-        console.log(`Processing ${branch}...`);
-
-        const operationResult = await this.ensureBranchContext(
-          branch,
-          async () => {
-            return await fetchOperation(branch, date);
-          },
-        );
-
-        // Process results
-        let data = [];
-        let count = 0;
-
-        if (Array.isArray(operationResult)) {
-          data = operationResult;
-          count = operationResult.length;
-        } else if (
-          operationResult?.orders &&
-          Array.isArray(operationResult.orders)
-        ) {
-          data = operationResult.orders;
-          count = operationResult.orders.length;
-        } else if (
-          operationResult?.data &&
-          Array.isArray(operationResult.data)
-        ) {
-          data = operationResult.data;
-          count = operationResult.data.length;
-        } else if (
-          operationResult?.customers &&
-          Array.isArray(operationResult.customers)
-        ) {
-          data = operationResult.customers;
-          count = operationResult.customers.length;
-        } else if (typeof operationResult === "object") {
-          // Try to extract array
-          for (const key in operationResult) {
-            if (Array.isArray(operationResult[key])) {
-              data = operationResult[key];
-              count = operationResult[key].length;
-              break;
-            }
-          }
-        }
-
-        results[branch] = {
-          success: true,
-          data: data,
-          count: count,
-          date: date,
-          branch: branch,
-        };
-
-        console.log(`${branch}: ${count} items`);
-
-        // Delay between branches
-        await new Promise((resolve) =>
-          setTimeout(resolve, this.BETWEEN_BRANCH_DELAY),
-        );
-      } catch (error) {
-        console.error(`${branch} failed:`, error.message);
-        errors.push({ branch, error: error.message });
-        results[branch] = {
-          success: false,
-          data: [],
-          count: 0,
-          error: error.message,
-          branch: branch,
-        };
-
-        // Delay even on error
-        await new Promise((resolve) =>
-          setTimeout(resolve, this.BETWEEN_BRANCH_DELAY),
-        );
+      if (currentBranch === branch) {
+        console.log(`Already in correct branch context: ${branch}`);
+        return await operation();
       }
-    }
 
-    return { results, errors };
+      console.log(`Switching from ${currentBranch || "none"} to ${branch}`);
+      await this.switchBranch(branch);
+
+      const verifiedBranch = this.getCurrentBranch();
+      if (verifiedBranch !== branch) {
+        console.warn(`Branch switch verification failed. Forcing to ${branch}`);
+        this.forceUpdateBranch(branch);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, this.OPERATION_DELAY));
+
+      return await operation();
+    };
+
+    // Chain onto the queue. `.catch(() => {})` on the tracked queue promise
+    // ensures one failed operation doesn't permanently break the chain for
+    // everything queued after it — but the actual result/error returned to
+    // THIS caller is still the real one, via the separate `result` promise.
+    const result = this.contextQueue.then(runInContext, runInContext);
+    this.contextQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return result;
   }
 
   // Store auth data
@@ -627,17 +580,15 @@ class AuthService {
     return timeUntilExpiry < this.TOKEN_REFRESH_THRESHOLD;
   }
 
+  // Fix: delegates to the single shared implementation exported from
+  // api.js instead of maintaining a second, independently-drifting copy.
+  // Behavior is identical (this class's TOKEN_EXPIRY_BUFFER still applies
+  // via api.js's own env-driven buffer — both read the same
+  // VITE_TOKEN_EXPIRY_BUFFER var, so there was never an intentional
+  // difference here, just duplicated code).
   isTokenExpired(token = null) {
     const tokenToCheck = token || this.getToken();
-    if (!tokenToCheck) return true;
-
-    const payload = this.decodeJWT(tokenToCheck);
-    if (!payload || !payload.exp) return true;
-
-    const now = Math.floor(Date.now() / 1000);
-    const bufferTime = this.TOKEN_EXPIRY_BUFFER;
-
-    return now > payload.exp - bufferTime;
+    return sharedIsTokenExpired(tokenToCheck);
   }
 
   async refreshToken() {
