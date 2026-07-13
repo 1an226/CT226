@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/dds-backend/:path*",
+      "destination": "https://mbnl.ddsolutions.tech/dds-backend/:path*"
+    }
+  ]
+}
