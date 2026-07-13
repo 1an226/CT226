@@ -1482,10 +1482,6 @@ function App() {
         });
         setCustomers(customers);
         setCustomersError("");
-      }
-            `${result.errors.length} branch(es) failed to load customers`,
-          );
-        }
       } catch (error) {
         setCustomersError(`Failed to load customers: ${error.message}`);
         setCustomers([]);
