@@ -86,22 +86,24 @@ const useOrders = (initialBranch = null, initialDate = null) => {
         setCurrentBranch(branch);
       }
 
-      try {
-        const result = await ordersService.getFilteredOrders(branch, date, {
+        const orders = await ordersService.getFilteredOrders(branch, date, {
           signal: abortControllerRef.current.signal,
           ...options,
         });
 
         console.log(
-          `Received ${result.orders?.length || 0} orders for ${branch}`,
+          `Received ${orders?.length || 0} orders for ${branch}`,
         );
 
         if (isMountedRef.current) {
-          setOrders(result.orders || []);
-          setSummary(result.summary);
+          setOrders(orders || []);
+          setSummary({
+            totalOrders: orders?.length || 0,
+            totalValue: orders?.reduce((sum, o) => sum + (o.totalValue || 0), 0),
+          });
         }
 
-        return result;
+        return { orders, summary: { totalOrders: orders?.length || 0, totalValue: orders?.reduce((sum, o) => sum + (o.totalValue || 0), 0) } };
       } catch (err) {
         // Ignore abort errors
         if (err.name === "AbortError") {

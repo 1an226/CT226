@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import authService from "@services/authService";
+import ordersService from "@services/ordersService";
 
 /**
  * DDS Branch Switcher for CT226 System
@@ -132,9 +134,7 @@ class DDSBranchSwitcher {
     });
   }
 
-  async getBranchOrders() {
-    return await this.makeRequest("GET", "/orders/list");
-  }
+async getBranchOrders() {    const currentBranch = authService.getCurrentBranch();    return await ordersService.getTodaysOrdersForBranch(currentBranch);  }
 
   async getBranchRoutes(branchName) {
     return await this.makeRequest(
@@ -167,17 +167,15 @@ class DDSBranchSwitcher {
       // Get orders for the branch
       console.log(`   Fetching orders...`);
       const ordersData = await this.getBranchOrders();
-      result.ordersCount = ordersData.payload?.length || 0;
-      result.sampleOrders =
-        ordersData.payload?.slice(0, 5).map((order) => ({
-          orderNo: order.orderNo,
-          customerName: order.customerName,
-          branch: order.branch,
-          totalValue: order.totalValue || "N/A",
-        })) || [];
+      const orders = await this.getBranchOrders();
+      result.ordersCount = orders.length;
+      result.sampleOrders = orders.slice(0, 5).map((order) => ({
+        orderNo: order.orderNumber || order.orderNo,
+        customerName: order.customerName,
+        branch: order.branch,
+        totalValue: order.totalValue || "N/A",
+      }));
       console.log(`   Found ${result.ordersCount} orders`);
-
-      // Get routes for the branch
       console.log(`   Fetching routes...`);
       const routesData = await this.getBranchRoutes(branchName);
       result.routes = routesData.payload || routesData;

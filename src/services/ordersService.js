@@ -97,6 +97,11 @@ const ordersService = {
 
   // Get orders by date
   getOrdersByDate: async (branch, date, options = {}) => {
+
+  // Alias for filtered orders (same as getOrders)
+  getFilteredOrders: async (branch, date, options = {}) => {
+    return ordersService.getOrders(branch, date, options);
+  },
     try {
       return await ordersService.getOrders(branch, date, options);
     } catch (error) {
