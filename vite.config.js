@@ -42,19 +42,12 @@ export default defineConfig(({ mode }) => {
         "@utils": path.resolve(__dirname, "src/utils"),
         "@contexts": path.resolve(__dirname, "src/contexts"),
         "@auth": path.resolve(__dirname, "src/components/auth"),
-        "@dashboard": path.resolve(__dirname, "src/components/dashboard"),
-        "@common": path.resolve(__dirname, "src/components/common"),
-        "@layouts": path.resolve(__dirname, "src/components/Layouts"),
       },
     },
     css: {
       modules: {
         localsConvention: "camelCase",
       },
-      preprocessorOptions: {
-        scss: {
-          additionalData: `@import "@/styles/variables.scss";`,
-        },
       },
     },
     optimizeDeps: {
