@@ -1380,6 +1380,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(CONFIG.ITEMS_PER_PAGE);
   const [calendarStats, setCalendarStats] = useState(null);
+  const [highlightedDates, setHighlightedDates] = useState({});
   const [loadingCalendar, setLoadingCalendar] = useState(false);
   const [branchSwitching, setBranchSwitching] = useState(false);
 
@@ -1390,6 +1391,7 @@ function App() {
   // Sync branch state with authService
   useEffect(() => {
     const syncBranchState = () => {
+        const currentBranch = authService.getCurrentBranch();
       if (user) {
         const userBranches = authService.getUserBranches() || CONFIG.BRANCHES;
 
@@ -1655,7 +1657,6 @@ function App() {
       const currentBranch = authService.getCurrentBranch();
     const currentBranch = authService.getCurrentBranch();
     const targetBranch = selectedBranches[0];
-
     if (currentBranch !== targetBranch) {
       setBranchSwitching(true);
       try {
@@ -1785,8 +1786,6 @@ function App() {
         const firstDay = new Date(year, date.getMonth(), 1);
         const lastDay = new Date(year, date.getMonth() + 1, 0);
 
-        const startDate = firstDay.toISOString().split("T")[0];
-        const endDate = lastDay.toISOString().split("T")[0];
 
         const tempHighlights = {};
 
