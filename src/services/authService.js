@@ -151,7 +151,7 @@ class AuthService {
         let newToken = null;
 
         try {
-          const response = await apiClient.post("/auth/switchbranch/", {
+          const response = await apiClient.post("/auth/switchbranch", {
             branch: branch,
           });
 
