@@ -1,18 +1,14 @@
-// @services/customerService.js
 import apiClient from "@services/api.js";
 import authService from "@services/authService";
 
 const customerService = {
   customerCache: new Map(),
 
-  // Cache duration from environment variable (default: 10 minutes)
   CACHE_DURATION:
     parseInt(import.meta.env.VITE_CUSTOMER_CACHE_DURATION) || 10 * 60 * 1000,
 
-  // API timeout for customer calls
   API_TIMEOUT: parseInt(import.meta.env.VITE_API_TIMEOUT_CUSTOMERS) || 15000,
 
-  // Default page size
   DEFAULT_PAGE_SIZE: parseInt(import.meta.env.VITE_DEFAULT_PAGE_SIZE) || 1000,
 
   // Get customers for specific branch
@@ -22,7 +18,6 @@ const customerService = {
 
       const cacheKey = `${branch}-customers`;
 
-      // Check cache
       if (this.customerCache.has(cacheKey) && !options.forceRefresh) {
         const cached = this.customerCache.get(cacheKey);
         if (Date.now() - cached.timestamp < this.CACHE_DURATION) {
@@ -31,7 +26,6 @@ const customerService = {
         }
       }
 
-      // Fetch real customers with branch context
       const response = await authService.ensureBranchContext(
         branch,
         async () => {
@@ -50,7 +44,6 @@ const customerService = {
         payloadType: typeof response?.data?.payload,
       });
 
-      // Handle different possible response structures
       let customers = [];
 
       if (response && response.data) {
@@ -82,7 +75,6 @@ const customerService = {
         customers = [];
       }
 
-      // Process customers with safe mapping
       const processedCustomers = customers
         .map((customer) => {
           if (!customer || typeof customer !== "object") {
@@ -114,7 +106,6 @@ const customerService = {
         `Processed ${processedCustomers.length} customers for ${branch}`,
       );
 
-      // Cache results
       this.customerCache.set(cacheKey, {
         data: processedCustomers,
         timestamp: Date.now(),
@@ -133,268 +124,6 @@ const customerService = {
       }
       throw error;
     }
-  },
-
-  // Get customers for multiple branches
-  getMultiBranchCustomers: async function (branches, options = {}) {
-    console.log(`Fetching customers for ${branches?.length || 0} branches`);
-
-    if (!branches || !Array.isArray(branches) || branches.length === 0) {
-      console.warn("No branches provided or invalid branches array");
-      return {
-        customers: [],
-        branchResults: {},
-        errors: [{ branch: "all", error: "No branches provided" }],
-        summary: {
-          totalCustomers: 0,
-          successfulBranches: 0,
-          failedBranches: 0,
-          branchCounts: {},
-        },
-      };
-    }
-
-    const self = this;
-
-    // Create a wrapper that returns the expected structure
-    const fetchCustomersForBranch = async (branch) => {
-      try {
-        console.log(`Getting customers for branch: ${branch}`);
-        const customers = await self.getCustomersByBranch(branch, {
-          ...options,
-          silent:
-            options.silent ||
-            import.meta.env.VITE_CUSTOMER_FETCH_SILENT_MODE === "true",
-          forceRefresh: options.forceRefresh || false,
-        });
-
-        console.log(`Got ${customers?.length || 0} customers for ${branch}`);
-
-        // Return in a format that won't get transformed
-        return {
-          success: true,
-          data: customers || [],
-          count: customers?.length || 0,
-          branch: branch,
-        };
-      } catch (error) {
-        console.error(
-          `Failed to fetch customers for branch ${branch}:`,
-          error.message,
-        );
-        return {
-          success: false,
-          error: error.message,
-          data: [],
-          branch: branch,
-        };
-      }
-    };
-
-    const results = await authService.executeForMultipleBranches(
-      branches,
-      null,
-      fetchCustomersForBranch,
-    );
-
-    console.log("Results from executeForMultipleBranches:", results);
-
-    // Combine all customers
-    const allCustomers = [];
-    const branchResults = {};
-    const branchCounts = {};
-    const errors = [];
-
-    if (!results || !results.results || typeof results.results !== "object") {
-      console.error(
-        "Invalid results structure from executeForMultipleBranches:",
-        results,
-      );
-      return {
-        customers: [],
-        branchResults: {},
-        errors: [{ branch: "all", error: "Invalid results structure" }],
-        summary: {
-          totalCustomers: 0,
-          successfulBranches: 0,
-          failedBranches: branches.length,
-          branchCounts: {},
-        },
-      };
-    }
-
-    console.log("Branch results keys:", Object.keys(results.results));
-
-    for (const branch in results.results) {
-      const branchResult = results.results[branch];
-      console.log(`Processing branch ${branch}:`, branchResult);
-
-      if (!branchResult) {
-        console.warn(`No result for branch ${branch}`);
-        errors.push({
-          branch: branch,
-          error: "No result returned",
-        });
-        continue;
-      }
-
-      branchResults[branch] = branchResult;
-
-      if (branchResult.success) {
-        let customers = [];
-
-        if (branchResult.data && Array.isArray(branchResult.data)) {
-          customers = branchResult.data;
-        } else if (
-          branchResult.customers &&
-          Array.isArray(branchResult.customers)
-        ) {
-          customers = branchResult.customers;
-        } else if (branchResult.orders && Array.isArray(branchResult.orders)) {
-          console.warn(
-            `Found 'orders' instead of 'customers' for branch ${branch}`,
-          );
-          customers = branchResult.orders;
-        }
-
-        console.log(
-          `Found ${customers.length} customers in branch result for ${branch}`,
-        );
-
-        // Add branch identifier to each customer
-        const customersWithBranch = customers.map((customer) => ({
-          ...customer,
-          originalBranch: customer.branch || branch,
-        }));
-
-        allCustomers.push(...customersWithBranch);
-        branchCounts[branch] = customers.length;
-      } else {
-        errors.push({
-          branch: branch,
-          error: branchResult.error || "Unknown error",
-        });
-      }
-    }
-
-    console.log(
-      `Total customers across ${branches.length} branches: ${allCustomers.length}`,
-      `Success: ${Object.values(branchResults).filter((r) => r?.success).length}/${branches.length} branches`,
-    );
-
-    // Debug: log first few customers
-    if (allCustomers.length > 0) {
-      console.log("First 3 customers:", allCustomers.slice(0, 3));
-    }
-
-    return {
-      customers: allCustomers,
-      branchResults: branchResults,
-      errors: errors,
-      summary: {
-        totalCustomers: allCustomers.length,
-        successfulBranches: Object.values(branchResults).filter(
-          (r) => r?.success,
-        ).length,
-        failedBranches: errors.length,
-        branchCounts: branchCounts,
-      },
-    };
-  },
-
-  // Alternative: Direct approach without using executeForMultipleBranches
-  getMultiBranchCustomersDirect: async function (branches, options = {}) {
-    console.log(
-      `[DIRECT] Fetching customers for ${branches?.length || 0} branches`,
-    );
-
-    if (!branches || !Array.isArray(branches) || branches.length === 0) {
-      console.warn("No branches provided or invalid branches array");
-      return {
-        customers: [],
-        branchResults: {},
-        errors: [],
-        summary: {
-          totalCustomers: 0,
-          successfulBranches: 0,
-          failedBranches: 0,
-          branchCounts: {},
-        },
-      };
-    }
-
-    const allCustomers = [];
-    const branchResults = {};
-    const branchCounts = {};
-    const errors = [];
-
-    // Process each branch sequentially
-    for (const branch of branches) {
-      try {
-        console.log(`[DIRECT] Getting customers for branch: ${branch}`);
-        const customers = await this.getCustomersByBranch(branch, {
-          ...options,
-          silent:
-            options.silent ||
-            import.meta.env.VITE_CUSTOMER_FETCH_SILENT_MODE === "true",
-          forceRefresh: options.forceRefresh || false,
-        });
-
-        console.log(
-          `[DIRECT] Got ${customers?.length || 0} customers for ${branch}`,
-        );
-
-        const customersWithBranch = customers.map((customer) => ({
-          ...customer,
-          originalBranch: customer.branch || branch,
-        }));
-
-        allCustomers.push(...customersWithBranch);
-        branchCounts[branch] = customers.length;
-
-        branchResults[branch] = {
-          success: true,
-          customers: customers,
-          count: customers.length,
-          branch: branch,
-        };
-      } catch (error) {
-        console.error(
-          `[DIRECT] Failed to fetch customers for branch ${branch}:`,
-          error.message,
-        );
-        errors.push({
-          branch: branch,
-          error: error.message,
-        });
-
-        branchResults[branch] = {
-          success: false,
-          error: error.message,
-          customers: [],
-          branch: branch,
-        };
-      }
-    }
-
-    console.log(
-      `[DIRECT] Total customers across ${branches.length} branches: ${allCustomers.length}`,
-      `Success: ${Object.values(branchResults).filter((r) => r?.success).length}/${branches.length} branches`,
-    );
-
-    return {
-      customers: allCustomers,
-      branchResults: branchResults,
-      errors: errors,
-      summary: {
-        totalCustomers: allCustomers.length,
-        successfulBranches: Object.values(branchResults).filter(
-          (r) => r?.success,
-        ).length,
-        failedBranches: errors.length,
-        branchCounts: branchCounts,
-      },
-    };
   },
 
   // Search customers with multiple criteria
@@ -426,18 +155,6 @@ const customerService = {
           customer.customerRoute.toLowerCase().includes(query))
       );
     });
-  },
-
-  // Filter customers by branch
-  filterCustomersByBranch: function (customers, branch) {
-    if (!branch) return customers;
-    if (!Array.isArray(customers)) return [];
-
-    return customers.filter(
-      (customer) =>
-        customer &&
-        (customer.branch === branch || customer.originalBranch === branch),
-    );
   },
 
   // Get unique customer groups
