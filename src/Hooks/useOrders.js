@@ -210,92 +210,6 @@ const useOrders = (initialBranch = null, initialDate = null) => {
   }, [currentBranch, fetchOrders]);
 
   // Search orders
-  const searchOrders = useCallback(
-    async (query, filters = {}) => {
-      if (!currentBranch || !query?.trim()) {
-        console.log("No branch or query provided for search");
-        return { orders: [], summary: null };
-      }
-
-      try {
-        return await ordersService.searchOrders(currentBranch, query, {
-          deliveryDate: selectedDate,
-          ...filters,
-        });
-      } catch (err) {
-        console.error("Search error:", err);
-        return { orders: [], summary: null };
-      }
-    },
-    [currentBranch, selectedDate],
-  );
-
-  // Get all branches orders
-  const getAllBranchesOrders = useCallback(
-    async (branches, date = selectedDate) => {
-      if (!branches?.length) {
-        console.error("No branches provided");
-        return [];
-      }
-
-      console.log(`Getting orders for ${branches.length} branches`);
-      try {
-        return await ordersService.getAllBranchesOrders(branches, date);
-      } catch (err) {
-        console.error("Error getting all branches orders:", err);
-        return [];
-      }
-    },
-    [selectedDate],
-  );
-
-  // Export to CSV
-  const exportToCSV = useCallback(() => {
-    if (orders.length === 0) {
-      throw new Error("No orders to export");
-    }
-
-    const headers = [
-      "Order Number",
-      "Customer Code",
-      "Customer Name",
-      "Customer Route",
-      "Total Value",
-      "Order Date",
-      "Delivery Date",
-      "Status",
-      "LPO",
-      "Price List",
-      "Branch",
-      "Remarks",
-      "Type",
-    ];
-
-    const csvRows = orders.map((order) => [
-      order.orderNumber || "",
-      order.customerCode || "",
-      order.customerName || "",
-      order.customerRoute || "",
-      order.totalValue || "0.00",
-      order.orderDate || "",
-      order.deliveryDate || "",
-      order.status || "Pending",
-      order.lpo || "",
-      order.sellingPriceList || "Standard",
-      currentBranch || "",
-      order.remarks || "",
-      order.type || "",
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...csvRows.map((row) =>
-        row.map((cell) => `"${cell.toString().replace(/"/g, '""')}"`).join(","),
-      ),
-    ].join("\n");
-
-    return csvContent;
-  }, [orders, currentBranch]);
 
   // Clear orders
   const clearOrders = useCallback(() => {
@@ -337,8 +251,6 @@ const useOrders = (initialBranch = null, initialDate = null) => {
     changeDate,
     getTodaysOrders,
     getTomorrowsOrders,
-    searchOrders,
-    getAllBranchesOrders,
     exportToCSV,
     clearOrders,
 
