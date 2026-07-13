@@ -1653,9 +1653,8 @@ function App() {
       setCustomersError("Please select branch(es) first");
       return;
     }
-
-      const currentBranch = authService.getCurrentBranch();
     const currentBranch = authService.getCurrentBranch();
+
     const targetBranch = selectedBranches[0];
     if (currentBranch !== targetBranch) {
       setBranchSwitching(true);
@@ -1838,3 +1837,131 @@ function App() {
     }
   };
 
+
+  return (
+    <div className="app">
+      {user ? (
+        <>
+          <header className="app-header">
+            <div className="header-left">
+              <div className="app-logo">
+                <span className="logo-main">CT226</span>
+                <span className="logo-sub">SLICES OF MATH</span>
+              </div>
+            </div>
+            <div className="header-right">
+              <div className="branch-select-wrapper">
+                <select
+                  value={authService.getCurrentBranch() || selectedBranches[0] || ""}
+                  onChange={(e) => handleBranchChange(e.target.value)}
+                  className="branch-dropdown"
+                  disabled={isLoading}
+                >
+                  <option value="">Select Branch ({userBranches.length})</option>
+                  {userBranches.map((branch, index) => (
+                    <option key={`${branch}-${index}`} value={branch}>{branch}</option>
+                  ))}
+                </select>
+              </div>
+              {selectedBranches.length > 0 && (
+                <button onClick={handleOpenCreateOrder} className="create-order-btn" disabled={isLoading}>
+                  Create Order
+                </button>
+              )}
+              <div className="user-info">
+                <span className="user-name">{user.name ? user.name.toUpperCase() : ""}</span>
+              </div>
+              <button onClick={handleLogout} className="logout-btn" disabled={isLoading}>
+                Logout
+              </button>
+            </div>
+          </header>
+          <main className="app-main">
+            <div className="dashboard-container">
+              <div className="card" style={{ maxWidth: "1600px", margin: "0 auto" }}>
+                <div className="card-header">
+                  <h2 className="card-title">
+                    {selectedBranches[0] || "Select Branch"} Orders
+                    {selectedDate && <span className="card-subtitle"> • {formatDisplayDate(selectedDate)}</span>}
+                  </h2>
+                  <div className="date-filter-container" ref={calendarRef}>
+                    <div className="calendar-input-wrapper" onClick={() => { if (!isLoading) { setCalendarDate(selectedDate ? new Date(selectedDate) : new Date()); setShowCalendar(!showCalendar); }}} style={{ cursor: isLoading ? "not-allowed" : "pointer" }}>
+                      <input type="text" value={formatDisplayDate(selectedDate)} readOnly placeholder="Select date to view orders..." className="calendar-input" disabled={isLoading} />
+                      <span className="calendar-icon">📅</span>
+                    </div>
+                    {showCalendar && (
+                      <div className="calendar-popup">
+                        <div className="calendar-header">
+                          <button onClick={(e) => { e.stopPropagation(); navigateMonth(-1); }} className="calendar-nav-btn" disabled={loadingCalendar || isLoading}>«</button>
+                          <div className="calendar-month-year">{getMonthName(calendarDate)}</div>
+                          <button onClick={(e) => { e.stopPropagation(); navigateMonth(1); }} className="calendar-nav-btn" disabled={loadingCalendar || isLoading}>»</button>
+                        </div>
+                        {loadingCalendar ? (
+                          <div className="calendar-loading"><div className="spinner spinner-sm"></div><p>Loading calendar...</p></div>
+                        ) : (
+                          <div className="calendar-grid">
+                            {dayNames.map((day) => (<div key={day.key} className="calendar-day-header">{day.letter}</div>))}
+                            {getCalendarDays().map((day, index) => (<CalendarDay key={`${day.date.getTime()}-${index}`} {...day} ordersLoading={isLoading} handleDateSelect={handleDateSelect} />))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ padding: "var(--space-xl)" }}>
+                  {selectedDate && selectedBranches.length > 0 && (
+                    <div className="stats-summary">
+                      <div className="stat-item-main"><div className="stat-label-main">Total Orders</div><div className="stat-value-main">{stats.totalOrders}</div></div>
+                      <div className="stat-item-main"><div className="stat-label-main">Total Value</div><div className="stat-value-main">Ksh {stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div></div>
+                    </div>
+                  )}
+                  {selectedDate && orders.length > 0 && (
+                    <div className="search-container">
+                      <div className="search-input-wrapper">
+                        <input ref={ordersSearchInputRef} type="text" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} placeholder="Search" className="search-input" disabled={ordersLoading} />
+                        {searchQuery && <button onClick={handleClearOrdersSearch} className="search-clear-btn" disabled={ordersLoading}>×</button>}
+                      </div>
+                    </div>
+                  )}
+                  <div className="orders-container">
+                    <div className="orders-header"><h4>Orders List</h4></div>
+                    {ordersLoading ? (
+                      <div className="loading-state"><div className="spinner"></div><p>Loading orders...</p></div>
+                    ) : ordersError ? (
+                      <div className="error-state"><p>{ordersError}</p></div>
+                    ) : currentOrders.length > 0 ? (
+                      <div className="table-container">
+                        <table className="orders-table">
+                          <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead>
+                          <tbody>
+                            {currentOrders.map((order, index) => (
+                              <tr key={index}>
+                                <td>{order.orderNumber}</td>
+                                <td>{order.customerName}</td>
+                                <td>Ksh {(order.totalValue || 0).toLocaleString()}</td>
+                                <td><span className={`status-badge status-${(order.status || "pending").toLowerCase()}`}>{order.status || "Pending"}</span></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : selectedDate ? (
+                      <div className="empty-state"><p>No orders found for {formatDisplayDate(selectedDate)}</p></div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+          <footer className="app-footer"><div className="footer-content"><span>API: mbnl.ddsolutions.tech</span></div></footer>
+          {showCustomerModal && <CustomerModal showCustomerModal={showCustomerModal} setShowCustomerModal={setShowCustomerModal} customerSearchQuery={customerSearchQuery} setCustomerSearchQuery={setCustomerSearchQuery} customersLoading={customersLoading} customers={customers} filteredCustomers={filteredCustomers} customersError={customersError} selectedCustomer={selectedCustomer} handleSelectCustomer={handleSelectCustomer} loadCustomers={() => loadCustomers(selectedBranches)} selectedBranches={selectedBranches} />}
+          {showDocumentReader && <DocumentReaderModal showDocumentReader={showDocumentReader} setShowDocumentReader={setShowDocumentReader} selectedCustomer={selectedCustomer} poText={poText} setPoText={setPoText} isProcessing={isProcessing} setIsProcessing={setIsProcessing} parsedOrderData={parsedOrderData} setParsedOrderData={setParsedOrderData} handleProcessPO={handleProcessPO} handleCreateOrder={handleCreateOrder} />}
+        </>
+      ) : (
+        <div className="login-container"><LoginForm onLoginSuccess={handleLoginSuccess} /></div>
+      )}
+    </div>
+  );
+}
+
+export default App;
