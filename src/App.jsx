@@ -1475,15 +1475,14 @@ function App() {
       setSelectedCustomer(null);
 
       try {
-        const result = await customerService.getMultiBranchCustomers(branches, {
+        const currentBranch = authService.getCurrentBranch();
+        const customers = await customerService.getCustomersByBranch(currentBranch, {
           forceRefresh: true,
           silent: false,
         });
-
-        setCustomers(result.customers);
-
-        if (result.errors && result.errors.length > 0) {
-          setCustomersError(
+        setCustomers(customers);
+        setCustomersError("");
+      }
             `${result.errors.length} branch(es) failed to load customers`,
           );
         }
