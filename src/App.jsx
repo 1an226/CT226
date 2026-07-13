@@ -1383,6 +1383,7 @@ function App() {
   const [highlightedDates, setHighlightedDates] = useState({});
   const [loadingCalendar, setLoadingCalendar] = useState(false);
   const [branchSwitching, setBranchSwitching] = useState(false);
+  const isLoading = loading || branchSwitching;
 
   const calendarRef = useRef(null);
   const initializedRef = useRef(false);
