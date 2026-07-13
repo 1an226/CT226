@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             vendor: ["react", "react-dom"],
-            utils: ["axios", "papaparse"],
+            utils: ["axios"],
           },
         },
       },
@@ -42,12 +42,6 @@ export default defineConfig(({ mode }) => {
         "@utils": path.resolve(__dirname, "src/utils"),
         "@contexts": path.resolve(__dirname, "src/contexts"),
         "@auth": path.resolve(__dirname, "src/components/auth"),
-      },
-    },
-    css: {
-      modules: {
-        localsConvention: "camelCase",
-      },
       },
     },
     optimizeDeps: {
