@@ -1838,6 +1838,32 @@ function App() {
   };
 
 
+
+  const handleLoginSuccess = async (userData) => {
+    setUser(userData);
+    const branches = authService.getUserBranches() || CONFIG.BRANCHES;
+    setUserBranches(branches);
+    if (branches.length > 0) {
+      const defaultBranch = branches[0];
+      ordersService.clearCache();
+      customerService.clearCache();
+      setSelectedDate("");
+      setSelectedBranches([defaultBranch]);
+      authService.updateCurrentBranch(defaultBranch);
+      setOrders([]);
+      setCustomers([]);
+      setSearchQuery("");
+      setCustomerSearchQuery("");
+      setSelectedCustomer(null);
+      setStats({ totalOrders: 0, totalValue: 0, branchCounts: {}, summary: {} });
+      setOrdersError(null);
+      setCustomersError("");
+      setShowCustomerModal(false);
+      setShowDocumentReader(false);
+      setPoText("");
+      setParsedOrderData(null);
+    }
+  };
   return (
     <div className="app">
       {user ? (
