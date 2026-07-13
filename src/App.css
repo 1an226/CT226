@@ -223,46 +223,6 @@ body {
   background-color: rgba(0, 40, 0, 0.7);
 }
 
-.branch-dropdown-multi {
-  font-family: var(--font-primary);
-  font-weight: 500;
-  font-size: var(--text-sm);
-  background: rgba(0, 30, 0, 0.6);
-  border: 1px solid var(--color-green-transparent);
-  border-radius: var(--radius-sm);
-  color: var(--color-green);
-  padding: var(--space-xs);
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  width: 100%;
-  min-height: 80px;
-}
-
-.branch-dropdown-multi option {
-  background: var(--color-black);
-  color: var(--color-green);
-  padding: var(--space-xs);
-}
-
-.branch-dropdown-multi option:checked {
-  background: var(--color-green);
-  color: var(--color-black);
-}
-
-.multi-branch-select {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.multi-branch-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  font-size: var(--text-xs);
-  color: var(--color-gray-light);
-}
-
 .branch-count {
   margin-left: auto;
   font-weight: 500;
