@@ -7,7 +7,7 @@ const customerService = {
   CACHE_DURATION:
     parseInt(import.meta.env.VITE_CUSTOMER_CACHE_DURATION) || 10 * 60 * 1000,
 
-  API_TIMEOUT: parseInt(import.meta.env.VITE_API_TIMEOUT_CUSTOMERS) || 15000,
+  API_TIMEOUT: parseInt(import.meta.env.VITE_API_TIMEOUT_CUSTOMERS) || 120000,
 
   DEFAULT_PAGE_SIZE: parseInt(import.meta.env.VITE_DEFAULT_PAGE_SIZE) || 1000,
 
