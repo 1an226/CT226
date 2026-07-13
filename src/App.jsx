@@ -1839,6 +1839,89 @@ function App() {
   };
 
 
+  const handleLogout = async () => {
+    initializedRef.current = false;
+    await authService.logout();
+    setUser(null);
+    setSelectedBranches([]);
+    setUserBranches([]);
+    setOrders([]);
+    setCustomers([]);
+    setHighlightedDates({});
+    setCalendarStats(null);
+    setSelectedDate("");
+    setLoading(false);
+    setBranchSwitching(false);
+    setShowCustomerModal(false);
+    setShowDocumentReader(false);
+    setPoText("");
+    setParsedOrderData(null);
+  };
+
+  const handleRefreshOrders = async () => {
+    if (selectedBranches.length > 0 && selectedDate && !ordersLoading) {
+      ordersService.clearCache();
+      try {
+        await loadOrdersForDate(selectedDate);
+      } catch (error) {
+        if (CONFIG.ENABLE_CONSOLE_LOGS)
+          console.error(`Refresh failed: ${error.message}`);
+      }
+    }
+  };
+
+  const handleClearOrdersSearch = () => {
+    setSearchQuery("");
+    setTimeout(() => {
+      ordersSearchInputRef.current?.focus();
+    }, 0);
+  };
+
+  const handlePageChange = (pageNumber) => setCurrentPage(pageNumber);
+  const handleFirstPage = () => setCurrentPage(1);
+  const handleLastPage = () => setCurrentPage(totalPages);
+  const handlePrevPage = () => currentPage > 1 && setCurrentPage(currentPage - 1);
+  const handleNextPage = () => currentPage < totalPages && setCurrentPage(currentPage + 1);
+
+  const formatDisplayDate = (dateString) => {
+    if (!dateString) return "Select Date";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const formatTime = (dateString) => {
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    } catch {
+      return "N/A";
+    }
+  };
+
+  const getMonthName = (date) => {
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
+
+  const dayNames = [
+    { letter: "S", fullName: "Sunday", key: "sun" },
+    { letter: "M", fullName: "Monday", key: "mon" },
+    { letter: "T", fullName: "Tuesday", key: "tue" },
+    { letter: "W", fullName: "Wednesday", key: "wed" },
+    { letter: "T", fullName: "Thursday", key: "thu" },
+    { letter: "F", fullName: "Friday", key: "fri" },
+    { letter: "S", fullName: "Saturday", key: "sat" },
+  ];
+
 
   const handleLoginSuccess = async (userData) => {
     setUser(userData);
