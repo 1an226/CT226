@@ -655,16 +655,33 @@ const extractTextFromPDF = async (pdfFile) => {
 
     let fullText = "";
 
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
 
-      const pageText = textContent.items.map((item) => item.str).join(" ");
+        const tolerance = 2;
+        const lines = [];
+        let currentLine = [];
+        let currentY = null;
 
-      fullText += pageText + "\n\n";
+        for (const item of textContent.items) {
+          const y = item.transform[5];
+          if (currentY === null || Math.abs(y - currentY) <= tolerance) {
+            currentLine.push(item.str);
+            if (currentY === null) currentY = y;
+          } else {
+            lines.push(currentLine.join(" "));
+            currentLine = [item.str];
+            currentY = y;
+          }
+        }
+        if (currentLine.length > 0) lines.push(currentLine.join(" "));
 
-      console.log(`Extracted page ${pageNum}: ${pageText.length} chars`);
-    }
+        const pageText = lines.join("\n");
+        console.log(`Extracted page ${pageNum}: ${pageText.length} chars`);
+
+        fullText += pageText + "\n\n";
+      }
 
     console.log(
       "PDF text extraction successful, total text length:",
