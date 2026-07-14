@@ -1,5 +1,7 @@
 import apiClient from "@services/api.js";
 import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 // Configuration from environment variables
 const parseItemCodeMapping = () => {
@@ -643,7 +645,7 @@ const extractTextFromPDF = async (pdfFile) => {
   try {
     console.log("Extracting text from PDF using PDF.js...");
 
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    
 
     const arrayBuffer = await pdfFile.arrayBuffer();
 
