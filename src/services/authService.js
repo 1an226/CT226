@@ -31,15 +31,6 @@ class AuthService {
     this.currentBranch = null;
     this.switchLock = null;
 
-    // Fix (critical): serializes every ensureBranchContext call end-to-end
-    // (switch AND operation together), not just the switch step. This is
-    // when ENABLE_BRANCH_PARALLEL=true — previously the branch-switch lock
-    // released as soon as the switch completed, so a second branch's switch
-    // could sneak in before the first branch's fetch actually ran, causing
-    // Branch A's operation to silently execute while global session state
-    // pointed at Branch B. Every ensureBranchContext call now chains onto
-    // this queue and runs strictly after the previous one fully finishes,
-    // regardless of which service or how many branches call it concurrently.
     this.contextQueue = Promise.resolve();
 
     // Load from storage
@@ -134,12 +125,6 @@ class AuthService {
       }
     }
 
-    // Fix: cancel any in-flight requests before switching. Without this,
-    // a request that started under the OLD branch context can still resolve
-    // AFTER the switch, arriving with data implicitly scoped to whichever
-    // branch was active at response time — not the branch the caller
-    // originally asked for. This doesn't replace the contextQueue fix above
-    // (that handles ordering), it handles requests already in flight.
     cancelAllPendingRequests(`Branch switching to ${branch}`);
 
     // Create lock for this switch
@@ -341,20 +326,6 @@ class AuthService {
     return true;
   }
 
-  // Ensure branch context
-  //
-  // Fix (critical): the switch-to-branch and run-the-operation steps are now
-  // chained onto this.contextQueue, so calls to ensureBranchContext from
-  // ANY service (ordersService, customerService, etc.) execute strictly
-  // one-at-a-time in the order they were invoked — even if the callers
-  // themselves fired them off in parallel via Promise.allSettled. This is
-  // what makes ENABLE_BRANCH_PARALLEL=true SAFE to use again: previously
-  // "parallel" branch fetches could interleave their switch+fetch steps and
-  // silently return one branch's data under another branch's label. Now
-  // "parallel" callers just get correctly serialized under the hood instead
-  // of corrupting data — the concurrency limiting in api.js still caps how
-  // many HTTP requests are actually in flight, this queue caps how many
-  // branch-context operations are logically active (always 1).
   async ensureBranchContext(branch, operation) {
     if (!branch) {
       throw new Error("Branch is required");
@@ -579,12 +550,6 @@ class AuthService {
     return timeUntilExpiry < this.TOKEN_REFRESH_THRESHOLD;
   }
 
-  // Fix: delegates to the single shared implementation exported from
-  // api.js instead of maintaining a second, independently-drifting copy.
-  // Behavior is identical (this class's TOKEN_EXPIRY_BUFFER still applies
-  // via api.js's own env-driven buffer — both read the same
-  // VITE_TOKEN_EXPIRY_BUFFER var, so there was never an intentional
-  // difference here, just duplicated code).
   isTokenExpired(token = null) {
     const tokenToCheck = token || this.getToken();
     return sharedIsTokenExpired(tokenToCheck);
