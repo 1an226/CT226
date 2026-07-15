@@ -1,6 +1,5 @@
 import axios from "axios";
 
-// Load configuration from environment variables
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 if (!API_BASE_URL) {
@@ -15,9 +14,6 @@ const MIN_REQUEST_INTERVAL =
 const TOKEN_EXPIRY_BUFFER =
   parseInt(import.meta.env.VITE_TOKEN_EXPIRY_BUFFER) || 300;
 
-// Fix: gate verbose logging behind an explicit flag so production builds
-// don't leak URLs, params, response sizes, etc. to the browser console.
-// Defaults to Vite's built-in dev flag, but can be forced on/off via env.
 const DEBUG_API =
   import.meta.env.VITE_API_DEBUG !== undefined
     ? import.meta.env.VITE_API_DEBUG === "true"
@@ -27,12 +23,9 @@ const log = (...args) => {
   if (DEBUG_API) console.log(...args);
 };
 const logError = (...args) => {
-  // Errors are always logged, even in production — silencing failures
-  // outright would hide real problems from you.
   console.error(...args);
 };
 
-// Create axios instance with default config
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -43,13 +36,6 @@ const apiClient = axios.create({
   timeout: API_TIMEOUT,
 });
 
-// ---------------------------------------------------------------------------
-// Fix #1: Concurrency limiter — replaces the `while (pendingRequests >= MAX)`
-// polling loop. The old loop re-checked every 500ms, so a freed slot could
-// sit idle for up to 500ms before being picked up, with no ordering
-// guarantee between waiters. This is a proper FIFO queue: a waiting request
-// is resolved the instant a slot frees, in the order it arrived.
-// ---------------------------------------------------------------------------
 let activeRequests = 0;
 const waitQueue = [];
 
@@ -72,13 +58,6 @@ const releaseSlot = () => {
   }
 };
 
-// ---------------------------------------------------------------------------
-// Fix #2: Request cancellation registry. Lets calling code (e.g. a branch
-// switch) cancel all in-flight requests instead of letting a stale request
-// for the OLD branch resolve later and overwrite UI state with wrong data.
-// This is opt-in — existing calls that don't pass a signal behave exactly
-// as before, so nothing breaks for callers that haven't adopted it yet.
-// ---------------------------------------------------------------------------
 const activeControllers = new Set();
 
 export const cancelAllPendingRequests = (reason = "Cancelled by caller") => {
@@ -88,16 +67,10 @@ export const cancelAllPendingRequests = (reason = "Cancelled by caller") => {
   activeControllers.clear();
 };
 
-// Helper function to get token
 const getToken = () => {
   return localStorage.getItem("dds_access_token");
 };
 
-// Helper function to check if token is expired.
-// NOTE: this logic is intentionally duplicated in authService.js today.
-// Exporting it here so authService.js (or a future shared tokenUtils.js)
-// can import this single implementation instead of maintaining its own —
-// see the note at the bottom of this review for the follow-up step.
 export const isTokenExpired = (token) => {
   if (!token) return true;
 
@@ -120,13 +93,6 @@ export const isTokenExpired = (token) => {
   }
 };
 
-// ---------------------------------------------------------------------------
-// Fix #3: Configurable unauthorized handler. The original hardcoded
-// `window.location.href = "/"` coupled this low-level HTTP client directly
-// to app routing. Now it defaults to the SAME behavior (nothing changes if
-// you don't touch this), but App.jsx can override it to use React Router's
-// navigate() instead of a hard reload, without editing this file again.
-// ---------------------------------------------------------------------------
 let unauthorizedHandler = () => {
   if (window.location.pathname !== "/") {
     setTimeout(() => {
@@ -141,10 +107,8 @@ export const setUnauthorizedHandler = (handlerFn) => {
   }
 };
 
-// Request interceptor with rate limiting + concurrency control
 apiClient.interceptors.request.use(
   async (config) => {
-    // Rate limiting logic (unchanged behavior)
     const now = Date.now();
     const timeSinceLastRequest = now - lastRequestTime;
 
@@ -154,12 +118,9 @@ apiClient.interceptors.request.use(
       await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
 
-    // Fix #1 applied: queue-based slot acquisition instead of polling
     await acquireSlot();
     lastRequestTime = Date.now();
 
-    // Fix #2 applied: attach an AbortController unless the caller supplied
-    // their own signal already (never override an explicit caller choice)
     if (!config.signal) {
       const controller = new AbortController();
       config.signal = controller.signal;
@@ -191,7 +152,6 @@ apiClient.interceptors.request.use(
   },
 );
 
-// Response interceptor
 apiClient.interceptors.response.use(
   (response) => {
     releaseSlot();
@@ -207,7 +167,6 @@ apiClient.interceptors.response.use(
       activeRequests,
     });
 
-    // Log data structure for debugging
     if (DEBUG_API && response.config.url.includes("/orders/")) {
       log("Orders response keys:", Object.keys(response.data || {}));
     }
@@ -229,7 +188,6 @@ apiClient.interceptors.response.use(
       activeRequests,
     });
 
-    // Handle specific error cases
     if (error.code === "ECONNABORTED") {
       logError("Request timeout - Server might be slow or unresponsive");
     } else if (error.message?.includes("Network Error")) {
@@ -250,7 +208,6 @@ apiClient.interceptors.response.use(
         const refreshed = await authService.refreshToken();
 
         if (refreshed) {
-          // Fix: clear old signal/controller so the interceptor attaches a fresh one
           delete originalRequest._controller;
           delete originalRequest.signal;
 
