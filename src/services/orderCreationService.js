@@ -1254,7 +1254,6 @@ const detectTextFormat = (text, customerType = "NAIVAS") => {
   return "UNKNOWN";
 };
 
-// Khetia - Fixed quantity parsing to get actual order quantity
 const parseKhetiaFormat = (text) => {
   console.log("Parsing Khetia format...");
   const items = [];
@@ -1536,7 +1535,6 @@ const parseQuickmartFormat = (text) => {
   return items;
 };
 
-// Majid - Fixed quantity parsing and filter codes ending with 983/984
 const parseMajidFormat = (text) => {
   console.log("Parsing Majid format...");
   const items = [];
@@ -2365,7 +2363,6 @@ const parseCleanshelfLocalPO = (text) => {
   return { items, lpoNumber: foundLPO };
 };
 
-// Fixed: Cleanshelf Pending Orders Parser
 // This function now correctly handles ALL 8 items including the first one
 const parseCleanshelfPendingOrders = (text) => {
   console.log("Parsing Cleanshelf PENDING ORDERS format...");
@@ -2729,7 +2726,6 @@ const parseCleanshelfCopyPasteText = (text) => {
   return { items, mainLPONumber };
 };
 
-// Fixed LPO extraction to handle commas and avoid item codes
 const extractLPONumber = (text, customerType = "NAIVAS") => {
   console.log(`Extracting LPO number for ${customerType}...`);
 
