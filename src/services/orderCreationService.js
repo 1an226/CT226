@@ -140,6 +140,68 @@ const CLEANSHELF_ITEM_CODE_MAPPING = parseCleanshelfItemCodeMapping();
 const JAZARIBU_ITEM_CODE_MAPPING = parseJazaribuItemCodeMapping();
 const KHETIA_ITEM_CODE_MAPPING = parseKhetiaItemCodeMapping();
 const MAJID_BARCODE_MAPPING = parseMajidBarcodeMapping();
+
+// ---------- AI-based parsing (NVIDIA API) ----------
+const NVIDIA_API_KEY = import.meta.env.VITE_NVIDIA_API_KEY;
+const NVIDIA_ORG = import.meta.env.VITE_NVIDIA_ORG || "x2v1";
+
+const parseWithAI = async (text, customerType = "NAIVAS") => {
+  if (!NVIDIA_API_KEY) {
+    throw new Error("NVIDIA API key not configured");
+  }
+
+  const customerConfig = CUSTOMER_CONFIG[customerType] || CUSTOMER_CONFIG.NAIVAS;
+  const systemPrompt = `You are a purchase order parser for ${customerConfig.name} (${customerType}). 
+Extract the LPO number and all items. 
+Return ONLY a JSON object with these keys:
+- "lpoNumber" (string, null if not found)
+- "items" (array of objects with keys: itemCode (string), quantity (number), description (string))
+Do not include any other text.`;
+
+  const response = await fetch(
+    "https://integrate.api.nvidia.com/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${NVIDIA_API_KEY}`,
+        "Content-Type": "application/json",
+        "X-NVCF-ORG": NVIDIA_ORG,
+      },
+      body: JSON.stringify({
+        model: "meta/llama-3.2-3b-instruct",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text },
+        ],
+        max_tokens: 1000,
+        temperature: 0,
+        stream: false,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(`AI API error ${response.status}: ${err.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices[0].message.content;
+  const jsonStr = content.replace(/```json\n?|\n?```/g, "").trim();
+  const parsed = JSON.parse(jsonStr);
+
+  if (!parsed.items || !Array.isArray(parsed.items)) {
+    throw new Error("AI response missing items array");
+  }
+  return {
+    lpoNumber: parsed.lpoNumber || null,
+    items: parsed.items.map(item => ({
+      itemCode: String(item.itemCode || ""),
+      quantity: parseInt(item.quantity) || 0,
+      description: item.description || "",
+    })),
+  };
+};
 const CHANDARANA_BARCODE_MAPPING = parseChandaranaBarcodeMapping();
 const QUICKMART_BARCODE_MAPPING = parseQuickmartBarcodeMapping();
 
@@ -3597,6 +3659,30 @@ const findItemsGeneric = (text) => {
 };
 
 const findItemsAndQuantities = (text, customerType = "NAIVAS") => {
+
+  // --- Try AI parser first ---
+  if (NVIDIA_API_KEY) {
+    try {
+      console.log("Attempting AI extraction...");
+      const aiResult = await parseWithAI(text, customerType);
+      const aiItems = aiResult.items.map(item => ({
+        ocrItemCode: item.itemCode,
+        actualItemCode: getFGCode(item.itemCode, customerType),
+        quantity: item.quantity,
+        foundQuantity: item.quantity,
+        productName: item.description,
+        method: "ai-parsed",
+      }));
+      console.log(`AI extracted ${aiItems.length} items`);
+      if (aiItems.length > 0) {
+        return aiItems;
+      }
+      console.log("AI returned 0 items, falling back to legacy parsers");
+    } catch (aiError) {
+      console.warn("AI parsing failed, using legacy parsers:", aiError.message);
+    }
+  }
+  // --- end AI block ---
   console.log(`Starting item extraction for ${customerType}`);
 
   const cleanedText = cleanOCRText(text);
