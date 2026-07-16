@@ -160,7 +160,7 @@ Return ONLY a JSON object with these keys:
 Do not include any other text.`;
 
   const response = await fetch(
-    "https://integrate.api.nvidia.com/v1/chat/completions",
+    "/nvidia-api/chat/completions",
     {
       method: "POST",
       headers: {
