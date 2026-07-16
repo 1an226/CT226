@@ -3780,6 +3780,7 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
       }
   }
 
+  if (!Array.isArray(items)) { console.warn("items is not an array, returning empty"); return []; }
   const uniqueItems = [];
   const seenCodes = new Set();
 
