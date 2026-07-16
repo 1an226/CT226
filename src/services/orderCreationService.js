@@ -1,3 +1,4 @@
+console.log("NVIDIA_API_KEY present:", !!import.meta.env.VITE_NVIDIA_API_KEY);
 import apiClient from "@services/api.js";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -3659,27 +3660,32 @@ const findItemsGeneric = (text) => {
 };
 
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
-
   // --- Try AI parser first ---
   if (NVIDIA_API_KEY) {
-  console.log("NVIDIA API key exists:", !!NVIDIA_API_KEY);
     try {
       console.log("Attempting AI extraction...");
       const aiResult = await parseWithAI(text, customerType);
-      const aiItems = aiResult.items.map(item => ({
-        ocrItemCode: item.itemCode,
-        actualItemCode: getFGCode(item.itemCode, customerType),
-        quantity: item.quantity,
-        foundQuantity: item.quantity,
-        productName: item.description,
-        method: "ai-parsed",
-      }));
-      console.log(`AI extracted ${aiItems.length} items`);
-      if (aiItems.length > 0) {
+      if (aiResult && Array.isArray(aiResult.items) && aiResult.items.length > 0) {
+        const aiItems = aiResult.items.map(item => ({
+          ocrItemCode: item.itemCode,
+          actualItemCode: getFGCode(item.itemCode, customerType),
+          quantity: item.quantity,
+          foundQuantity: item.quantity,
+          productName: item.description,
+          method: "ai-parsed",
+        }));
+        console.log(`AI extracted ${aiItems.length} items`);
         return aiItems;
+      } else {
+        console.log("AI returned no items, falling back to legacy parsers");
       }
-      console.log("AI returned 0 items, falling back to legacy parsers");
     } catch (aiError) {
+      console.warn("AI parsing failed, using legacy parsers:", aiError.message);
+    }
+  }
+  // --- end AI block ---
+  console.log(`Starting item extraction for ${customerType}`);
+
       console.warn("AI parsing failed, using legacy parsers:", aiError.message);
     }
   }
