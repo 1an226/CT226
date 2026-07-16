@@ -3660,6 +3660,7 @@ const findItemsGeneric = (text) => {
 };
 
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
+  try {
   // --- Try AI parser first ---
   if (NVIDIA_API_KEY) {
     try {
@@ -3835,6 +3836,10 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   }
 
   return uniqueItems;
+  } catch (error) {
+    console.error("Fatal error in findItemsAndQuantities:", error);
+    return [];
+  }
 };
 
 const extractTextFromImage = async (imageFile) => {
