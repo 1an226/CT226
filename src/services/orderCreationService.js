@@ -3662,6 +3662,7 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
 
   // --- Try AI parser first ---
   if (NVIDIA_API_KEY) {
+  console.log("NVIDIA API key exists:", !!NVIDIA_API_KEY);
     try {
       console.log("Attempting AI extraction...");
       const aiResult = await parseWithAI(text, customerType);
