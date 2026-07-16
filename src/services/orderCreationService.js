@@ -4658,7 +4658,6 @@ const debugNCodeParsing = (text) => {
   };
 };
 
-export default {
 
 // ---------- AI Parser (via Vercel proxy) ----------
 const NVIDIA_API_KEY = import.meta.env.VITE_NVIDIA_API_KEY;
@@ -4734,7 +4733,7 @@ findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   }
   return originalFindItemsAndQuantities(text, customerType);
 };
-  getNaivasProducts,
+export default {
   getProductsByCustomer,
   parsePOText,
   parsePOFromDroppedFile,
