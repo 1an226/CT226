@@ -3596,7 +3596,7 @@ const findItemsGeneric = (text) => {
   return items;
 };
 
-let findItemsAndQuantities = (text, customerType = "NAIVAS") => {
+const findItemsAndQuantities = (text, customerType = "NAIVAS") => {
   console.log(`Starting item extraction for ${customerType}`);
 
   const cleanedText = cleanOCRText(text);
@@ -4658,82 +4658,8 @@ const debugNCodeParsing = (text) => {
   };
 };
 
-
-// ---------- AI Parser (via Vercel proxy) ----------
-const NVIDIA_API_KEY = import.meta.env.VITE_NVIDIA_API_KEY;
-const NVIDIA_ORG = import.meta.env.VITE_NVIDIA_ORG || "x2v1";
-
-const parseWithAI = async (text, customerType) => {
-  if (!NVIDIA_API_KEY) throw new Error("NVIDIA key not configured");
-
-  const systemPrompt = `You are a purchase order parser for ${customerType}. 
-Extract the LPO number and all items. Return ONLY a JSON object with:
-- "lpoNumber" (string, or null)
-- "items" (array of { "itemCode": string, "quantity": number, "description": string })
-Do not include any other text.`;
-
-  const response = await fetch("/nvidia-api/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${NVIDIA_API_KEY}`,
-      "Content-Type": "application/json",
-      "X-NVCF-ORG": NVIDIA_ORG,
-    },
-    body: JSON.stringify({
-      model: "meta/llama-3.2-3b-instruct",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text }
-      ],
-      max_tokens: 1000,
-      temperature: 0,
-      stream: false,
-    }),
-  });
-
-  if (!response.ok) throw new Error(`AI API error ${response.status}`);
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-  const jsonStr = content.replace(/```json\n?|\n?```/g, "").trim();
-  const parsed = JSON.parse(jsonStr);
-  if (!parsed.items || !Array.isArray(parsed.items)) throw new Error("Invalid AI response");
-  return {
-    lpoNumber: parsed.lpoNumber || null,
-    items: parsed.items.map(item => ({
-      itemCode: String(item.itemCode || ""),
-      quantity: parseInt(item.quantity) || 0,
-      description: item.description || "",
-    })),
-  };
-};
-
-// --- AI‑wrapped version of findItemsAndQuantities ---
-const originalFindItemsAndQuantities = findItemsAndQuantities;
-
-findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
-  if (NVIDIA_API_KEY) {
-    try {
-      console.log("Attempting AI extraction...");
-      const aiResult = await parseWithAI(text, customerType);
-      if (aiResult && Array.isArray(aiResult.items) && aiResult.items.length > 0) {
-        const aiItems = aiResult.items.map(item => ({
-          ocrItemCode: item.itemCode,
-          actualItemCode: getFGCode(item.itemCode, customerType),
-          quantity: item.quantity,
-          foundQuantity: item.quantity,
-          productName: item.description,
-          method: "ai-parsed",
-        }));
-        console.log(`AI extracted ${aiItems.length} items`);
-        return aiItems;
-      }
-    } catch (error) {
-      console.warn("AI parsing failed, falling back to legacy parser:", error.message);
-    }
-  }
-  return originalFindItemsAndQuantities(text, customerType);
-};
 export default {
+  getNaivasProducts,
   getProductsByCustomer,
   parsePOText,
   parsePOFromDroppedFile,
@@ -4799,4 +4725,3 @@ export default {
     CUSTOMER_PRICE_LISTS,
   }),
 };
-
