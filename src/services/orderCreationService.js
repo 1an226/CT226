@@ -3658,7 +3658,7 @@ const findItemsGeneric = (text) => {
   return items;
 };
 
-const findItemsAndQuantities = (text, customerType = "NAIVAS") => {
+const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
 
   // --- Try AI parser first ---
   if (NVIDIA_API_KEY) {
