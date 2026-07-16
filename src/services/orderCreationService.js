@@ -3684,11 +3684,6 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
     }
   }
   // --- end AI block ---
-  console.log(`Starting item extraction for ${customerType}`);
-
-      console.warn("AI parsing failed, using legacy parsers:", aiError.message);
-    }
-  }
   // --- end AI block ---
   console.log(`Starting item extraction for ${customerType}`);
 
