@@ -3596,7 +3596,7 @@ const findItemsGeneric = (text) => {
   return items;
 };
 
-const findItemsAndQuantities = (text, customerType = "NAIVAS") => {
+let findItemsAndQuantities = (text, customerType = "NAIVAS") => {
   console.log(`Starting item extraction for ${customerType}`);
 
   const cleanedText = cleanOCRText(text);
