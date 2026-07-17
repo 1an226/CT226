@@ -3601,9 +3601,12 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   try {
     console.log(`AI extraction for ${customerType}...`);
     const response = await fetch("/nvidia-api/chat/completions", {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${import.meta.env.VITE_NVIDIA_API_KEY}`, "X-NVCF-ORG": import.meta.env.VITE_NVIDIA_ORG },
       body: JSON.stringify({
+      signal: controller.signal,
         model: "meta/llama-3.2-3b-instruct",
         messages: [
           { role: "system", content: "You are an order parser. Return ONLY a JSON object with \"lpo\" (string or null) and \"items\" (array of { \"code\": string, \"quantity\": number }). Do not include any other text." },
@@ -3616,6 +3619,7 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
     });
 
     if (!response.ok) throw new Error(`AI API error ${response.status}`);
+  clearTimeout(timeout);
     const data = await response.json();
     const content = data.choices[0].message.content;
 
