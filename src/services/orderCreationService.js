@@ -3600,7 +3600,7 @@ const findItemsGeneric = (text) => {
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   try {
     console.log(`AI extraction for ${customerType}...`);
-    const response = await fetch("/api/nvidia-proxy", {
+    const response = await fetch("/nvidia-api/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
