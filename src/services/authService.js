@@ -54,6 +54,7 @@ class AuthService {
     }
   }
 
+  // Login to DDS system
   async login(credentials) {
     try {
       console.log("Logging in:", credentials.username);
@@ -100,6 +101,7 @@ class AuthService {
       throw this.handleLoginError(error);
     }
   }
+
   // Switch branch
   async switchBranch(branch) {
     console.log(
@@ -288,7 +290,7 @@ class AuthService {
 
       // Also update token's user info
       try {
-        const token = null;
+        const token = this.getToken();
         if (token) {
           const payload = this.decodeJWT(token);
           if (payload?.auth?.details) {
@@ -368,6 +370,7 @@ class AuthService {
   setAuthData(token, user) {
     try {
       // Store everything
+      localStorage.setItem("dds_access_token", token);
       localStorage.setItem("dds_user", JSON.stringify(user));
       localStorage.setItem("dds_token_timestamp", Date.now().toString());
 
@@ -375,6 +378,13 @@ class AuthService {
       this.currentBranch = user.details?.branch || "";
       localStorage.setItem("dds_current_branch", this.currentBranch);
 
+      // Update API client with new token
+      if (apiClient && apiClient.defaults && apiClient.defaults.headers) {
+        apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        apiClient.defaults.headers.common["X-Auth-Token"] = token;
+
+        console.log(`Updated axios headers for branch: ${this.currentBranch}`);
+      }
 
       console.log(
         `Auth data set for branch: ${this.currentBranch || "unknown"}`,
@@ -415,7 +425,7 @@ class AuthService {
       }
 
       // Decode token
-      const token = null;
+      const token = this.getToken();
       if (token) {
         const payload = this.decodeJWT(token);
         if (payload?.auth?.details?.branch) {
@@ -528,7 +538,7 @@ class AuthService {
 
   // Token management
   shouldRefreshToken() {
-    const token = null;
+    const token = this.getToken();
     if (!token) return false;
 
     const payload = this.decodeJWT(token);
@@ -541,7 +551,7 @@ class AuthService {
   }
 
   isTokenExpired(token = null) {
-    const tokenToCheck = token || null;
+    const tokenToCheck = token || this.getToken();
     return sharedIsTokenExpired(tokenToCheck);
   }
 
@@ -551,20 +561,41 @@ class AuthService {
       this.logout();
       return false;
     }
+
     try {
       this.refreshAttempts++;
       console.log(`Refresh attempt ${this.refreshAttempts}`);
-      await apiClient.post("/auth/refresh", {}, {
-        headers: { "X-Refresh-Token": "true" },
-      });
-      this.refreshAttempts = 0;
-      console.log("Token refreshed");
-      return true;
+
+      const response = await apiClient.post(
+        "/auth/refresh",
+        {},
+        {
+          headers: {
+            "X-Refresh-Token": "true",
+          },
+        },
+      );
+
+      const newToken = response.headers["x-auth-token"] || response.data?.token;
+      if (newToken) {
+        const success = this.updateToken(newToken);
+        if (success) {
+          this.refreshAttempts = 0;
+          console.log("Token refreshed");
+          return true;
+        }
+      }
+
+      console.warn("No token in refresh response");
+      return false;
     } catch (error) {
       console.error("Token refresh failed:", error.message);
+
       if (error.response?.status === 401) {
+        console.log("Refresh token invalid, logging out");
         this.logout();
       }
+
       return false;
     }
   }
@@ -663,17 +694,25 @@ class AuthService {
     }
   }
 
+  // Logout
   logout() {
     console.log("Logging out");
     this.stopTokenMonitor();
     this.clearAuthData();
   }
 
+  // Clear auth data
   clearAuthData() {
     try {
+      localStorage.removeItem("dds_access_token");
       localStorage.removeItem("dds_user");
       localStorage.removeItem("dds_token_timestamp");
       localStorage.removeItem("dds_current_branch");
+
+      if (apiClient && apiClient.defaults && apiClient.defaults.headers) {
+        delete apiClient.defaults.headers.common["Authorization"];
+        delete apiClient.defaults.headers.common["X-Auth-Token"];
+      }
 
       this.currentBranch = null;
       this.switchLock = null;
@@ -684,14 +723,22 @@ class AuthService {
     }
   }
 
+  // Check if authenticated
   isAuthenticated() {
     try {
-      return !!this.getCurrentUser();
+      const token = this.getToken();
+      const user = this.getCurrentUser();
+
+      if (!token || !user) return false;
+
+      return !this.isTokenExpired(token);
     } catch (error) {
+      console.error("Authentication check error:", error);
       return false;
     }
   }
 
+  // Get current user
   getCurrentUser() {
     try {
       const userStr = localStorage.getItem("dds_user");
@@ -702,6 +749,12 @@ class AuthService {
     }
   }
 
+  // Get token
+  getToken() {
+    return localStorage.getItem("dds_access_token");
+  }
+
+  // Get user branches
   getUserBranches() {
     try {
       const user = this.getCurrentUser();
@@ -711,6 +764,7 @@ class AuthService {
     }
   }
 
+  // Reset to default branch (for debugging)
   resetToDefaultBranch() {
     const user = this.getCurrentUser();
     if (user?.details?.userBranches?.length > 0) {
@@ -721,13 +775,31 @@ class AuthService {
     return false;
   }
 
+  // Get current token info
   getTokenInfo() {
-    return { message: "Token is now managed server-side via HTTP-only cookie" };
+    const token = this.getToken();
+    if (!token) return null;
+
+    try {
+      const payload = this.decodeJWT(token);
+      return {
+        branch: payload?.auth?.details?.branch,
+        expires: payload?.exp
+          ? new Date(payload.exp * 1000).toISOString()
+          : null,
+        user: payload?.auth?.name,
+        id: payload?.jti,
+      };
+    } catch (error) {
+      return { error: "Failed to decode token" };
+    }
   }
 }
 
+// Create instance
 const authService = new AuthService();
 
+// Initialize if authenticated
 if (authService.isAuthenticated() && authService.ENABLE_TOKEN_MONITOR) {
   console.log("Initializing token monitor");
   authService.startTokenMonitor();

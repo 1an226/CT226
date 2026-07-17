@@ -27,7 +27,7 @@ const logError = (...args) => {
 };
 
 const apiClient = axios.create({
-  baseURL: "/api/dds-proxy",
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -66,6 +66,11 @@ export const cancelAllPendingRequests = (reason = "Cancelled by caller") => {
   }
   activeControllers.clear();
 };
+
+const getToken = () => {
+  return localStorage.getItem("dds_access_token");
+};
+
 export const isTokenExpired = (token) => {
   if (!token) return true;
 
@@ -123,7 +128,12 @@ apiClient.interceptors.request.use(
       activeControllers.add(controller);
     }
 
+    const token = getToken();
 
+    if (token && !isTokenExpired(token)) {
+      config.headers["X-Auth-Token"] = token;
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
 
     log("API Request:", {
       url: config.url,
@@ -131,6 +141,7 @@ apiClient.interceptors.request.use(
       params: config.params,
       activeRequests,
       queued: waitQueue.length,
+      hasToken: !!token,
     });
 
     return config;
@@ -200,6 +211,11 @@ apiClient.interceptors.response.use(
           delete originalRequest._controller;
           delete originalRequest.signal;
 
+          const newToken = authService.getToken();
+          if (newToken) {
+            originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
+            originalRequest.headers["X-Auth-Token"] = newToken;
+          }
           log("Token refreshed after 401, retrying original request");
           return apiClient(originalRequest);
         }
@@ -208,6 +224,7 @@ apiClient.interceptors.response.use(
       }
 
       log("401 Unauthorized after refresh attempt - clearing auth data");
+      localStorage.removeItem("dds_access_token");
       localStorage.removeItem("dds_user");
       unauthorizedHandler();
     }
