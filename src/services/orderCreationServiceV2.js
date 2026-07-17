@@ -249,7 +249,6 @@ function mapItemsToFG(items, customerType) {
   }));
   return parsed;
 }
-
 // ---------- MAIN ENTRY POINT ----------
 export async function parseOrderFromFile(file, customerType = "NAIVAS") {
   const base64Images = await fileToBase64(file);
