@@ -148,8 +148,6 @@ async function parseWithVision(base64Image, customerType) {
       throw err;
     }
   }
-    }
-  }
   return parsed;
 }
 
