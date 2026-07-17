@@ -236,9 +236,6 @@ const ITEM_CODE_MAPPINGS = {
     "6161102320305":"FG008","6161102320442":"FG017","6161102320435":"FG018",
     "6161102320268":"FG003","6161102320138":"FG015","6161102320060":"FG006",
     "6161102320299":"FG007","6161102320046":"FG026","6161102320404":"FG027"
-  }
-};
-
 function mapItemsToFG(items, customerType) {
   return items.map(item => ({
     ocrItemCode: item.code,
@@ -247,9 +244,7 @@ function mapItemsToFG(items, customerType) {
     description: `Product ${item.code}`,
     method: "ai-parsed"
   }));
-  return parsed;
 }
-// ---------- MAIN ENTRY POINT ----------
 export async function parseOrderFromFile(file, customerType = "NAIVAS") {
   const base64Images = await fileToBase64(file);
   const allItems = [];
