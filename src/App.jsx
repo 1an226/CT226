@@ -3,7 +3,7 @@ import authService from "@services/authService";
 import LoginForm from "@auth/LoginForm/LoginForm";
 import ordersService from "@services/ordersService";
 import customerService from "@services/customerService";
-import { parseOrderFromFile, createOrderFromPO } from "@services/orderCreationServiceV2";
+import { parseOrderFromFile, parseTextOrder, createOrderFromPO } from "@services/orderCreationServiceV2";
 import "./App.css";
 
 // Environment configuration
@@ -247,13 +247,8 @@ const DocumentReaderModal = memo(
         try {
           let poData;
           if (uploadedFile.type === "application/pdf") {
-            poData = await orderCreationService.parsePOFromDroppedFile(
-              uploadedFile,
-              selectedCustomer.code,
-            );
-          } else if (uploadedFile.type.startsWith("image/")) {
-            poData = await orderCreationService.parsePOFromImage(
-              uploadedFile,
+          const customerType = selectedCustomer.customerType || "NAIVAS";
+          let poData = await parseOrderFromFile(uploadedFile, customerType);
               selectedCustomer.code,
             );
           } else if (uploadedFile.type === "text/plain") {
@@ -1520,7 +1515,7 @@ function App() {
         customer.code,
       );
 
-      const isNaivas =
+      const parsedData = await parseTextOrder(text.trim(), customer.code, customer.customerType || "NAIVAS");
         customer.name?.toLowerCase().includes("naivas") ||
         customer.customerType?.toLowerCase().includes("supermarket");
 
@@ -1615,9 +1610,7 @@ function App() {
           customer.branch,
         );
 
-        if (result.success) {
-          const totalAmount = orderData.items
-            ? orderData.items.reduce(
+        const result = await createOrderFromPO(orderData, customer.branch);
                 (sum, item) => sum + (item.netAmount || 0),
                 0,
               )

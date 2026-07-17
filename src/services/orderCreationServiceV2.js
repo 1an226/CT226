@@ -338,3 +338,33 @@ export async function createOrderFromPO(poData, warehouse = DEFAULT_SETTINGS.WAR
     timestamp: new Date().toISOString(),
   };
 }
+
+// ---------- TEXT‑BASED AI PARSER (fallback) ----------
+export async function parseTextOrder(text, customerCode, customerType = "NAIVAS") {
+  // Convert text into a minimal image‑like format? No – we send text directly
+  // to the model as a user message (not vision)
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: `Customer type: ${customerType}\n\n${text}` }
+  ];
+
+  const response = await fetch(NVIDIA_PROXY_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "meta/llama-3.2-3b-instruct",
+      messages,
+      max_tokens: 1000,
+      temperature: 0,
+      response_format: { type: "json_object" }
+    })
+  });
+
+  if (!response.ok) throw new Error(`AI API error ${response.status}`);
+  const data = await response.json();
+  const content = data.choices[0].message.content;
+  const cleanJson = content.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+  const parsed = JSON.parse(cleanJson);
+  const mappedItems = mapItemsToFG(parsed.items || [], customerType);
+  return { lpo: parsed.lpo || "UNKNOWN_LPO", items: mappedItems, customerType, customer: customerCode };
+}
