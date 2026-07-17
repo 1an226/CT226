@@ -3,7 +3,7 @@ import authService from "@services/authService";
 import LoginForm from "@auth/LoginForm/LoginForm";
 import ordersService from "@services/ordersService";
 import customerService from "@services/customerService";
-import { parseOrderFromFile, parseTextOrder, createOrderFromPO } from "@services/orderCreationServiceV2";
+import orderCreationService from "@services/orderCreationService";
 import "./App.css";
 
 // Environment configuration
@@ -247,18 +247,18 @@ const DocumentReaderModal = memo(
         try {
           let poData;
           if (uploadedFile.type === "application/pdf") {
-            poData = await parseOrderFromFile(
+            poData = await orderCreationService.parsePOFromDroppedFile(
               uploadedFile,
               selectedCustomer.code,
             );
           } else if (uploadedFile.type.startsWith("image/")) {
-            poData = await parseOrderFromFile(
+            poData = await orderCreationService.parsePOFromDroppedFile(
               uploadedFile,
               selectedCustomer.code,
             );
           } else if (uploadedFile.type === "text/plain") {
             const text = await uploadedFile.text();
-            poData = await parseTextOrder(
+            poData = await orderCreationService.parsePOText(
               text,
               selectedCustomer.code,
             );
@@ -1515,7 +1515,7 @@ function App() {
     setIsProcessing(true);
 
     try {
-      const parsedData = await parseTextOrder(
+      const parsedData = await orderCreationService.parsePOText(
         text.trim(),
         customer.code,
       );
@@ -1608,7 +1608,7 @@ function App() {
       setIsProcessing(true);
 
       try {
-        const result = await createOrderFromPO(
+        const result = await orderCreationService.createOrderFromPO(
           orderData,
           customer.branch,
         );
