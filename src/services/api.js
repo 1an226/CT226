@@ -27,7 +27,7 @@ const logError = (...args) => {
 };
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: "/api/dds-proxy",
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -66,11 +66,6 @@ export const cancelAllPendingRequests = (reason = "Cancelled by caller") => {
   }
   activeControllers.clear();
 };
-
-const getToken = () => {
-  return localStorage.getItem("dds_access_token");
-};
-
 export const isTokenExpired = (token) => {
   if (!token) return true;
 
@@ -128,11 +123,8 @@ apiClient.interceptors.request.use(
       activeControllers.add(controller);
     }
 
-    const token = getToken();
 
     if (token && !isTokenExpired(token)) {
-      config.headers["X-Auth-Token"] = token;
-      config.headers["Authorization"] = `Bearer ${token}`;
     }
 
     log("API Request:", {
@@ -211,10 +203,6 @@ apiClient.interceptors.response.use(
           delete originalRequest._controller;
           delete originalRequest.signal;
 
-          const newToken = authService.getToken();
-          if (newToken) {
-            originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
-            originalRequest.headers["X-Auth-Token"] = newToken;
           }
           log("Token refreshed after 401, retrying original request");
           return apiClient(originalRequest);
