@@ -3582,7 +3582,6 @@ const findItemsGeneric = (text) => {
 };
 
 
-const extractTextFromImage = async (imageFile) => {
 // ---------- AI PARSER ----------
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   try {
@@ -3622,9 +3621,40 @@ Customer rules:
     const data = await response.json();
     const content = data.choices[0].message.content;
 
-    // Robust JSON extraction
     let parsed;
     try {
+      parsed = JSON.parse(content);
+    } catch (e1) {
+      const fence = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (fence) {
+        try { parsed = JSON.parse(fence[1]); } catch (e2) {}
+      }
+      if (!parsed) {
+        const start = content.indexOf("{");
+        const end = content.lastIndexOf("}");
+        if (start !== -1 && end > start) {
+          try { parsed = JSON.parse(content.substring(start, end + 1)); } catch (e3) {}
+        }
+      }
+      if (!parsed) throw new Error("No valid JSON found");
+    }
+
+    const items = (parsed.items || []).map(item => ({
+      ocrItemCode: item.code,
+      actualItemCode: getFGCode(item.code, customerType),
+      quantity: parseInt(item.quantity) || 0,
+      foundQuantity: parseInt(item.quantity) || 0,
+      productName: `Product ${item.code}`,
+      method: "ai-parsed",
+    }));
+
+    console.log(`AI extracted ${items.length} items`);
+    return items;
+  } catch (error) {
+    console.warn("AI parsing failed:", error.message);
+    return [];
+  }
+};
       parsed = JSON.parse(content);
     } catch (e1) {
       const fence = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
