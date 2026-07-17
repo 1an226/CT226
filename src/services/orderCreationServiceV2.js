@@ -87,8 +87,19 @@ You are CT226, the gatekeeper of order accuracy for DDS. Follow the rules for th
 const NVIDIA_PROXY_URL = "/api/nvidia-proxy";
 
 async function parseWithVision(base64Image, customerType) {
-  ];
 
+  const messages = [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: SYSTEM_PROMPT },
+        {
+          type: "image_url",
+          image_url: { url: `data:image/png;base64,${base64Image}` }
+        }
+      ]
+    }
+  ];
   console.log("Request model:", "meta/llama-3.2-11b-vision-instruct");
   console.log("System prompt included:", SYSTEM_PROMPT.substring(0, 100));
   const body = JSON.stringify({
