@@ -249,11 +249,9 @@ const DocumentReaderModal = memo(
           if (uploadedFile.type === "application/pdf") {
           const customerType = selectedCustomer.customerType || "NAIVAS";
           let poData = await parseOrderFromFile(uploadedFile, customerType);
-              selectedCustomer.code,
-            );
           } else if (uploadedFile.type === "text/plain") {
             const text = await uploadedFile.text();
-            poData = await orderCreationService.parsePOText(
+            poData = await parseTextOrder(
               text,
               selectedCustomer.code,
             );
@@ -1510,12 +1508,10 @@ function App() {
     setIsProcessing(true);
 
     try {
-      const parsedData = await orderCreationService.parsePOText(
         text.trim(),
         customer.code,
       );
 
-      const parsedData = await parseTextOrder(text.trim(), customer.code, customer.customerType || "NAIVAS");
         customer.name?.toLowerCase().includes("naivas") ||
         customer.customerType?.toLowerCase().includes("supermarket");
 
@@ -1605,9 +1601,6 @@ function App() {
       setIsProcessing(true);
 
       try {
-        const result = await orderCreationService.createOrderFromPO(
-          orderData,
-          customer.branch,
         );
 
         const result = await createOrderFromPO(orderData, customer.branch);
