@@ -22,12 +22,24 @@ const DEBUG_API =
 const log = (...args) => {
   if (DEBUG_API) console.log(...args);
 };
+
 const logError = (...args) => {
-  console.error(...args);
+  if (DEBUG_API) {
+    console.error(...args);
+  } else {
+    const error = args[0];
+    if (error && typeof error === 'object' && error.response) {
+      console.error(`Request failed with status ${error.response.status}`);
+    } else if (error instanceof Error) {
+      console.error(`Request failed: ${error.message}`);
+    } else {
+      console.error('An unknown error occurred');
+    }
+  }
 };
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: "/dds-backend/api/v1",
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -178,6 +190,12 @@ apiClient.interceptors.response.use(
 
     if (error.config?._controller) {
       activeControllers.delete(error.config._controller);
+    }
+
+    // Sanitize sensitive headers before logging
+    if (error.config?.headers) {
+      delete error.config.headers['Authorization'];
+      delete error.config.headers['X-Auth-Token'];
     }
 
     logError("API Error:", {
