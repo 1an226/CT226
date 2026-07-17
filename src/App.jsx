@@ -1508,9 +1508,7 @@ function App() {
     setIsProcessing(true);
 
     try {
-        text.trim(),
-        customer.code,
-      );
+      const parsedData = await parseTextOrder(text.trim(), customer.code, customer.customerType || "NAIVAS");
 
         customer.name?.toLowerCase().includes("naivas") ||
         customer.customerType?.toLowerCase().includes("supermarket");
