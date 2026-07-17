@@ -29,6 +29,7 @@ Return ONLY a JSON object. Do not include any text, markdown fences, or commenta
     { "code": "ITEM_CODE_OR_BARCODE", "quantity": NUMBER },
     ...
   ]
+  return parsed;
 }
 
 - If no LPO is found, set "lpo" to "UNKNOWN_LPO".
@@ -152,12 +153,6 @@ async function parseWithVision(base64Image, customerType) {
     } else {
       throw err;
     }
-  }
-      parsed = JSON.parse(cleanJson);
-    } else {
-      throw err;
-    }
-  }
   return parsed;
 }
 
@@ -189,6 +184,7 @@ async function fileToBase64(file) {
   }
 
   throw new Error("Unsupported file type");
+  return parsed;
 }
 
 // ---------- FG CODE MAPPING ----------
@@ -251,6 +247,7 @@ function mapItemsToFG(items, customerType) {
     description: `Product ${item.code}`,
     method: "ai-parsed"
   }));
+  return parsed;
 }
 
 // ---------- MAIN ENTRY POINT ----------
@@ -271,6 +268,7 @@ export async function parseOrderFromFile(file, customerType = "NAIVAS") {
 
   const mappedItems = mapItemsToFG(allItems, customerType);
   return { lpo: lpo || "UNKNOWN_LPO", items: mappedItems };
+  return parsed;
 }
 // ---------- CONFIGURATION (kept from legacy) ----------
 const CUSTOMER_PRICE_LISTS = {
@@ -313,6 +311,7 @@ async function getProductsByCustomer(customerType = "NAIVAS") {
   cachedProducts[customerType] = products;
   setTimeout(() => { cachedProducts[customerType] = null; }, 5 * 60 * 1000);
   return products;
+  return parsed;
 }
 
 // ---------- ORDER CREATION ----------
@@ -367,6 +366,7 @@ export async function createOrderFromPO(poData, warehouse = DEFAULT_SETTINGS.WAR
     priceListUsed: sellingPriceList,
     timestamp: new Date().toISOString(),
   };
+  return parsed;
 }
 
 // ---------- TEXT‑BASED AI PARSER (fallback) ----------
@@ -405,4 +405,5 @@ export async function parseTextOrder(text, customerCode, customerType = "NAIVAS"
   const parsed = JSON.parse(cleanJson);
   const mappedItems = mapItemsToFG(parsed.items || [], customerType);
   return { lpo: parsed.lpo || "UNKNOWN_LPO", items: mappedItems, customerType, customer: customerCode };
+  return parsed;
 }
