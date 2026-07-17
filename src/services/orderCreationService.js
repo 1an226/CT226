@@ -3596,8 +3596,158 @@ const findItemsGeneric = (text) => {
   return items;
 };
 
+const findItemsAndQuantities = (text, customerType = "NAIVAS") => {
+  console.log(`Starting item extraction for ${customerType}`);
 
+  const cleanedText = cleanOCRText(text);
+  const format = detectTextFormat(cleanedText, customerType);
+
+  let items = [];
+
+  switch (customerType) {
+    case "JAZARIBU":
+      items = parseJazaribuFormat(cleanedText);
+      break;
+
+    case "CLEANSHELF":
+      switch (format) {
+        case "CLEANSHELF_LOCAL_PO":
+          const localPOResult = parseCleanshelfLocalPO(cleanedText);
+          items = localPOResult.items;
+          break;
+        case "CLEANSHELF_PENDING_ORDERS":
+          items = parseCleanshelfPendingOrders(cleanedText);
+          break;
+        case "CLEANSHELF_COPY_PASTE_TEXT":
+          const result = parseCleanshelfCopyPasteText(cleanedText);
+          items = result.items;
+          break;
+        default:
+          const defaultLocalPOResult = parseCleanshelfLocalPO(cleanedText);
+          items = defaultLocalPOResult.items;
+          if (items.length === 0) {
+            items = parseCleanshelfPendingOrders(cleanedText);
+          }
+          if (items.length === 0) {
+            const fallbackResult = parseCleanshelfCopyPasteText(cleanedText);
+            items = fallbackResult.items;
+          }
+      }
+      break;
+
+    case "KHETIA":
+      items = parseKhetiaFormat(cleanedText);
+      break;
+
+    case "MAJID":
+      items = parseMajidFormat(cleanedText);
+      break;
+
+    case "CHANDARANA":
+      items = parseChandaranaFormat(cleanedText);
+      break;
+
+    case "QUICKMART":
+      items = parseQuickmartFormat(cleanedText);
+      break;
+
+    default: // NAIVAS
+      switch (format) {
+        case "COPY_PASTE_TEXT":
+          items = parseCopyPasteTextFormat(cleanedText);
+          break;
+        case "DETAILED_PO":
+          items = parseDetailedPOFormat(cleanedText);
+          break;
+        case "SPECIFIC_FORMAT":
+        case "SIMPLE_TABULAR":
+        case "TABULAR_WITH_HEADERS":
+        case "STANDARD_PO":
+        case "SIMPLE_LIST":
+        case "EXCEL_COPY_PASTE":
+        default:
+          items = parseUniversalFormat(cleanedText);
+
+          if (items.length === 0) {
+            console.log("Universal parser found no items, trying generic...");
+            items = findItemsGeneric(cleanedText);
+          }
+      }
+
+      const ultimateNCodes = ultimateNCodeDetection(cleanedText, items);
+
+      for (const nCodeItem of ultimateNCodes) {
+        const alreadyExists = items.some(
+          (item) => item.ocrItemCode === nCodeItem.ocrItemCode,
+        );
+        const hasReasonableQuantity =
+          nCodeItem.quantity > 0 && nCodeItem.quantity <= 1000;
+
+        if (!alreadyExists && hasReasonableQuantity) {
+          items.push(nCodeItem);
+          console.log(
+            `Adding ultimate N-code: ${nCodeItem.ocrItemCode} x ${nCodeItem.quantity}`,
+          );
+        }
+      }
+  }
+
+  const uniqueItems = [];
+  const seenCodes = new Set();
+
+  for (const item of items) {
+    if (!seenCodes.has(item.ocrItemCode)) {
+      seenCodes.add(item.ocrItemCode);
+      uniqueItems.push(item);
+    }
+  }
+
+  uniqueItems.sort((a, b) => {
+    if (a.lineNumber && b.lineNumber) {
+      return a.lineNumber - b.lineNumber;
+    }
+    return 0;
+  });
+
+  if (uniqueItems.length > 0) {
+    const totalQuantity = uniqueItems.reduce(
+      (sum, item) => sum + item.quantity,
+      0,
+    );
+    console.log(
+      `Found ${uniqueItems.length} unique items, Total quantity: ${totalQuantity}`,
+    );
+
+    console.log("Item Details:");
+    uniqueItems.forEach((item, index) => {
+      const fgCode = item.actualItemCode;
+      const productName = item.productName || "Unknown Product";
+      console.log(
+        `${index + 1}. ${item.ocrItemCode} -> ${fgCode} -> ${productName}: ${item.quantity} units`,
+      );
+    });
+
+    if (customerType === "NAIVAS") {
+      const nCodeItems = uniqueItems.filter((item) =>
+        item.ocrItemCode.startsWith("N"),
+      );
+      if (nCodeItems.length > 0) {
+        console.log("N-code items successfully extracted:");
+        nCodeItems.forEach((item) => {
+          console.log(
+            `${item.ocrItemCode}: ${item.quantity} units (${item.productName})`,
+          );
+        });
+      }
+    }
+  } else {
+    console.log("No items found in text");
+    console.log("Debug sample:", cleanedText.substring(0, 500));
+  }
+
+  return uniqueItems;
 };
+
 const extractTextFromImage = async (imageFile) => {
   try {
     console.log("Starting Tesseract OCR...");
@@ -3730,7 +3880,7 @@ const parsePOText = async (
 
   const lpoNumber = extractLPONumber(text, customerType);
 
-  const foundItems = await findItemsAndQuantities(text, customerType);
+  const foundItems = findItemsAndQuantities(text, customerType);
 
   const products = await getProductsByCustomer(customerType);
 
