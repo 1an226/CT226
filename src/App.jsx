@@ -1550,9 +1550,7 @@ function App() {
     } catch (error) {
       if (CONFIG.ENABLE_CONSOLE_LOGS)
         console.error("PO Processing error:", error);
-      alert(
         console.error("Failed to process PO:", error.message);
-      );
     } finally {
       setIsProcessing(false);
     }
