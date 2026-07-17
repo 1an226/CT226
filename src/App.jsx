@@ -1593,40 +1593,25 @@ function App() {
     },
     [selectedBranches],
   );
-
   const handleCreateOrder = useCallback(
     async (orderData, customer) => {
       setIsProcessing(true);
-
       try {
-        );
-
         const result = await createOrderFromPO(orderData, customer.branch);
-                (sum, item) => sum + (item.netAmount || 0),
-                0,
-              )
-            : 0;
-
-          alert(
-            `Order created successfully!\n\nOrder Number: ${result.orderNumber}\nCustomer: ${customer.name}\nTotal: Ksh ${totalAmount.toFixed(2)}\nDelivery: ${new Date(orderData.deliveryDate || new Date()).toLocaleDateString()}`,
-          );
-
+        if (result.success) {
+          const totalAmount = orderData.items?.reduce((sum, item) => sum + (item.netAmount || 0), 0) || 0;
+          alert(`Order created successfully! Order Number: ${result.orderNumber} Customer: ${customer.name} Total: Ksh ${totalAmount.toFixed(2)}`);
           setShowDocumentReader(false);
           setPoText("");
           setParsedOrderData(null);
           setSelectedCustomer(null);
-
           if (selectedDate) {
-            setTimeout(() => {
-              loadOrdersForDate(selectedDate);
-            }, 1000);
+            setTimeout(() => { loadOrdersForDate(selectedDate); }, 1000);
           }
         } else {
           throw new Error(result.error || "Failed to create order");
         }
       } catch (error) {
-        if (CONFIG.ENABLE_CONSOLE_LOGS)
-          console.error("Order creation error:", error);
         alert(`Failed to create order: ${error.message}`);
       } finally {
         setIsProcessing(false);
@@ -1634,9 +1619,6 @@ function App() {
     },
     [selectedDate, loadOrdersForDate],
   );
-
-  const handleOpenCreateOrder = async () => {
-    if (selectedBranches.length === 0) {
       setCustomersError("Please select branch(es) first");
       return;
     }
