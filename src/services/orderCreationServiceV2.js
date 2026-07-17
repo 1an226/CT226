@@ -125,26 +125,34 @@ async function parseWithVision(base64Image, customerType) {
 
   console.log("AI raw content:", content);
   let cleanJson = content;
-  const mdMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (mdMatch) {
-    cleanJson = mdMatch[1];
-    console.log("Extracted from markdown fence");
-  } else {
-    cleanJson = content
-      .replace(/^```json\s*/i, "")
-      .replace(/```$/, "")
-      .trim();
-  }
-  console.log("Cleaned JSON string:", cleanJson);
   let parsed;
   try {
-    parsed = JSON.parse(cleanJson);
+    // Find the first { and last } and try to parse just that
+    const firstBrace = content.indexOf("{");
+    const lastBrace = content.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      cleanJson = content.substring(firstBrace, lastBrace + 1);
+      parsed = JSON.parse(cleanJson);
+      console.log("Extracted JSON from braces");
+    } else {
+      throw new Error("No JSON object found in response");
+    }
   } catch (err) {
-    console.error("JSON parse failed, trying to salvage...");
-    const firstBrace = cleanJson.indexOf("{");
-    const lastBrace = cleanJson.lastIndexOf("}");
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+    console.error("JSON parse failed, trying markdown strip...");
+    const mdMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (mdMatch) {
+      cleanJson = mdMatch[1];
+      try {
+        parsed = JSON.parse(cleanJson);
+        console.log("Extracted from markdown fence");
+      } catch (err2) {
+        console.error("Markdown JSON parse also failed:", err2.message);
+        throw err;
+      }
+    } else {
+      throw err;
+    }
+  }
       parsed = JSON.parse(cleanJson);
     } else {
       throw err;
