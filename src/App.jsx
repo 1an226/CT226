@@ -1615,10 +1615,9 @@ function App() {
         alert(`Failed to create order: ${error.message}`);
       } finally {
         setIsProcessing(false);
-      }
-    },
-    [selectedDate, loadOrdersForDate],
-  );
+  const handleSelectCustomer = (customer) => {
+  const handleOpenCreateOrder = async () => {
+    if (selectedBranches.length === 0) {
       setCustomersError("Please select branch(es) first");
       return;
     }
@@ -1648,8 +1647,6 @@ function App() {
 
     loadCustomers(selectedBranches);
   };
-
-  const handleSelectCustomer = (customer) => {
     openDocumentReader(customer);
   };
 
