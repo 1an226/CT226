@@ -3602,7 +3602,7 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
     console.log(`AI extraction for ${customerType}...`);
     const response = await fetch("/nvidia-api/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${import.meta.env.VITE_NVIDIA_API_KEY}`, "X-NVCF-ORG": import.meta.env.VITE_NVIDIA_ORG },
       body: JSON.stringify({
         model: "meta/llama-3.2-3b-instruct",
         messages: [
