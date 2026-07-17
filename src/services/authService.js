@@ -375,7 +375,6 @@ class AuthService {
       this.currentBranch = user.details?.branch || "";
       localStorage.setItem("dds_current_branch", this.currentBranch);
 
-      }
 
       console.log(
         `Auth data set for branch: ${this.currentBranch || "unknown"}`,
