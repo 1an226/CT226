@@ -716,22 +716,6 @@ const extractTextWithOCRSpace = async (imageFile) => {
     formData.append("isCreateSearchablePdf", "false");
 
     // Set timeout for faster failover
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds
-
-    console.time("OCR_Space_API_Call");
-
-    const response = await fetch(OCR_SPACE_URL, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        apikey: OCR_SPACE_API_KEY,
-      },
-      body: formData,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
     console.timeEnd("OCR_Space_API_Call");
 
     if (!response.ok) {
@@ -3602,42 +3586,6 @@ const findItemsGeneric = (text) => {
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   try {
     console.log(`AI extraction for ${customerType} using Nemotron...`);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
-    const response = await fetch("/nvidia-api/chat/completions", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${import.meta.env.VITE_NVIDIA_API_KEY}`,
-        "X-NVCF-ORG": import.meta.env.VITE_NVIDIA_ORG
-      },
-      body: JSON.stringify({
-        model: "nvidia/nemotron-mini-4b-instruct",
-        messages: [
-          {
-            role: "system",
-            content: `You are CT226, the automated order‑entry specialist for DDS.
-Return ONLY a JSON object with 'lpo' (string or null) and 'items' (array of { 'code': string, 'quantity': number }). Do not include any other text.
-
-Customer rules:
-- Naivas: LPO starts with P + 8‑9 digits. Item codes: 8‑digit starting 135 or N‑codes like N051055. Quantity: number before/after "PCS".
-- Majid: LPO "ORDER :" + number. Item codes: 13‑digit barcodes. Quantity: "QTY UC" column.
-- Chandarana: LPO "Order No. :" + 12‑13 digits. Item codes: 13‑digit barcodes. Quantity: first decimal after barcode.
-- Quickmart: LPO "PURCHASE ORDER #" + number. Item codes: 13‑digit barcodes. Quantity: "Order Qty" column.
-- Khetia: LPO "PURCHASE ORDER #" + 7‑digit number. Item codes: 6‑digit. Quantity: "Order Qty" column.
-- Jazaribu: LPO "Order No." or "PO‑J" + number. Item codes: JT + 5 digits. Quantity: "Quantity"/"Pieces" column.
-- Cleanshelf: Local PO: LPO "CLS - [number]". Pending: LPO number after "LPO No." (remove commas). Item codes: 6‑digit starting 400.`
-          },
-          { role: "user", content: `Customer: ${customerType}\n\n${text}` }
-        ],
-        max_tokens: 1000,
-        temperature: 0,
-        response_format: { type: "json_object" }
-      })
-    });
-
-  clearTimeout(timeoutId);
     if (!response.ok) throw new Error(`AI API error ${response.status}`);
     const data = await response.json();
     const content = data.choices[0].message.content;
