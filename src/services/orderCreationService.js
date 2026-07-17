@@ -3597,65 +3597,6 @@ const findItemsGeneric = (text) => {
 };
 
 
-const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
-  try {
-    console.log(`AI extraction for ${customerType}...`);
-    const response = await fetch("/nvidia-api/chat/completions", {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${import.meta.env.VITE_NVIDIA_API_KEY}`, "X-NVCF-ORG": import.meta.env.VITE_NVIDIA_ORG },
-      body: JSON.stringify({
-      signal: controller.signal,
-        model: "meta/llama-3.2-3b-instruct",
-        messages: [
-          { role: "system", content: "You are an order parser. Return ONLY a JSON object with \"lpo\" (string or null) and \"items\" (array of { \"code\": string, \"quantity\": number }). Do not include any other text." },
-          { role: "user", content: `Customer: ${customerType}\n\n${text}` }
-        ],
-        max_tokens: 1000,
-        temperature: 0,
-        response_format: { type: "json_object" }
-      })
-    });
-
-    if (!response.ok) throw new Error(`AI API error ${response.status}`);
-  clearTimeout(timeout);
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-
-    let parsed;
-    try {
-      parsed = JSON.parse(content);
-    } catch (e1) {
-      const fence = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (fence) {
-        try { parsed = JSON.parse(fence[1]); } catch (e2) {}
-      }
-      if (!parsed) {
-        const start = content.indexOf("{");
-        const end = content.lastIndexOf("}");
-        if (start !== -1 && end > start) {
-          try { parsed = JSON.parse(content.substring(start, end + 1)); } catch (e3) {}
-        }
-      }
-      if (!parsed) throw new Error("No valid JSON found");
-    }
-
-    const items = (parsed.items || []).map(item => ({
-      ocrItemCode: item.code,
-      actualItemCode: getFGCode(item.code, customerType),
-      quantity: parseInt(item.quantity) || 0,
-      foundQuantity: parseInt(item.quantity) || 0,
-      productName: `Product ${item.code}`,
-      method: "ai-parsed",
-    }));
-
-    console.log(`AI extracted ${items.length} items`);
-    return items;
-  } catch (error) {
-    console.warn("AI parsing failed:", error.message);
-    return [];
-  }
 };
 const extractTextFromImage = async (imageFile) => {
   try {
