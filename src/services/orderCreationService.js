@@ -723,6 +723,7 @@ const extractTextWithOCRSpace = async (imageFile) => {
 
     const response = await fetch(OCR_SPACE_URL, {
       method: "POST",
+      signal: controller.signal,
       headers: {
         apikey: OCR_SPACE_API_KEY,
       },
@@ -3601,8 +3602,11 @@ const findItemsGeneric = (text) => {
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   try {
     console.log(`AI extraction for ${customerType}...`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
     const response = await fetch("/nvidia-api/chat/completions", {
       method: "POST",
+      signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${import.meta.env.VITE_NVIDIA_API_KEY}`,
@@ -3633,6 +3637,7 @@ Customer rules:
       })
     });
 
+  clearTimeout(timeoutId);
     if (!response.ok) throw new Error(`AI API error ${response.status}`);
     const data = await response.json();
     const content = data.choices[0].message.content;
