@@ -3,7 +3,7 @@ import authService from "@services/authService";
 import LoginForm from "@auth/LoginForm/LoginForm";
 import ordersService from "@services/ordersService";
 import customerService from "@services/customerService";
-import orderCreationService from "@services/orderCreationService";
+import { parseOrderFromFile, createOrderFromPO } from "@services/orderCreationServiceV2";
 import "./App.css";
 
 // Environment configuration
