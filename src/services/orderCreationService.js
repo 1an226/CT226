@@ -3601,7 +3601,7 @@ const findItemsGeneric = (text) => {
 // ---------- AI PARSER ----------
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   try {
-    console.log(`AI extraction for ${customerType}...`);
+    console.log(`AI extraction for ${customerType} using Nemotron...`);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
     const response = await fetch("/nvidia-api/chat/completions", {
