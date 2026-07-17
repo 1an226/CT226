@@ -87,19 +87,10 @@ You are CT226, the gatekeeper of order accuracy for DDS. Follow the rules for th
 const NVIDIA_PROXY_URL = "/api/nvidia-proxy";
 
 async function parseWithVision(base64Image, customerType) {
-  const messages = [
-    { role: "system", content: SYSTEM_PROMPT },
-    {
-      role: "user",
-      content: [
-        {
-          type: "image_url",
-          image_url: { url: `data:image/png;base64,${base64Image}` }
-        }
-      ]
-    }
   ];
 
+  console.log("Request model:", "meta/llama-3.2-11b-vision-instruct");
+  console.log("System prompt included:", SYSTEM_PROMPT.substring(0, 100));
   const body = JSON.stringify({
     model: "meta/llama-3.2-11b-vision-instruct",
     messages,
@@ -364,8 +355,16 @@ export async function parseTextOrder(text, customerCode, customerType = "NAIVAS"
   // Convert text into a minimal image‑like format? No – we send text directly
   // to the model as a user message (not vision)
   const messages = [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: `Customer type: ${customerType}\n\n${text}` }
+    {
+      role: "user",
+      content: [
+        { type: "text", text: SYSTEM_PROMPT },
+        {
+          type: "image_url",
+          image_url: { url: `data:image/png;base64,${base64Image}` }
+        }
+      ]
+    }
   ];
 
   const response = await fetch(NVIDIA_PROXY_URL, {

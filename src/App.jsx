@@ -282,7 +282,7 @@ const DocumentReaderModal = memo(
 
           setParsedOrderData(poData);
         } catch (error) {
-          setValidationErrors([`Failed to process file: ${error.message}`]);
+          console.error("Failed to process file:", error.message);
         } finally {
           setIsProcessing(false);
         }
@@ -1551,7 +1551,7 @@ function App() {
       if (CONFIG.ENABLE_CONSOLE_LOGS)
         console.error("PO Processing error:", error);
       alert(
-        `Failed to process PO: ${error.message}\n\nPlease check the PO format and try again.`,
+        console.error("Failed to process PO:", error.message);
       );
     } finally {
       setIsProcessing(false);
