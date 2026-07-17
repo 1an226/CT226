@@ -1,12 +1,4 @@
 {
   "rewrites": [
     {
-      "source": "/dds-backend/:path*",
-      "destination": "https://mbnl.ddsolutions.tech/dds-backend/:path*"
-    },
-    {
-      "source": "/nvidia-api/:path*",
-      "destination": "https://integrate.api.nvidia.com/v1/:path*"
-    }
-  ]
 }
