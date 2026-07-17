@@ -3804,7 +3804,7 @@ const parsePOText = async (
 
   const lpoNumber = extractLPONumber(text, customerType);
 
-  const foundItems = findItemsAndQuantities(text, customerType);
+  const foundItems = await findItemsAndQuantities(text, customerType);
 
   const products = await getProductsByCustomer(customerType);
 
