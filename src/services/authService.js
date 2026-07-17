@@ -54,7 +54,6 @@ class AuthService {
     }
   }
 
-  // Login to DDS system
   async login(credentials) {
     try {
       console.log("Logging in:", credentials.username);
@@ -73,7 +72,34 @@ class AuthService {
 
       const response = await apiClient.post("/auth/login", loginData);
 
+      // Get token from headers
+      let authToken = response.headers["x-auth-token"];
+      if (!authToken && response.data?.token) {
+        authToken = response.data.token;
+      }
 
+      if (!authToken) {
+        throw new Error("No authentication token received");
+      }
+
+      // Create user object from token
+      const user = this.createUserFromToken(authToken, formattedUsername);
+
+      // Store authentication data
+      this.setAuthData(authToken, user);
+
+      console.log("Login successful:", user.name);
+      console.log("Initial branch:", user.details?.branch || "Unknown");
+
+      // Start token monitoring
+      this.startTokenMonitor();
+
+      return user;
+    } catch (error) {
+      console.error("Login failed:", error.message);
+      throw this.handleLoginError(error);
+    }
+  }
   // Switch branch
   async switchBranch(branch) {
     console.log(
