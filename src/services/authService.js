@@ -612,12 +612,25 @@ class AuthService {
     this.stopTokenMonitor();
 
     this.refreshInterval = setInterval(async () => {
-  isAuthenticated() {
-    try {
-      return !!this.getCurrentUser();
-    } catch (error) {
-      return false;
-    }
+      if (!this.isAuthenticated()) {
+        this.stopTokenMonitor();
+        return;
+      }
+
+      if (this.isTokenExpired()) {
+        console.log("Token expired, logging out");
+        this.logout();
+        if (window.location.pathname !== "/") {
+          window.location.href = "/";
+        }
+      } else if (this.shouldRefreshToken()) {
+        console.log("Token needs refresh");
+        const refreshed = await this.refreshToken();
+        if (!refreshed) {
+          console.warn("Token refresh failed");
+        }
+      }
+    }, this.TOKEN_MONITOR_INTERVAL);
   }
 
   stopTokenMonitor() {
@@ -650,20 +663,17 @@ class AuthService {
     }
   }
 
-  // Logout
   logout() {
     console.log("Logging out");
     this.stopTokenMonitor();
     this.clearAuthData();
   }
 
-  // Clear auth data
   clearAuthData() {
     try {
       localStorage.removeItem("dds_user");
       localStorage.removeItem("dds_token_timestamp");
       localStorage.removeItem("dds_current_branch");
-
 
       this.currentBranch = null;
       this.switchLock = null;
@@ -674,7 +684,6 @@ class AuthService {
     }
   }
 
-  // Check if authenticated
   isAuthenticated() {
     try {
       return !!this.getCurrentUser();
@@ -683,7 +692,6 @@ class AuthService {
     }
   }
 
-  // Get current user
   getCurrentUser() {
     try {
       const userStr = localStorage.getItem("dds_user");
@@ -694,8 +702,6 @@ class AuthService {
     }
   }
 
-
-  // Get user branches
   getUserBranches() {
     try {
       const user = this.getCurrentUser();
@@ -705,7 +711,6 @@ class AuthService {
     }
   }
 
-  // Reset to default branch (for debugging)
   resetToDefaultBranch() {
     const user = this.getCurrentUser();
     if (user?.details?.userBranches?.length > 0) {
@@ -716,13 +721,16 @@ class AuthService {
     return false;
   }
 
-  // Get current token info
   getTokenInfo() {
     return { message: "Token is now managed server-side via HTTP-only cookie" };
   }
 }
 
-// Create instance
 const authService = new AuthService();
 
-// Initialize if authenticated
+if (authService.isAuthenticated() && authService.ENABLE_TOKEN_MONITOR) {
+  console.log("Initializing token monitor");
+  authService.startTokenMonitor();
+}
+
+export default authService;
