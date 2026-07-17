@@ -203,7 +203,6 @@ apiClient.interceptors.response.use(
           delete originalRequest._controller;
           delete originalRequest.signal;
 
-          }
           log("Token refreshed after 401, retrying original request");
           return apiClient(originalRequest);
         }
@@ -212,7 +211,6 @@ apiClient.interceptors.response.use(
       }
 
       log("401 Unauthorized after refresh attempt - clearing auth data");
-      localStorage.removeItem("dds_access_token");
       localStorage.removeItem("dds_user");
       unauthorizedHandler();
     }
