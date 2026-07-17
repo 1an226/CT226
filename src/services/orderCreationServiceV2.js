@@ -183,7 +183,6 @@ async function fileToBase64(file) {
     return pages;
   }
 
-  throw new Error("Unsupported file type");
   return parsed;
 }
 
