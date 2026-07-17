@@ -247,8 +247,15 @@ const DocumentReaderModal = memo(
         try {
           let poData;
           if (uploadedFile.type === "application/pdf") {
-          const customerType = selectedCustomer.customerType || "NAIVAS";
-          let poData = await parseOrderFromFile(uploadedFile, customerType);
+            poData = await parseOrderFromFile(
+              uploadedFile,
+              selectedCustomer.code,
+            );
+          } else if (uploadedFile.type.startsWith("image/")) {
+            poData = await parseOrderFromFile(
+              uploadedFile,
+              selectedCustomer.code,
+            );
           } else if (uploadedFile.type === "text/plain") {
             const text = await uploadedFile.text();
             poData = await parseTextOrder(
@@ -1508,8 +1515,12 @@ function App() {
     setIsProcessing(true);
 
     try {
-      const parsedData = await parseTextOrder(text.trim(), customer.code, customer.customerType || "NAIVAS");
+      const parsedData = await parseTextOrder(
+        text.trim(),
+        customer.code,
+      );
 
+      const isNaivas =
         customer.name?.toLowerCase().includes("naivas") ||
         customer.customerType?.toLowerCase().includes("supermarket");
 
@@ -1593,29 +1604,53 @@ function App() {
     },
     [selectedBranches],
   );
+
   const handleCreateOrder = useCallback(
     async (orderData, customer) => {
       setIsProcessing(true);
+
       try {
-        const result = await createOrderFromPO(orderData, customer.branch);
+        const result = await createOrderFromPO(
+          orderData,
+          customer.branch,
+        );
+
         if (result.success) {
-          const totalAmount = orderData.items?.reduce((sum, item) => sum + (item.netAmount || 0), 0) || 0;
-          alert(`Order created successfully! Order Number: ${result.orderNumber} Customer: ${customer.name} Total: Ksh ${totalAmount.toFixed(2)}`);
+          const totalAmount = orderData.items
+            ? orderData.items.reduce(
+                (sum, item) => sum + (item.netAmount || 0),
+                0,
+              )
+            : 0;
+
+          alert(
+            `Order created successfully!\n\nOrder Number: ${result.orderNumber}\nCustomer: ${customer.name}\nTotal: Ksh ${totalAmount.toFixed(2)}\nDelivery: ${new Date(orderData.deliveryDate || new Date()).toLocaleDateString()}`,
+          );
+
           setShowDocumentReader(false);
           setPoText("");
           setParsedOrderData(null);
           setSelectedCustomer(null);
+
           if (selectedDate) {
-            setTimeout(() => { loadOrdersForDate(selectedDate); }, 1000);
+            setTimeout(() => {
+              loadOrdersForDate(selectedDate);
+            }, 1000);
           }
         } else {
           throw new Error(result.error || "Failed to create order");
         }
       } catch (error) {
+        if (CONFIG.ENABLE_CONSOLE_LOGS)
+          console.error("Order creation error:", error);
         alert(`Failed to create order: ${error.message}`);
       } finally {
         setIsProcessing(false);
-  const handleSelectCustomer = (customer) => {
+      }
+    },
+    [selectedDate, loadOrdersForDate],
+  );
+
   const handleOpenCreateOrder = async () => {
     if (selectedBranches.length === 0) {
       setCustomersError("Please select branch(es) first");
@@ -1647,6 +1682,8 @@ function App() {
 
     loadCustomers(selectedBranches);
   };
+
+  const handleSelectCustomer = (customer) => {
     openDocumentReader(customer);
   };
 
