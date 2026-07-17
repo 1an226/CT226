@@ -11,7 +11,6 @@ const parseItemCodeMapping = () => { /* ... same as original ... */ };
 // In practice, you can copy the entire mapping block from the original file.
 // Let's assume we have the mappings and getFGCode/getProductName.
 // For now, we'll just import the old service's mappings.
-import { getFGCode, ITEM_CODE_MAPPING, CUSTOMER_PRICE_LISTS, DEFAULT_SETTINGS, VALIDATION_SETTINGS } from "./orderCreationService.js";
 
 // ---------- SUPER PROMPT ----------
 const SYSTEM_PROMPT = `You are CT226...`; // (the full prompt we already have)
