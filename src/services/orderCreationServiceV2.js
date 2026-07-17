@@ -20,10 +20,10 @@ const NVIDIA_PROXY_URL = "/api/nvidia-proxy";
 
 async function parseWithVision(base64Image, customerType) {
   const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
     {
       role: "user",
       content: [
-        { type: "text", text: SYSTEM_PROMPT },
         { type: "image_url", image_url: { url: `data:image/png;base64,${base64Image}` } }
       ]
     }
@@ -37,6 +37,8 @@ async function parseWithVision(base64Image, customerType) {
     response_format: { type: "json_object" }
   });
 
+  console.log("Request model:", "meta/llama-3.2-11b-vision-instruct");
+  console.log("System prompt included:", SYSTEM_PROMPT.substring(0, 100));
   const response = await fetch(NVIDIA_PROXY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -46,27 +48,39 @@ async function parseWithVision(base64Image, customerType) {
   if (!response.ok) throw new Error(`AI API error ${response.status}`);
   const data = await response.json();
   const content = data.choices[0].message.content;
-
-  // Smart JSON extraction
-  let cleanJson = content;
+  console.log("AI raw content:", content);
   let parsed;
   try {
-    const firstBrace = content.indexOf("{");
-    const lastBrace = content.lastIndexOf("}");
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      cleanJson = content.substring(firstBrace, lastBrace + 1);
-      parsed = JSON.parse(cleanJson);
-    } else {
-      throw new Error("No JSON object found");
+    // Strategy 1: entire response is JSON
+    parsed = JSON.parse(content);
+  } catch (e1) {
+    // Strategy 2: markdown fence
+    const fence = content.match(/```(?:json)?s*([sS]*?)s*```/);
+    if (fence) {
+      try { parsed = JSON.parse(fence[1]); } catch (e2) {}
     }
-  } catch (err) {
-    const mdMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (mdMatch) {
-      cleanJson = mdMatch[1];
-      parsed = JSON.parse(cleanJson);
-    } else {
-      throw err;
+    if (!parsed) {
+      // Strategy 3: find outermost { ... }
+      const start = content.indexOf("{");
+      const end = content.lastIndexOf("}");
+      if (start !== -1 && end > start) {
+        try {
+          parsed = JSON.parse(content.substring(start, end + 1));
+        } catch (e3) {}
+      }
     }
+    if (!parsed) {
+      // Strategy 4: find array [ ... ]
+      const arrStart = content.indexOf("[");
+      const arrEnd = content.lastIndexOf("]");
+      if (arrStart !== -1 && arrEnd > arrStart) {
+        try {
+          const items = JSON.parse(content.substring(arrStart, arrEnd + 1));
+          if (Array.isArray(items)) parsed = { lpo: "UNKNOWN_LPO", items };
+        } catch (e4) {}
+      }
+    }
+    if (!parsed) throw new Error("No valid JSON found in AI response");
   }
   return parsed;
 }
@@ -139,6 +153,8 @@ export async function parseTextOrder(text, customerCode, customerType = "NAIVAS"
     { role: "user", content: `Customer type: ${customerType}\n\n${text}` }
   ];
 
+  console.log("Request model:", "meta/llama-3.2-11b-vision-instruct");
+  console.log("System prompt included:", SYSTEM_PROMPT.substring(0, 100));
   const response = await fetch(NVIDIA_PROXY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -153,69 +169,3 @@ export async function parseTextOrder(text, customerCode, customerType = "NAIVAS"
 
   if (!response.ok) throw new Error(`AI API error ${response.status}`);
   const data = await response.json();
-  const content = data.choices[0].message.content;
-  const cleanJson = content.replace(/^```json\s*|\s*```$/g, "").trim();
-  const parsed = JSON.parse(cleanJson);
-  const mappedItems = mapItemsToFG(parsed.items || [], customerType);
-  return { lpo: parsed.lpo || "UNKNOWN_LPO", items: mappedItems, customerType, customer: customerCode };
-}
-
-// ---------- PRODUCT FETCHING ----------
-let cachedProducts = {};
-
-async function getProductsByCustomer(customerType = "NAIVAS") {
-  const priceList = CUSTOMER_PRICE_LISTS[customerType] || CUSTOMER_PRICE_LISTS.NAIVAS;
-  if (cachedProducts[customerType]) {
-    return cachedProducts[customerType];
-  }
-
-  const response = await apiClient.get(`/item/listByPrice/${encodeURIComponent(priceList)}`);
-  let products = [];
-  if (response.data?.payload && Array.isArray(response.data.payload)) {
-    products = response.data.payload;
-  } else if (Array.isArray(response.data)) {
-    products = response.data;
-  }
-
-  cachedProducts[customerType] = products;
-  setTimeout(() => { cachedProducts[customerType] = null; }, 5 * 60 * 1000);
-  return products;
-}
-
-// ---------- ORDER CREATION ----------
-export async function createOrderFromPO(poData, warehouse = DEFAULT_SETTINGS.WAREHOUSE) {
-  const matchedItems = poData.items.filter(item => item.method === "ai-parsed");
-  if (matchedItems.length === 0) throw new Error("No matched items found");
-
-  const products = await getProductsByCustomer(poData.customerType || "NAIVAS");
-  const orderItems = matchedItems.map(item => {
-    const product = products.find(p => p.itemCode === item.actualItemCode);
-    const unitPrice = product?.itemPrice || 0;
-    return { item: product || { itemCode: item.actualItemCode }, quantity: item.quantity, amount: item.quantity * unitPrice };
-  });
-
-  const totalAmount = orderItems.reduce((sum, i) => sum + i.amount, 0);
-  const dueDate = new Date(Date.now() + 86400000).toISOString().split("T")[0] + "T00:00:00.000Z";
-  const sellingPriceList = CUSTOMER_PRICE_LISTS[poData.customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST;
-
-  const orderPayload = {
-    customer: poData.customer,
-    orderType: DEFAULT_SETTINGS.ORDER_TYPE,
-    sellingPriceList,
-    dueDate,
-    isTopUp: DEFAULT_SETTINGS.IS_TOP_UP,
-    warehouse,
-    remarks: DEFAULT_SETTINGS.REMARKS,
-    lpo: poData.lpo && poData.lpo !== "UNKNOWN_LPO" ? poData.lpo : null,
-    items: orderItems,
-  };
-
-  const response = await apiClient.post("/orders/create", orderPayload);
-  return {
-    success: true,
-    orderNumber: response.data?.payload || "Unknown",
-    totalAmount,
-    matchedItems: matchedItems.length,
-    timestamp: new Date().toISOString(),
-  };
-}
