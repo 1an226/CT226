@@ -121,13 +121,35 @@ async function parseWithVision(base64Image, customerType) {
   const data = await response.json();
   const content = data.choices[0].message.content;
 
-  // Strip any markdown fences that might have been added
-  const cleanJson = content
-    .replace(/^```json\s*/i, "")
-    .replace(/```$/, "")
-    .trim();
-
-  const parsed = JSON.parse(cleanJson);
+  console.log("AI raw content:", content);
+  let cleanJson = content;
+  const mdMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (mdMatch) {
+    cleanJson = mdMatch[1];
+    console.log("Extracted from markdown fence");
+  } else {
+    cleanJson = content
+      .replace(/^```json\s*/i, "")
+      .replace(/```$/, "")
+      .trim();
+  }
+  console.log("Cleaned JSON string:", cleanJson);
+  let parsed;
+  try {
+    parsed = JSON.parse(cleanJson);
+  } catch (err) {
+    console.error("JSON parse failed, trying to salvage...");
+    const firstBrace = cleanJson.indexOf("{");
+    const lastBrace = cleanJson.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+      parsed = JSON.parse(cleanJson);
+    } else {
+      throw err;
+    }
+  }
+    }
+  }
   return parsed;
 }
 
