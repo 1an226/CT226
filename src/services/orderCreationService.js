@@ -716,6 +716,21 @@ const extractTextWithOCRSpace = async (imageFile) => {
     formData.append("isCreateSearchablePdf", "false");
 
     // Set timeout for faster failover
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 seconds
+
+    console.time("OCR_Space_API_Call");
+
+    const response = await fetch(OCR_SPACE_URL, {
+      method: "POST",
+      headers: {
+        apikey: OCR_SPACE_API_KEY,
+      },
+      body: formData,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
     console.timeEnd("OCR_Space_API_Call");
 
     if (!response.ok) {
@@ -3655,38 +3670,7 @@ Customer rules:
     return [];
   }
 };
-      parsed = JSON.parse(content);
-    } catch (e1) {
-      const fence = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (fence) {
-        try { parsed = JSON.parse(fence[1]); } catch (e2) {}
-      }
-      if (!parsed) {
-        const start = content.indexOf("{");
-        const end = content.lastIndexOf("}");
-        if (start !== -1 && end > start) {
-          try { parsed = JSON.parse(content.substring(start, end + 1)); } catch (e3) {}
-        }
-      }
-      if (!parsed) throw new Error("No valid JSON found");
-    }
-
-    const items = (parsed.items || []).map(item => ({
-      ocrItemCode: item.code,
-      actualItemCode: getFGCode(item.code, customerType),
-      quantity: parseInt(item.quantity) || 0,
-      foundQuantity: parseInt(item.quantity) || 0,
-      productName: `Product ${item.code}`,
-      method: "ai-parsed",
-    }));
-
-    console.log(`AI extracted ${items.length} items`);
-    return items;
-  } catch (error) {
-    console.warn("AI parsing failed:", error.message);
-    return [];
-  }
-};
+const extractTextFromImage = async (imageFile) => {
   try {
     console.log("Starting Tesseract OCR...");
     const Tesseract = (await import("tesseract.js")).default;
@@ -3818,7 +3802,7 @@ const parsePOText = async (
 
   const lpoNumber = extractLPONumber(text, customerType);
 
-  const foundItems = await findItemsAndQuantities(text, customerType);
+  const foundItems = findItemsAndQuantities(text, customerType);
 
   const products = await getProductsByCustomer(customerType);
 
@@ -4090,17 +4074,576 @@ const setupDragAndDrop = (element, callback) => {
   }
 };
 
+const testWithKhetiaFormat = async () => {
+  const testText = `KHETIA DRAPERS LTD.
+2520970 
+0 Days
+19/01/2026 16:36:45 M/609 - MINI BAKERIES NBI LTD
+P.O.BOX 17592-00500, Supaloaf Complex,
+Kangundo Road.
+020-783374 / 054-31271
+operations@minibake.com
+Bernice-0740198754
+KES - Kenyan
+Shillings
+KHETIA'S KAHAWA SUPERMARKET
+0731-999903 / by WEKALAMOYO on 19/01/2026
+17:14:10
+790601 BREAD BARREL WHITE BUTTERTOAST 600G 4.00 PCS 1 PCS
+416868 BREAD BUTTER TOAST WHITE 400G 4.00 PCS 1 PCS
+412818 BREAD BUTTER TOAST WHITE 600G 4.00 PCS 1 PCS
+416872 BREAD BUTTER TOAST WHITE 800G 3.00 PCS 1 PCS
+414800 BREAD SUPA JUBILEE BARREL WHITE 600G 4.00 PCS 1 PCS
+414810 BREAD SUPA JUBILEE BARREL WHITE 800G 4.00 PCS 1 PCS
+415591 BREAD SUPA LOAF 400G WHITE 4.00 PCS 1 PCS
+415592 BREAD SUPA LOAF 600G WHITE 4.00 PCS 1 PCS * 8 PAIR
+410955 BREAD SUPA LOAF 800G WHITE 4.00 PCS 1 PCS * 8 UNIT
+419349 BREAD SUPA LOAF BARREL WHITE 400G 4.00 PCS`;
+
+  console.log("Testing Khetia parser");
+  const result = await parsePOText(testText, "C04051", "KHETIA");
+
+  console.log(`Khetia results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
+    );
+  });
+
+  return result;
+};
+
+const testWithQuickmartFormat = async () => {
+  const testText = `QUICK MART WESTLANDS
+052-00059738 
+M/028 - MINI BAKERIES NAIROBI LIMITED
+ / 
+ / 
+23/01/2026  15:47:05
+0 Days
+KES - Kenya Shilings
+by  on 
+700183 6161102320459 FD- SUPA BUTTER TOAST 1500G 3.00 217.90 PCS 1 PCS 653.70
+700001 6161102320183 FD- SUPA LOAF PREMIUM WHITE CT 800G 10.00 117.00 PCS 1 PCS 1,170.00
+700009 6161102320169 FD- SUPALOAF WHITE CT 600G 10.00 88.70 PCS 1 PCS 887.00
+700330 6161102320305 FD-SUPA BARREL 800G WHITE 6.00 117.00 PCS 1 PCS 702.00
+700178 6161102320442 FD-SUPA BUTTER TOAST 600G 10.00 88.70 PCS 1 PCS 887.00
+700140 6161102320435 FD-SUPA BUTTER TOAST BREAD 800G 7.00 117.00 PCS 1 PCS 819.00
+700103 6161102320268 FD-SUPALOAF BROWN BARREL 600GMS 3.00 88.70 PCS 1 PCS 266.10
+700110 6161102320138 FD-SUPALOAF BUTTER TOAST 400GMS 10.00 57.90 PCS 1 PCS 579.00
+700106 6161102320060 FD-SUPALOAF WHITE BARREL 400G 6.00 57.90 PCS 1 PCS 347.40
+700104 6161102320299 FD-SUPALOAF WHITE BARREL 600GMS 4.00 88.70 PCS 1 PCS 354.80
+700113 6161102320046 FD-SUPALOAF WHITE BREAD 1.5KG 3.00 217.90 PCS 1 PCS 653.70
+700076 6161102320404 FD-SUPALOAF WHITE BREAD CT 400G 15.00 57.90 PCS 1 PCS 868.50
+Approx. Gross Weight 0.00 Total 87.00 Unit`;
+
+  console.log("Testing Quickmart parser");
+  const result = await parsePOText(testText, "C03970", "QUICKMART");
+
+  console.log(`Quickmart results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
+    );
+  });
+
+  return result;
+};
+
+const testWithMajidFormat = async () => {
+  const testText = `ORDER : 26451278
+MAJID SUPERMARKET
+ITEM LIST:
+6161102320404 - SUPALOAF WHITE BREAD CT 400G
+QTY UC: 15
+6161102320305 - SUPA BARREL 800G WHITE
+QTY UC: 6
+6164000136610 - SUPALOAF FAMILY 600G
+QTY UC: 10
+6161102320183 - SUPA LOAF PREMIUM WHITE CT 800G
+QTY UC: 10
+6161102320534 - SUPA LOAF WHITE BREAD 1.5KG
+QTY UC: 3
+6161102320138 - SUPALOAF BUTTER TOAST 400G
+QTY UC: 10`;
+
+  console.log("Testing Majid parser");
+  const result = await parsePOText(testText, "C01996", "MAJID");
+
+  console.log(`Majid results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units`,
+    );
+  });
+
+  return result;
+};
+
+const testWithChandaranaFormat = async () => {
+  const testText = `CHANDARANA SUPERMARKET LTD-THE WESTEND
+
+Corner of Got Huma Road And Achieng Oneko Road,  
+Achieng' Oneko Rd,  
+Kisumu  
+Kenya  
+
+Ph. : 0702957480  
+P.O.Box 14078-00800 Nairobi / Pin No P000601772P  
+
+# PURCHASE ORDER
+
+**Vendor**: SM0202 - MINI BAKERIES NBI LTD  
+**Address**: PO BOX 17592 00500  
+NAIROBI  
+Ph. : 073199915  
+
+**Order No.**: & Date - 2018120005543 27-Jan-2026  
+**Type**: - Outright - Standard  
+
+**PO Valid For 6 Days.**
+
+**Email**: operations@minibake.com  
+**PIN NO**: P000599905G  
+
+**Delivery To**: - THE WESTEND  
+- Corner of Got Huma Road And  
+- Achieng Oneko Road,  
+- Achieng' Oneko Rd,  
+- Kisumu  
+- Kenya  
+
+Dear Sir/Madam,  
+Please supply the following item/s as per terms and conditions mentioned below -
+
+| S.No. Bar Code | Description    | Scan Qty | FOC Qty | Pack Size | Quantity |
+|---|---|---|---|---|---|
+| 1    | 6161102320459    | SUPA 1.5KG BUTTER TOAST BREAD | 4.00    | 0.00 1    | 4.00    |
+| 2    | 6161100481039    | SUPA 300G MUFFINS CHOCOCHIP   | 5.00    | 0.00 1    | 5.00    |
+| 3    | 6161100481022    | SUPA 300G MUFFINS FRUIT    | 5.00    | 0.00 1    | 5.00    |
+| 4    | 6161100481015    | SUPA 300G MUFFINS MARBLE    | 5.00    | 0.00 1    | 5.00    |
+| 5    | 6161100481008    | SUPA 300G MUFFINS VANILLA    | 5.00    | 0.00 1    | 5.00    |
+| 6    | 6161100480407    | SUPA 350G MEDIUM SCONES    | 10.00    | 0.00 1    | 10.00    |
+| 7    | 6161102320404    | SUPA 400G WHITE SLICED BREAD CT | 15.00    | 0.00 1    | 15.00    |
+| 8    | 6161100480124    | SUPA 500G LARGE SCONES    | 5.00    | 0.00 1    | 5.00    |
+| 9    | 6161102320183    | SUPA 800G SWICH WHITE BREAD    | 20.00    | 0.00 1    | 20.00    |
+| 10    | 6161102320169    | SUPA LOAF WHITE BREAD 600G    | 10.00    | 0.00 1    | 10.00    |
+
+**Sub Total**: 84.00 0.00 84.00  
+
+**Purchase Order Net Value**: 8,417.10  
+
+**Payment Terms**: From Statement 60 Credit Days  
+
+**For CHANDARANA SUPERMARKET LTD-THE WESTEND**
+
+**Signature**: Y.C.S.T.E.R.  
+**Name**: P. MANGER NIMO MOLI`;
+
+  console.log("Testing Chandarana parser");
+  const result = await parsePOText(testText, "C00370", "CHANDARANA");
+
+  console.log(`Chandarana results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units`,
+    );
+  });
+
+  return result;
+};
+
+const testWithNCodes = async () => {
+  const testText = `P038303873 :  
+M/539 - MINI  
+BAKERIES (NBI)  
+
+| Item number | Quantity |
+|---|---|
+| 1    | 13505757 | 30.00   |
+| 2    | 13505758 | 15.00   |
+| 3    | 13505844 | 48.00   |
+| 4    | 13505845 | 12.00   |
+| 5    | 13505786 | 30.00   |
+| 6    | 13505790 | 10.00   |
+| 7    | N051055  | 5.00    |
+| 8    | N051056  | 8.00    `;
+
+  console.log("Testing N-codes parser");
+  const result = await parsePOText(testText, "M/539", "NAIVAS");
+
+  const nCodeItems = result.items.filter((item) =>
+    item.ocrDetails?.ocrItemCode?.startsWith("N"),
+  );
+  console.log(`N-code items found: ${nCodeItems.length}`);
+  nCodeItems.forEach((item) => {
+    console.log(
+      `${item.ocrDetails.ocrItemCode}: ${item.quantity} units (${item.description})`,
+    );
+  });
+
+  return result;
+};
+
+const testWithCopyPasteFormat = async () => {
+  const testText = `13504180 6161102320305 SUPA LOAF WHITE BARREL 800G PCS 20.00 117.00 2,340.00
+13506130 6161102320435 SUPA WHITE TOAST 800G PCS 10.00 117.00 1,170.00
+13504428 6161102320183 SUPA LOAF WHITE BREAD 800G PCS 15.00 117.00 1,755.00
+13500140 6161102320060 SUPA WHITE BARREL BREAD 400G PCS 10.00 57.21 572.11
+13500398 6164000136610 SUPA LOAF FAMILY 600GMS PCS 15.00 88.67 1,330.00
+13505114 6161102320299 SUPA WHITE BARREL 600GM PCS 18.00 88.67 1,596.00
+13505115 6161102320268 SUPA BROWN BARREL 600GM PCS 8.00 88.67 709.33
+N051056 6161102320442 SUPA BUTTER TOAST BREAD 600G PCS 15.00 88.67 1,330.05
+13504429 6161102320404 SUPA LOAF WHITE BREAD 400GM CT PCS 6.00 57.21 343.26
+13505111 6161102320138 SUPA BUTTER TOAST LOAF 400GM PCS 8.00 57.21 457.69
+N051055 6161102320459 SUPA BUTTER TOAST BREAD 1.5KG PCS 5.00 217.94 1,089.70
+13500168 6161102320046 SUPA LOAF WHITE BREAD 1.5KG PCS 5.00 217.94 1,089.71
+Sub total 13,782.85
+VAT
+Order total 13,782.85
+Supplier:
+MINI BAKERIES (NBI)
+KEN
+NAIVAS LTD
+Purchase Order
+Ship To:  RIRUTA
+RIRUTA
+RIRUTA
+KEN
+Purchase 
+Order
+*P038302575*
+P`;
+
+  console.log("Testing copy-paste format parser");
+  const result = await parsePOText(testText, "MINI BAKERIES", "NAIVAS");
+
+  console.log(`Copy-paste format results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Total Value: ${result.summary.totalAmount}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
+    );
+  });
+
+  return result;
+};
+
+const testWithCleanshelfFormat = async () => {
+  const testText = `LOCAL PURCHASE ORDER
+M044
+1
+NAIROBI
+1
+Acc Code
+MINI BAKERIES (NAIROBI) LTD
+Phone:
+Location:
+PoBox: VALID UPTO:
+L. P. O. Date:
+91213 L. P. O. No:
+10-Jan-2026
+VAT NO:
+PIN NO: 
+CLEAN SHELF SUPERMARKETS LIMITED
+LIMURU
+CLS 
+17/01/2026  11:56:26
+CODE DESCRIPTION Pieces Unit price Amount Pack
+P051147119S
+0125810H
+P.O. BOX 1208-00217,LIMURU
+ 936.00 117.000 400348 SUPALOAF WHITE 800GM 1 8
+ 532.20 88.700 400347 SUPALOAF WHITE 600GM 1 6
+ 435.80 217.900 400346 SUPALOAF SANDWICH 1.5KG 1 2
+ 936.00 117.000 400344 SUPALOAF BUTTER TOAST 800GM 1 8
+ 709.60 88.700 400343 SUPALOAF BUTTER TOAST 600GM 1 8
+ 1,170.00 117.000 400339 SUPALOAF BARREL WHITE 800GM 2 10
+ 709.60 88.700 400338 SUPALOAF BARREL WHITE 600GM 1 8
+ 463.20 57.900 400337 SUPALOAF BARREL WHITE 400GM 1 8
+ 347.40 57.900 400334 SUPALOAF  WHITE 400GM 0 6
+ 463.20 57.900 400329 SUPA BUTTER TOAST WHITE 400GM 8 8`;
+
+  console.log("Testing Cleanshelf parser");
+  const result = await parsePOText(testText, "C00494", "CLEANSHELF");
+
+  console.log(`Cleanshelf results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units`,
+    );
+  });
+
+  return result;
+};
+
+const testWithJazaribuFormat = async () => {
+  const testText = `6161102320404 JT01093 Supa Loaf White Bread 400Gm Ct 8 PIECES 55.00 440.00
+6161102320138 JT01098 Supa Butter Toast Loaf 400Gm 6 PIECES 55.00 330.00
+6161102320169 JT01090 Supa Loaf Family 600Gms 8 PIECES 82.00 656.00
+6161102320442 JT01094 Supa Butter Toast Bread 600G 6 PIECES 82.00 492.00
+6161102320183 JT01091 Supa Loaf White Bread 800Gm 6 PIECES 108.00 648.00
+6161102320435 JT01097 Supa White B/Toast 800Gm 4 PIECES 108.00 432.00
+6161102320060 JT01100 Supa White Sliced Barrel 400Gm 6 PIECES 55.00 330.00
+6161102320305 JT01103 Supa White Sliced Barrel 800Gm 4 PIECES 108.00 432.00
+6161102320299 JT01102 Supa White Sliced Barrel 600Gm 5 PIECES 82.00 410.00
+Total KE 4,170.00
+Terms and Conditions :
+1. Attaching a copy of the purchase order is mandatory.
+2. Oversupply will not be accepted.
+3. A purchase order is valid for a strict duration of 14 days.
+4. Deliveries must be made in complete packaging.
+5. Deliveries from Monday to Friday must be completed by 4:00 PM.
+6. No deliveries will be accepted on Saturdays after 12:00 PM.
+MAURICE TARUS FREDRICK ODENY
+Created By Approved By
+Buy-from Vendor No. V0016
+P000599905G VAT Registration No.
+Order No.
+VAT Registration No.
+Email
+Phone No.
+Page 1
+Kenya
+PO-J001-000361
+P052257611W
+info@jaza.ke
+0740002000
+Nairobi, Nairobi, 72590-00200
+Ol Donyo Sabuk Rd, Nairobi, Nairobi
+Mesora
+JAZARIBU RETAIL
+P`;
+
+  console.log("Testing Jazaribu parser");
+  const result = await parsePOText(testText, "C07455", "JAZARIBU");
+
+  console.log(`Jazaribu results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
+    );
+  });
+
+  return result;
+};
+
+const testWithCleanshelfCopyPasteFormat = async () => {
+  const testText = `CLEAN SHELF SUPERMARKETS LIMITED
+P.O. BOX 1208-00217,LIMURU
+FRESHMARKET
+Pending Purchase Orders
+Code
+Description
+Orderd Qty. Received Qty. Outstanding Qty.
+M044 - MINI BAKERIES (NAIROBI
+111,793
+LPO No.
+400329
+400334
+400337
+400338
+400339
+400343
+400347
+400348
+SUPA BUTTER TOAST WHITE 400GM
+SUPALOAF  WHITE 400GM
+SUPALOAF BARREL WHITE 400GM
+SUPALOAF BARREL WHITE 600GM
+SUPALOAF BARREL WHITE 800GM
+SUPALOAF BUTTER TOAST 600GM
+SUPALOAF WHITE 600GM
+SUPALOAF WHITE 800GM
+ 8.00
+ 15.00
+ 6.00
+ 5.00
+ 7.00
+ 10.00
+ 15.00
+ 15.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 0.00
+ 8.00
+ 15.00
+ 6.00
+ 5.00
+ 7.00
+ 10.00
+ 15.00
+ 15.00`;
+
+  console.log("Testing Cleanshelf copy-paste format parser");
+  const result = await parsePOText(testText, "C00494", "CLEANSHELF");
+
+  console.log(`Cleanshelf Copy-Paste Format results:`);
+  console.log(`LPO Number: ${result.lpoNumber}`);
+  console.log(`Total Items: ${result.summary.totalItems}`);
+  console.log(`Total Quantity: ${result.summary.totalQuantity}`);
+  console.log(`Customer Type: ${result.customerType}`);
+
+  result.items.forEach((item, index) => {
+    console.log(
+      `${index + 1}. ${item.ocrDetails?.ocrItemCode || "Unknown"} -> ${item.fgCode}: ${item.quantity} units (${item.description})`,
+    );
+  });
+
+  return result;
+};
+
+const debugNCodeParsing = (text) => {
+  console.log("N-code debugging");
+
+  console.log("Mappings check:");
+  console.log(
+    "N051055 in ITEM_CODE_MAPPING:",
+    "N051055" in ITEM_CODE_MAPPING,
+    "->",
+    ITEM_CODE_MAPPING["N051055"],
+  );
+  console.log(
+    "N051056 in ITEM_CODE_MAPPING:",
+    "N051056" in ITEM_CODE_MAPPING,
+    "->",
+    ITEM_CODE_MAPPING["N051056"],
+  );
+
+  const cleaned = cleanOCRText(text);
+  console.log("\nCleaned text (first 300 chars):", cleaned.substring(0, 300));
+
+  const patterns = [
+    "N051055",
+    "NO51055",
+    "N05105O",
+    "051055",
+    "N051056",
+    "NO51056",
+    "051056",
+  ];
+
+  console.log("\nSearching for patterns:");
+  patterns.forEach((pattern) => {
+    const regex = new RegExp(pattern, "gi");
+    const matches = cleaned.match(regex);
+    if (matches) {
+      console.log(`Pattern "${pattern}" found ${matches.length} times`);
+    }
+  });
+
+  return {
+    cleanedText: cleaned,
+    mappings: {
+      N051055: ITEM_CODE_MAPPING["N051055"],
+      N051056: ITEM_CODE_MAPPING["N051056"],
+    },
+  };
+};
 
 export default {
+  getNaivasProducts,
   getProductsByCustomer,
   parsePOText,
   parsePOFromDroppedFile,
   parsePOFromImage: parsePOFromDroppedFile,
+  parseManualTextInput: async (text, customerCode, customerType = "NAIVAS") =>
+    parsePOText(text, customerCode, customerType),
   createOrderFromPO,
+  setupDragAndDrop,
+  processDroppedFile,
+  extractTextFromImage,
+  extractTextFromPDF,
+  extractTextWithOCRSpace,
+  extractLPONumber,
+  findItemsAndQuantities,
+  detectTextFormat,
+  detectCustomerTypeByCode,
+  cleanOCRText,
+  parseUniversalFormat,
+  parseCopyPasteTextFormat,
+  parseDetailedPOFormat,
+  parseCleanshelfLocalPO,
+  parseCleanshelfPendingOrders,
+  parseCleanshelfCopyPasteText,
+  parseJazaribuFormat,
+  parseKhetiaFormat,
+  parseQuickmartFormat,
+  parseMajidFormat,
+  parseChandaranaFormat,
+  ultimateNCodeDetection,
+  hasClearEvidenceOfNCodes,
+  testWithNCodes,
+  testWithCopyPasteFormat,
+  testWithCleanshelfFormat,
+  testWithJazaribuFormat,
+  testWithCleanshelfCopyPasteFormat,
+  testWithKhetiaFormat,
+  testWithQuickmartFormat,
+  testWithMajidFormat,
+  testWithChandaranaFormat,
+  debugNCodeParsing,
+  ITEM_CODE_MAPPING,
+  ITEM_NAMES_MAPPING,
+  CLEANSHELF_ITEM_CODE_MAPPING,
+  JAZARIBU_ITEM_CODE_MAPPING,
+  CLEANSHELF_CUSTOMER_CODES,
+  JAZARIBU_CUSTOMER_CODES,
+  KHETIA_ITEM_CODE_MAPPING,
+  MAJID_BARCODE_MAPPING,
+  CHANDARANA_BARCODE_MAPPING,
+  QUICKMART_BARCODE_MAPPING,
+  KHETIA_CUSTOMER_CODES,
+  MAJID_CUSTOMER_CODES,
+  CHANDARANA_CUSTOMER_CODES,
+  QUICKMART_CUSTOMER_CODES,
+  CUSTOMER_CONFIG,
+  CUSTOMER_PRICE_LISTS,
   getFGCode,
   getProductName,
+  getConfig: () => ({
+    DEFAULT_SETTINGS,
+    PERFORMANCE_SETTINGS,
+    VALIDATION_SETTINGS,
+    CUSTOMER_PRICE_LISTS,
+  }),
 };
-// nemotron
-// force rebuild
-// Force rebuild Fri 17 Jul 2026 06:27:39 PM EAT
-// 1784302389
