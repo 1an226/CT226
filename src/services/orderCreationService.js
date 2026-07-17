@@ -3613,7 +3613,7 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
         "X-NVCF-ORG": import.meta.env.VITE_NVIDIA_ORG
       },
       body: JSON.stringify({
-        model: "meta/llama-3.2-3b-instruct",
+        model: "nvidia/nemotron-mini-4b-instruct",
         messages: [
           {
             role: "system",
