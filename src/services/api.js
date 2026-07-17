@@ -124,8 +124,6 @@ apiClient.interceptors.request.use(
     }
 
 
-    if (token && !isTokenExpired(token)) {
-    }
 
     log("API Request:", {
       url: config.url,
@@ -133,7 +131,6 @@ apiClient.interceptors.request.use(
       params: config.params,
       activeRequests,
       queued: waitQueue.length,
-      hasToken: !!token,
     });
 
     return config;
