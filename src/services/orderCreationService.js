@@ -4786,8 +4786,8 @@ findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
         const items = aiResult.items.map(item => ({
           ocrItemCode: item.code,
           actualItemCode: getFGCode(item.code, customerType),
-          quantity: item.quantity,
-          foundQuantity: item.quantity,
+          quantity: parseInt(item.quantity) || 0,
+          foundQuantity: parseInt(item.quantity) || 0,
           productName: item.description || `Product ${item.code}`,
           method: "ai-parsed",
         }));
@@ -4795,10 +4795,11 @@ findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
         return items;
       }
     } catch (error) {
-      console.warn("AI parsing failed, using legacy parser:", error.message);
+      console.warn("AI parsing failed:", error.message);
     }
   }
-  return originalFindItemsAndQuantities(text, customerType);
+  return [];
+};
 };
 export default {
   getNaivasProducts,
