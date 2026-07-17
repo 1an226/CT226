@@ -3582,10 +3582,42 @@ const findItemsGeneric = (text) => {
 };
 
 
+const extractTextFromImage = async (imageFile) => {
 // ---------- AI PARSER ----------
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   try {
     console.log(`AI extraction for ${customerType} using Nemotron...`);
+    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer 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",
+        "X-NVCF-ORG": "x2v1"
+      },
+      body: JSON.stringify({
+        model: "nvidia/nemotron-mini-4b-instruct",
+        messages: [
+          {
+            role: "system",
+            content: `You are CT226, the automated order‑entry specialist for DDS.
+Return ONLY a JSON object with 'lpo' (string or null) and 'items' (array of { 'code': string, 'quantity': number }). Do not include any other text.
+
+Customer rules:
+- Naivas: LPO starts with P + 8‑9 digits. Item codes: 8‑digit starting 135 or N‑codes like N051055. Quantity: number before/after "PCS".
+- Majid: LPO "ORDER :" + number. Item codes: 13‑digit barcodes. Quantity: "QTY UC" column.
+- Chandarana: LPO "Order No. :" + 12‑13 digits. Item codes: 13‑digit barcodes. Quantity: first decimal after barcode.
+- Quickmart: LPO "PURCHASE ORDER #" + number. Item codes: 13‑digit barcodes. Quantity: "Order Qty" column.
+- Khetia: LPO "PURCHASE ORDER #" + 7‑digit number. Item codes: 6‑digit. Quantity: "Order Qty" column.
+- Jazaribu: LPO "Order No." or "PO‑J" + number. Item codes: JT + 5 digits. Quantity: "Quantity"/"Pieces" column.
+- Cleanshelf: Local PO: LPO "CLS - [number]". Pending: LPO number after "LPO No." (remove commas). Item codes: 6‑digit starting 400.`
+          },
+          { role: "user", content: `Customer: ${customerType}\n\n${text}` }
+        ],
+        max_tokens: 500,
+        temperature: 0.01
+      })
+    });
+
     if (!response.ok) throw new Error(`AI API error ${response.status}`);
     const data = await response.json();
     const content = data.choices[0].message.content;
@@ -3625,7 +3657,6 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
     return [];
   }
 };
-const extractTextFromImage = async (imageFile) => {
   try {
     console.log("Starting Tesseract OCR...");
     const Tesseract = (await import("tesseract.js")).default;
