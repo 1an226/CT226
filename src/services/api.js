@@ -39,7 +39,7 @@ const logError = (...args) => {
 };
 
 const apiClient = axios.create({
-  baseURL: "/dds-backend/api/v1",
+  baseURL: "https://mbnl.ddsolutions.tech/dds-backend/api/v1",
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",

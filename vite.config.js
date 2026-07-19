@@ -6,19 +6,32 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory
   const env = loadEnv(mode, process.cwd(), "");
+  console.log("[DEBUG] VITE_NVIDIA_API_KEY loaded:", env.VITE_NVIDIA_API_KEY ? "yes" : "no");
 
   return {
     plugins: [react()],
     server: {
       port: 2260,
-      host: true,
       open: true,
-      cors: true,
-      hmr: {
-        overlay: true,
-      },
+      proxy: {
+        '/nvidia-api': {
+          target: 'https://integrate.api.nvidia.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/nvidia-api/, '/v1'),
+          headers: {
+            'Authorization': `Bearer ${env.VITE_NVIDIA_API_KEY}`
+          }
+        },
+        '/nvidia-cv': {
+          target: 'https://ai.api.nvidia.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/nvidia-cv/, '/v1/cv'),
+          headers: {
+            'Authorization': `Bearer ${env.VITE_NVIDIA_API_KEY}`
+          }
+        }
+      }
     },
     build: {
       outDir: "dist",
@@ -48,7 +61,6 @@ export default defineConfig(({ mode }) => {
       include: ["react", "react-dom", "axios"],
       exclude: [],
     },
-    // Define global constants
     define: {
       __APP_ENV__: JSON.stringify(env.APP_ENV || mode),
     },

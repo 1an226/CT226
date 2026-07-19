@@ -566,15 +566,7 @@ class AuthService {
       this.refreshAttempts++;
       console.log(`Refresh attempt ${this.refreshAttempts}`);
 
-      const response = await apiClient.post(
-        "/auth/refresh",
-        {},
-        {
-          headers: {
-            "X-Refresh-Token": "true",
-          },
-        },
-      );
+      const response = await apiClient.post("/auth/refresh", {});
 
       const newToken = response.headers["x-auth-token"] || response.data?.token;
       if (newToken) {
