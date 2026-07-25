@@ -15,6 +15,7 @@ const parseMapping = (mappingStr) => {
 const ITEM_MAP = parseMapping(import.meta.env.VITE_ITEM_CODE_MAPPING);
 const CLEANSHELF_MAP = parseMapping(import.meta.env.VITE_CLEANSHELF_ITEM_CODE_MAPPING);
 const JAZARIBU_MAP = parseMapping(import.meta.env.VITE_JAZARIBU_ITEM_CODE_MAPPING);
+// removed debug log
 const KHETIA_MAP = parseMapping(import.meta.env.VITE_KHETIA_ITEM_CODE_MAPPING);
 const MAJID_MAP = parseMapping(import.meta.env.VITE_MAJID_BARCODE_MAPPING);
 const CHANDARANA_MAP = parseMapping(import.meta.env.VITE_CHANDARANA_BARCODE_MAPPING);
@@ -30,8 +31,11 @@ const STANDARD_MODEL = {
   ...QUICKMART_MAP,
 };
 
+// removed debug log
+// removed debug log
 export const getFGCode = (rawCode) => {
   return STANDARD_MODEL[rawCode] || null;
 };
 
 export const getAllFGCODES = () => Object.values(STANDARD_MODEL);
+export { STANDARD_MODEL };

@@ -2,6 +2,7 @@ import apiClient from "@services/api.js";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs";
 import { getFGCode as getFGCodeFromStandard } from "@utils/StandardModel.js";
+import { STANDARD_MODEL } from "@utils/StandardModel.js";
 
 // ─── Configuration ───────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -33,7 +34,7 @@ const VALIDATION_SETTINGS = {
   MIN_ITEM_COUNT: parseInt(import.meta.env.VITE_MIN_ITEM_COUNT) || 1,
 };
 
-// ─── Customer code lists (for entanglement & price list selection) ──
+// ─── Customer code lists ─────────────────────────────────────────
 const CLEANSHELF_CUSTOMER_CODES = ["C06223","C00498","C06885","C00505","C07481","C00494","C07212","C04494","C00500","C04838","C00492","C06602","C00507","C00501","C00497","C00495","C04411","C00502","C05747"];
 const JAZARIBU_CUSTOMER_CODES = ["C07455","C07257","C06702","C06667","C06363","C07071","C06791","C07449","C06531","C06882","C06627","C07106","C06570","C06547","C07177","C06351","C07142","C07451","C07450","C07251","C06721"];
 const KHETIA_CUSTOMER_CODES = ["C04051","C04059","C04066","C04062","C04078","C06059","C04068","C04428","C04876","C04878","C04877","C04874","C04800","C04061","C04073","C04873","C04872","C04316","C07440","C04053","C04057","C05534","C04065","C04072"];
@@ -53,25 +54,22 @@ const ITEM_NAMES_MAPPING = (() => {
 
 let cachedProducts = {};
 
-// ─── Core physics functions ──────────────────────────────────────
-
-const getFGCode = (itemCode) => getFGCodeFromStandard(itemCode) || `UNKNOWN_${itemCode}`;
-
+// ─── Helpers ─────────────────────────────────────────────────────
+const getFGCode = (itemCode) => getFGCodeFromStandard(itemCode) || "UNKNOWN_" + itemCode;
 const getProductName = (itemCode, customerType = "NAIVAS") => {
   const special = {
-    CLEANSHELF: `Cleanshelf Product ${itemCode}`,
-    JAZARIBU: `Jazaribu Product ${itemCode}`,
-    KHETIA: `Khetia Product ${itemCode}`,
-    MAJID: `Majid Product ${itemCode}`,
-    CHANDARANA: `Chandarana Product ${itemCode}`,
-    QUICKMART: `Quickmart Product ${itemCode}`,
+    CLEANSHELF: "Cleanshelf Product " + itemCode,
+    JAZARIBU: "Jazaribu Product " + itemCode,
+    KHETIA: "Khetia Product " + itemCode,
+    MAJID: "Majid Product " + itemCode,
+    CHANDARANA: "Chandarana Product " + itemCode,
+    QUICKMART: "Quickmart Product " + itemCode,
   };
-  return special[customerType] || ITEM_NAMES_MAPPING[itemCode] || `Product ${itemCode}`;
+  return special[customerType] || ITEM_NAMES_MAPPING[itemCode] || "Product " + itemCode;
 };
 
 const detectCustomerTypeByCode = (customerCode = null, text = "") => {
   if (!customerCode) {
-    // fallback to text indicators (kept for backward compatibility)
     if (/KHETIA/i.test(text)) return "KHETIA";
     if (/QUICK MART/i.test(text)) return "QUICKMART";
     if (/MAJID/i.test(text)) return "MAJID";
@@ -86,195 +84,148 @@ const detectCustomerTypeByCode = (customerCode = null, text = "") => {
   if (MAJID_CUSTOMER_CODES.includes(customerCode)) return "MAJID";
   if (CHANDARANA_CUSTOMER_CODES.includes(customerCode)) return "CHANDARANA";
   if (QUICKMART_CUSTOMER_CODES.includes(customerCode)) return "QUICKMART";
-  return "NAIVAS"; // default
+  return "NAIVAS";
 };
 
-const auditAndValidate = (aiOutput, customerType) => {
-  return { status: "valid", errors: [], warnings: [], confidence: aiOutput.confidence || 0.0 };
+// ─── NATIVE PDF TEXT EXTRACTION ──────────────────────────────────
+const extractTextFromPdf = async (arrayBuffer) => {
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = "";
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    const items = textContent.items;
+    if (items.length === 0) continue;
+    const lines = [];
+    let currentLine = [items[0]];
+    for (let i = 1; i < items.length; i++) {
+      const prev = items[i - 1];
+      const curr = items[i];
+      if (Math.abs(curr.transform[5] - prev.transform[5]) < 5) {
+        currentLine.push(curr);
+      } else {
+        lines.push(currentLine.map(item => item.str).join(" "));
+        currentLine = [curr];
+      }
+    }
+    lines.push(currentLine.map(item => item.str).join(" "));
+    fullText += lines.join("\n") + "\n";
+  }
+  return fullText.trim();
 };
 
-// ─── AI Transducer ──────────────────────────────────────────────
+// ─── SLM EXTRACTION (single 70B model for all digital PDFs) ─────
+const extractViaSLM = async (text, customerType) => {
+  const rules = {
+    NAIVAS: "Customer: Naivas Ltd.\nColumns: Item Code (e.g., 13505757 or N051055), Bar Code, Description, Unit (PCS), Quantity, Unit Price, Net Amount.\nLPO: appears as 'P' followed by 8-9 digits (e.g., P038449364). It may have a trailing '-1', which must be stripped.\nExtract the Item Code (not the Bar Code). For quantity, use the number AFTER the word 'PCS'.\nReturn ONLY valid JSON.",
 
-const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
-  const systemPrompt = `You are CT226, a deterministic, physics-informed order-entry transducer for DDS.
-You receive clean, structured text from a pixel-based OCR sensor.
-Your task: map the text into the invariant JSON of the CT226 universe.
-You are given a Customer Name. Trust it. Do not infer the customer.
+    KHETIA: "Customer: Khetia Drapers Ltd.\nColumns: YOUR Code (6-digit item code), Description, Order Qty (the REAL order quantity, always followed by 'PCS'), Packing (ignore, e.g., '1 PCS * 8 PAIR').\nLPO: a 7-digit number (e.g., 2520950) near 'PURCHASE ORDER #' or at the top.\nExtract YOUR Code. For quantity, use the FIRST number that is immediately followed by 'PCS'. Ignore any numbers in the Packing column.\nReturn ONLY valid JSON.",
 
-=== LAWS OF EXTRACTION (PHYSICS GAUGE MAP) ===
-Extract LPO and items strictly per this map.
-Majid      : LPO="ORDER :", Code="BAR CODE", Qty="QTY UC"
-Chandarana : LPO="Order No. :", Code="Bar Code", Qty="Scan Qty"
-Quickmart  : LPO="PURCHASE ORDER #", Code="Scan Code", Qty="Order Qty"
-Khetia     : LPO="PURCHASE ORDER #", Code="YOUR Code", Qty="Order Qty"
-Jazaribu   : LPO="Order No." or "PO‑J", Code="No." (JT), Qty="Quantity"
-Cleanshelf Pending : LPO="LPO No." (remove commas), Code="Code", Qty="Orderd Qty."
-Cleanshelf Local   : LPO="L. P. O. No:" (keep CLS -), Code="CODE", Qty="Pieces"
-Naivas     : LPO="P" + 8–9 digits (strip "-1" suffix), Code="Item Code", Qty="Quantity"
+    JAZARIBU: "Customer: Jazaribu Retail.\nColumns: Barcode, No. (JT code, e.g., JT01098), Description, Quantity (the number right before 'PIECES'), Unit of Measure (PIECES), Cost, Amount.\nIMPORTANT: There are MULTIPLE items. Look at ALL lines that contain a JT code (like JT01098, JT01097, etc.). Extract EVERY JT code you find, along with its quantity.\nLPO: appears as 'PO-J' followed by 3-3-6 digits (e.g., PO-J020-000253). It may be on the line after 'Order No.'.\nExtract the JT code. For quantity, use ONLY the number that appears immediately before the word 'PIECES'. Do NOT use any number from the description (like 400Gm).\nReturn ONLY valid JSON with ALL items.",
 
-=== OUTPUT FORMAT ===
-Return ONLY a JSON object. No markdown, no extra fields.
-{"lpo":"string","confidence":0.0-1.0,"items":[{"code":"string","quantity":integer}]}
-If no LPO: use "UNKNOWN_LPO" and 0.0. Round decimals. Never guess.
-If blank: {"lpo":"VACUUM_STATE","confidence":0.0,"items":[]}.`;
+    CLEANSHELF: "Customer: Cleanshelf Supermarkets.\nThere are two formats:\n1. Local Purchase Order:\n   - Text layout: Amount, Unit Price, Code (4003xxx), Description, Pack (ignore), Pieces (use).\n   - LPO: appears as 'CLS - ' followed by 5-6 digits (e.g., CLS - 91213).\n   - For each line with a 4003xxx code, ignore numbers before the code. After the code and description, there are two numbers: Pack (ignore) and Pieces (use). Use the Pieces number.\n2. Pending Purchase Order:\n   - Columns: numbers before the code (Outstanding, Orderd Qty., Received), then Code (4003xxx), Description.\n   - LPO: appears as a number with optional commas next to 'LPO No.' (e.g., 111,638 LPO No.). The number is usually BEFORE the words 'LPO No.'.\n   - For each line with a 4003xxx code, use the second of the three numbers before the code (Orderd Qty.).\nFor both formats, extract the Code and the correct quantity. LPO: if local, prepend 'CLS - '. For pending, remove commas from the LPO number.\nReturn ONLY valid JSON.",
 
-  const userPrompt = `Customer: ${customerType}\n${text}`;
+    QUICKMART: "Customer: Quickmart Ltd.\nColumns: Scan Code (13-digit barcode), Description, Packing (ignore), Order Qty (real quantity, often followed by 'PCS').\nLPO: appears after 'PURCHASE ORDER #' as a pattern like XXX-XXXXXXXX (e.g., 016-00057714).\nExtract the Scan Code (the 13-digit barcode). For quantity, use the Order Qty (the last number before 'PCS' at the end of the line).\nReturn ONLY valid JSON.",
+  };
+
+  const systemPrompt = "You are CT226, a deterministic, physics-informed order-entry transducer.\nYou receive CLEAN, structured text from a digital purchase order.\nYour task: apply the physics gauge map below to extract the LPO and all items with their codes and quantities.\n\n=== PHYSICS GAUGE MAP (only for " + customerType + ") ===\n" + (rules[customerType] || "Extract the most likely item code and order quantity.") + "\n\n=== OUTPUT FORMAT ===\nYour ENTIRE response must be a single line of valid JSON. No markdown, no explanations.\n{\"lpo\":\"string\",\"items\":[{\"code\":\"string\",\"quantity\":integer}]}\nIf no LPO is found, use \"UNKNOWN_LPO\". The quantity must be an integer (round if necessary). Do NOT include any totals - we will calculate them.";
+
+  const userPrompt = "Raw PDF text:\n" + text;
+
   const resp = await fetch("/nvidia-api/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "nvidia/nemotron-mini-4b-instruct",
-      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+      model: "meta/llama-3.3-70b-instruct",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
       temperature: 0,
       max_tokens: 1024,
     }),
   });
-  if (!resp.ok) throw new Error(`AI Transducer API error: ${resp.status}`);
+  if (!resp.ok) throw new Error("SLM API error: " + resp.status);
+
   const data = await resp.json();
   const content = data.choices[0].message.content;
+  console.log("[LLAMA-70B OUTPUT]", content);
+
   let parsed;
   try {
     parsed = JSON.parse(content);
   } catch (e) {
     const fence = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (fence) parsed = JSON.parse(fence[1]);
-    if (!parsed) throw new Error("Invalid JSON from Transducer");
+    if (fence) {
+      try { parsed = JSON.parse(fence[1]); } catch (e2) {}
+    }
+    if (!parsed) {
+      const start = content.indexOf("{");
+      const end = content.lastIndexOf("}");
+      if (start !== -1 && end > start) {
+        try { parsed = JSON.parse(content.substring(start, end + 1)); } catch (e3) {}
+      }
+    }
+    if (!parsed) throw new Error("Invalid JSON from SLM");
   }
-  const items = (parsed.items || []).map(item => ({
+
+  return {
+    lpo: parsed.lpo || "UNKNOWN_LPO",
+    items: (parsed.items || []).map(i => ({
+      code: i.code,
+      quantity: Math.round(i.quantity) || 0
+    }))
+  };
+};
+
+// ─── MAIN EXTRACTION ORCHESTRATOR ────────────────────────────────
+const extractFromFile = async (file, customerType) => {
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+    const arrayBuffer = await file.arrayBuffer();
+    const text = await extractTextFromPdf(arrayBuffer);
+    console.log("[PDF TEXT]", text);
+    if (text.length > PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
+      console.log("[INFO] Using digital PDF path with 70B model");
+      return await extractViaSLM(text, customerType);
+    }
+    throw new Error("This PDF appears to be a scanned document. Scanned PDFs are not yet supported. Please use the digital version.");
+  }
+  throw new Error("Image uploads are not yet supported.");
+};
+
+// ─── PUBLIC API ──────────────────────────────────────────────────
+const parsePOFromDroppedFile = async (file, customerCode = null, customerType = "NAIVAS") => {
+  const detected = detectCustomerTypeByCode(customerCode, customerType);
+  if (detected !== customerType) customerType = detected;
+  const aiOutput = await extractFromFile(file, customerType);
+  return parsePOTextFromParsedJSON(aiOutput, customerCode, customerType);
+};
+
+const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) => {
+  let lpoNumber = parsedAI.lpo || "UNKNOWN_LPO";
+  if (customerType === "CLEANSHELF" && lpoNumber.includes(",")) lpoNumber = lpoNumber.replace(/,/g, "");
+  if (customerType === "NAIVAS" && lpoNumber.endsWith("-1")) lpoNumber = lpoNumber.slice(0, -2);
+
+  const items = (parsedAI.items || []).map(item => ({
     ocrItemCode: item.code,
     actualItemCode: getFGCode(item.code, customerType),
     quantity: Math.round(item.quantity) || 0,
     foundQuantity: item.quantity || 0,
-    productName: `Product ${item.code}`,
-    method: "ai-transducer",
+    productName: getProductName(item.code, customerType),
+    method: "slm",
   }));
-  console.log(">>> AI TRANSDUCER OUTPUT (raw JSON):", parsed);
-  console.log(`AI Transducer extracted ${items.length} items.`);
-  return { lpo: parsed.lpo || "UNKNOWN_LPO", confidence: parsed.confidence || 0.0, items };
-};
 
-// ─── Pixel pipeline (PDF/Image → Canvas → OCR) ────────────────
+  console.log("[INFO] Extracted " + items.length + " items.");
 
-const extractTextWithNvidiaOCR = async (base64Image) => {
-  console.log(">>> Sending image to nemotron-ocr-v2");
-  const resp = await fetch("/nvidia-cv/nvidia/nemotron-ocr-v2", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Accept": "application/json" },
-    body: JSON.stringify({ input: [{ type: "image_url", url: base64Image }] }),
-  });
-  if (!resp.ok) {
-    throw new Error(`OCR API error: ${resp.status}`);
-  }
-  const data = await resp.json();
-  console.log(">>> OCR completed, text detections count:", data.data[0].text_detections.length);
-  const ocrText = data.data[0].text_detections.map(t => t.text_prediction.text).join("\n");
-  console.log(">>> FULL OCR OUTPUT (text):", ocrText);
-  return ocrText;
-};
-
-const processDroppedFile = async (file) => {
-  console.log("Processing dropped file:", file.name, file.type);
-
-  // PDF → canvas → OCR
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-    console.log(">>> PDF block entered (pixel pipeline)");
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = "";
-    for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 2); pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 1.5 });
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext("2d");
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      const base64 = canvas.toDataURL("image/jpeg", 0.8);
-      fullText += await extractTextWithNvidiaOCR(base64) + "\n";
-    }
-    return fullText.trim();
-  }
-
-  // Image → OCR directly
-  if (file.type.startsWith("image/")) {
-    const base64 = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.readAsDataURL(file);
-    });
-    return await extractTextWithNvidiaOCR(base64);
-  }
-
-  // Plain text fallback
-  if (file.type === "text/plain") {
-    return await file.text();
-  }
-
-  throw new Error("Unsupported file type");
-};
-
-// ─── Order creation ─────────────────────────────────────────────
-
-const getProductsByCustomer = async (customerType = "NAIVAS") => {
-  const priceList = CUSTOMER_PRICE_LISTS[customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST;
-  console.log("[DEBUG] getProductsByCustomer - priceList:", priceList);
-  if (cachedProducts[customerType]) {
-    console.log("[DEBUG] getProductsByCustomer - using cache, count:", cachedProducts[customerType].length);
-    return cachedProducts[customerType];
-  }
-  const resp = await apiClient.get(`/item/listByPrice/${encodeURIComponent(priceList)}`);
-  console.log("[DEBUG] getProductsByCustomer - raw response status:", resp.status);
-  console.log("[DEBUG] getProductsByCustomer - payload type:", typeof resp.data?.payload);
-  console.log("[DEBUG] getProductsByCustomer - payload length:", resp.data?.payload?.length);
-  const products = resp.data?.payload || resp.data || [];
-  console.log("[DEBUG] getProductsByCustomer - products length after extraction:", products.length);
-  cachedProducts[customerType] = products;
-  setTimeout(() => { cachedProducts[customerType] = null; }, PERFORMANCE_SETTINGS.PRODUCT_CACHE_DURATION);
-  return products;
-};
-
-const parsePOText = async (text, customerCode = null, customerType = "NAIVAS") => {
-  const detected = detectCustomerTypeByCode(customerCode, text);
-  if (detected !== customerType) customerType = detected;
-
-  // Classical Filter (OCR entropy reduction)
-  let ocrLines = text;
-  try {
-    const json = JSON.parse(text);
-    if (json.data?.[0]?.text_detections) {
-      ocrLines = json.data[0].text_detections
-        .filter(item => item.text_prediction.confidence > 0.80)
-        .map(item => item.text_prediction.text)
-        .join("\n")
-        .substring(0, 2800);
-    }
-  } catch (e) { /* fallback to plain text */ }
-
-  const aiOutput = await findItemsAndQuantities(ocrLines, customerType);
-  const audit = auditAndValidate(aiOutput, customerType);
-  console.log("[DEBUG] parsePOText: audit status =", audit.status);
-  const lpoNumber = aiOutput.lpo || "UNKNOWN_LPO";
-
-  if (audit.status === "flagged") {
-    return { status: "flagged", physicsErrors: audit.errors, physicsWarnings: audit.warnings, lpo: aiOutput.lpo, items: aiOutput.items, confidence: audit.confidence };
-  }
-  if (audit.status === "vacuum") {
-    return { status: "vacuum", lpo: "UNKNOWN_LPO", items: [] };
-  }
-
-  // audit.status === "valid"
-  console.log(`[DEBUG] parsePOText: fetching products for ${customerType} with price list ${CUSTOMER_PRICE_LISTS[customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST}`);
-  console.log("[DEBUG] parsePOText: about to fetch products");
   const products = await getProductsByCustomer(customerType);
-  console.log(`[DEBUG] parsePOText: products fetched = ${products.length}`);
-  const items = [];
+  const resultItems = [];
   let totalValue = 0;
-  for (const found of aiOutput.items) {
+  for (const found of items) {
     const product = products.find(p => p.itemCode === found.actualItemCode);
     if (product) {
       const itemValue = found.quantity * (product.itemPrice || 0);
       totalValue += itemValue;
-      items.push({
+      resultItems.push({
         description: found.productName || product.itemName || "Unknown Product",
         product,
         quantity: found.quantity,
@@ -282,72 +233,93 @@ const parsePOText = async (text, customerCode = null, customerType = "NAIVAS") =
         unitPrice: product.itemPrice || 0,
         netAmount: itemValue,
         fgCode: found.actualItemCode,
-        ocrDetails: {
-          ocrItemCode: found.ocrItemCode,
-          foundQuantity: found.foundQuantity,
-          method: found.method,
-          lineNumber: found.lineNumber,
-          productName: found.productName,
-        },
+        ocrDetails: { ocrItemCode: found.ocrItemCode, foundQuantity: found.foundQuantity, method: found.method },
       });
     } else {
-      console.log(`No product found for FG code: ${found.actualItemCode}`);
+      console.log("[WARN] No product found for FG code: " + found.actualItemCode);
     }
   }
 
   return {
     customer: customerCode,
-    items,
+    items: resultItems,
     lpoNumber,
     customerType,
     detectedFormat: "PHYSICS_PIPELINE",
     parsingErrors: [],
-    summary: { totalItems: items.length, totalQuantity: items.reduce((s, i) => s + i.quantity, 0), totalAmount: totalValue, matchedItems: items.length },
+    summary: { totalItems: resultItems.length, totalQuantity: resultItems.reduce((s,i)=>s+i.quantity,0), totalAmount: totalValue, matchedItems: resultItems.length },
   };
 };
 
-const parsePOFromDroppedFile = async (file, customerCode = null, customerType = "NAIVAS") => {
-  const text = await processDroppedFile(file);
-  if (!text?.trim()) throw new Error("No text extracted from file");
-  return parsePOText(text, customerCode, customerType);
+// ─── MANUAL TEXT INPUT (DeepSeek transducer) ────────────────────
+const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
+  const systemPrompt = "You are CT226, a deterministic order-entry transducer.\n=== LAWS OF EXTRACTION (PHYSICS GAUGE MAP) ===\nExtract LPO and items strictly per this map.\nMajid      : LPO=\"ORDER :\", Code=\"BAR CODE\", Qty=\"QTY UC\"\nChandarana : LPO=\"Order No. :\", Code=\"Bar Code\", Qty=\"Quantity\" (not Scan Qty)\nQuickmart  : LPO=\"PURCHASE ORDER #\", Code=\"Scan Code\", Qty=\"Order Qty\"\nKhetia     : LPO=\"PURCHASE ORDER #\", Code=\"YOUR Code\", Qty=\"Order Qty\"\nJazaribu   : LPO=\"Order No.\" or \"PO-J\", Code=\"No.\" (JT), Qty=\"Quantity\"\nCleanshelf Pending : LPO=\"LPO No.\" (remove commas), Code=\"Code\", Qty=\"Orderd Qty.\"\nCleanshelf Local   : LPO=\"L. P. O. No:\" (keep CLS -), Code=\"CODE\", Qty=\"Pieces\"\nNaivas     : LPO=\"P\" + 8-9 digits (strip \"-1\" suffix), Code=\"Item Code\", Qty=\"Quantity\"\n\n=== OUTPUT FORMAT ===\nReturn ONLY JSON: {\"lpo\":\"string\",\"confidence\":0.0-1.0,\"items\":[{\"code\":\"string\",\"quantity\":integer}]}";
+
+  const userPrompt = "Customer: " + customerType + "\n" + text;
+  const resp = await fetch("/nvidia-api/chat/completions", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "deepseek-ai/deepseek-v4-flash",
+      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+      temperature: 0, max_tokens: 1024,
+    }),
+  });
+  if (!resp.ok) throw new Error("AI Transducer API error: " + resp.status);
+  const data = await resp.json();
+  const content = data.choices[0].message.content;
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (e) {
+    const fence = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (fence) try { parsed = JSON.parse(fence[1]); } catch (e2) {}
+    if (!parsed) {
+      const start = content.indexOf("{"), end = content.lastIndexOf("}");
+      if (start !== -1 && end > start) try { parsed = JSON.parse(content.substring(start, end + 1)); } catch (e3) {}
+    }
+    if (!parsed) throw new Error("Invalid JSON from Transducer");
+  }
+  return { lpo: parsed.lpo || "UNKNOWN_LPO", confidence: parsed.confidence || 0.0, items: (parsed.items || []).map(i => ({ code: i.code, quantity: Math.round(i.quantity) })) };
+};
+
+const parsePOText = async (text, customerCode = null, customerType = "NAIVAS") => {
+  const detected = detectCustomerTypeByCode(customerCode, text);
+  if (detected !== customerType) customerType = detected;
+  const aiOutput = await findItemsAndQuantities(text, customerType);
+  return parsePOTextFromParsedJSON(aiOutput, customerCode, customerType);
+};
+
+// ─── PRODUCT FETCHING & ORDER CREATION ──────────────────────────
+const getProductsByCustomer = async (customerType = "NAIVAS") => {
+  const priceList = CUSTOMER_PRICE_LISTS[customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST;
+  if (cachedProducts[customerType]) return cachedProducts[customerType];
+  const resp = await apiClient.get("/item/listByPrice/" + encodeURIComponent(priceList));
+  const products = resp.data && resp.data.payload ? resp.data.payload : (resp.data || []);
+  cachedProducts[customerType] = products;
+  setTimeout(() => { cachedProducts[customerType] = null; }, PERFORMANCE_SETTINGS.PRODUCT_CACHE_DURATION);
+  return products;
 };
 
 const createOrderFromPO = async (poData, warehouse = DEFAULT_SETTINGS.WAREHOUSE) => {
   const matched = poData.items.filter(i => i.status === "matched");
   if (matched.length < VALIDATION_SETTINGS.MIN_ITEM_COUNT) throw new Error("No matched items found");
-
-  const orderItems = matched.map(item => ({
-    item: item.product,
-    quantity: item.quantity,
-    amount: item.netAmount || item.product.itemPrice * item.quantity,
-  }));
-
-  const totalAmount = orderItems.reduce((s, i) => s + i.amount, 0);
-  const due = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  const dueDate = `${due.getFullYear()}-${String(due.getMonth()+1).padStart(2,'0')}-${String(due.getDate()).padStart(2,'0')}T00:00:00.000Z`;
-
+  const orderItems = matched.map(item => ({ item: item.product, quantity: item.quantity, amount: item.netAmount || item.product.itemPrice * item.quantity }));
+  const totalAmount = orderItems.reduce((s,i)=>s+i.amount,0);
+  const due = new Date(Date.now() + 24*60*60*1000);
+  const dueDate = due.getFullYear() + "-" + String(due.getMonth()+1).padStart(2,'0') + "-" + String(due.getDate()).padStart(2,'0') + "T00:00:00.000Z";
   const payload = {
-    customer: poData.customer,
-    orderType: DEFAULT_SETTINGS.ORDER_TYPE,
+    customer: poData.customer, orderType: DEFAULT_SETTINGS.ORDER_TYPE,
     sellingPriceList: CUSTOMER_PRICE_LISTS[poData.customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST,
-    dueDate,
-    isTopUp: DEFAULT_SETTINGS.IS_TOP_UP,
-    warehouse,
-    remarks: DEFAULT_SETTINGS.REMARKS,
-    lpo: poData.lpoNumber !== "UNKNOWN_LPO" ? poData.lpoNumber : null,
-    items: orderItems,
+    dueDate, isTopUp: DEFAULT_SETTINGS.IS_TOP_UP, warehouse, remarks: DEFAULT_SETTINGS.REMARKS,
+    lpo: poData.lpoNumber !== "UNKNOWN_LPO" ? poData.lpoNumber : null, items: orderItems,
   };
-
   const resp = await apiClient.post("/orders/create", payload);
-  return { success: true, orderNumber: resp.data?.payload || "Unknown", totalAmount, totalQuantity: orderItems.reduce((s, i) => s + i.quantity, 0) };
+  return { success: true, orderNumber: resp.data && resp.data.payload ? resp.data.payload : "Unknown", totalAmount, totalQuantity: orderItems.reduce((s,i)=>s+i.quantity,0) };
 };
 
 const setupDragAndDrop = (element, callback) => {
   if (!element) return;
-  ["dragenter", "dragover", "dragleave", "drop"].forEach(ev => {
-    element.addEventListener(ev, e => e.preventDefault());
-    document.addEventListener(ev, e => e.preventDefault());
-  });
+  ["dragenter","dragover","dragleave","drop"].forEach(ev => { element.addEventListener(ev, e => e.preventDefault()); document.addEventListener(ev, e => e.preventDefault()); });
   element.addEventListener("drop", e => {
     const file = e.dataTransfer.files[0];
     if (file && /\.(png|jpg|jpeg|webp|txt|pdf)$/i.test(file.name)) callback(file);
@@ -356,18 +328,9 @@ const setupDragAndDrop = (element, callback) => {
 };
 
 // ─── Exports ────────────────────────────────────────────────────
-
 export default {
-  getProductsByCustomer,
-  parsePOText,
-  parsePOFromDroppedFile,
-  parsePOFromImage: parsePOFromDroppedFile,
-  parseManualTextInput: parsePOText,
-  createOrderFromPO,
-  setupDragAndDrop,
-  processDroppedFile,
-  findItemsAndQuantities,
-  getFGCode,
-  getProductName,
+  getProductsByCustomer, parsePOText, parsePOFromDroppedFile, parsePOFromImage: parsePOFromDroppedFile,
+  parseManualTextInput: parsePOText, createOrderFromPO, setupDragAndDrop,
+  processDroppedFile: parsePOFromDroppedFile, findItemsAndQuantities, getFGCode, getProductName,
   getConfig: () => ({ DEFAULT_SETTINGS, PERFORMANCE_SETTINGS, VALIDATION_SETTINGS, CUSTOMER_PRICE_LISTS }),
 };

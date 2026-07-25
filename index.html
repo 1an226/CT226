@@ -153,24 +153,6 @@
     <script type="module" src="/src/main.jsx"></script>
 
     <!-- Console initialization messages -->
-    <script>
-      // Plain console messages
-      console.log("CT226 System Initialized");
-      console.log("DDS Integration Protocol v1.0");
-
-      // Check Tesseract.js loading status
-      window.addEventListener("load", function () {
-        setTimeout(() => {
-          if (typeof Tesseract !== "undefined") {
-            console.log("Tesseract.js OCR Engine Loaded");
-            console.log("Screenshot OCR: Ready");
-          } else {
-            console.warn(
-              "Tesseract.js not loaded - Screenshot OCR unavailable",
-            );
-          }
-        }, 1000);
-      });
-    </script>
+<script>console.log("CT226 Initialized");</script>
   </body>
 </html>
