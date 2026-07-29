@@ -1,14 +1,8 @@
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { createCanvas } from 'canvas';
-import sharp from 'sharp';
-
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
-};
+import { execSync } from 'child_process';
+import { readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { randomBytes } from 'crypto';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -17,42 +11,30 @@ export default async function handler(req, res) {
 
   try {
     const { pdfBase64 } = req.body;
-    if (!pdfBase64) {
-      return res.status(400).json({ error: 'Missing pdfBase64' });
-    }
+    if (!pdfBase64) return res.status(400).json({ error: 'Missing pdfBase64' });
 
-    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-    const pdfData = new Uint8Array(pdfBuffer);
+    // Write PDF to temp file
+    const tmpPdf = join(tmpdir(), randomBytes(8).toString('hex') + '.pdf');
+    writeFileSync(tmpPdf, Buffer.from(pdfBase64, 'base64'));
 
-    const loadingTask = getDocument({
-      data: pdfData,
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/cmaps/',
-      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/standard_fonts/',
-      wasmUrl: "./pdfjs/",
-    });
-    const pdf = await loadingTask.promise;
-    const page = await pdf.getPage(1);
+    // Render with pdftoppm (like the terminal)
+    const tmpPng = join(tmpdir(), randomBytes(8).toString('hex'));
+    execSync(`pdftoppm -png -r 300 -scale-to-x 1830 -scale-to-y 2526 "${tmpPdf}" "${tmpPng}"`);
+    const renderedPng = tmpPng + '-1.png';
 
-    const viewport = page.getViewport({ scale: 3.0 });
-    const canvas = createCanvas(viewport.width, viewport.height);
-    const ctx = canvas.getContext('2d');
+    // Rotate and threshold with ImageMagick
+    const finalPng = join(tmpdir(), randomBytes(8).toString('hex') + '.png');
+    execSync(`convert "${renderedPng}" -rotate -90 -threshold 50% "${finalPng}"`);
 
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Read and return
+    const imageBase64 = readFileSync(finalPng).toString('base64');
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    // Cleanup
+    unlinkSync(tmpPdf);
+    unlinkSync(renderedPng);
+    unlinkSync(finalPng);
 
-    // Convert to PNG buffer (already black-on-white, no extra threshold needed)
-    const pngBuffer = canvas.toBuffer('image/png');
-
-    // Rotate the PNG, keep white background
-    const finalBuffer = await sharp(pngBuffer)
-      .rotate(-90, { background: { r: 255, g: 255, b: 255, alpha: 1 } })
-      .png()
-      .toBuffer();
-
-    const finalBase64 = finalBuffer.toString('base64');
-    res.status(200).json({ image: finalBase64 });
+    res.status(200).json({ image: imageBase64 });
   } catch (error) {
     console.error('Majid render error:', error);
     res.status(500).json({ error: 'Failed to render PDF' });

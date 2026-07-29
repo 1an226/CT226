@@ -1,36 +1,20 @@
-export const maxDuration = 60; // seconds (Vercel serverless limit)
-
-export default async function handler(req) {
+export default async function handler(req, res) {
+  // CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-    });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    return res.status(204).end();
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const apiKey = process.env.NVIDIA_API_KEY || "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";
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'NVIDIA_API_KEY not configured' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  const apiKey = process.env.NVIDIA_API_KEY;
   const org = process.env.NVIDIA_ORG || 'x2v1';
 
   try {
-    const body = await req.json();
-
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
@@ -41,26 +25,19 @@ export default async function handler(req) {
         'Content-Type': 'application/json',
         'X-NVCF-ORG': org,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(req.body),
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
 
-    return new Response(response.body, {
-      status: response.status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
+    const data = await response.json();
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(response.status).json(data);
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
