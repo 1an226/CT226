@@ -1,6 +1,6 @@
+export const maxDuration = 60; // seconds (Vercel serverless limit)
 
 export default async function handler(req) {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -12,7 +12,6 @@ export default async function handler(req) {
     });
   }
 
-  // Only allow POST
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -20,23 +19,22 @@ export default async function handler(req) {
     });
   }
 
-  // Read server‑only secret – never exposed to the browser
   const apiKey = process.env.NVIDIA_API_KEY;
-  if (!apiKey) return new Response(JSON.stringify({ error: "NVIDIA_API_KEY not configured" }), { status: 500 });
-  const org = process.env.NVIDIA_ORG || 'x2v1';
-
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'NVIDIA API key not configured' }), {
+    return new Response(JSON.stringify({ error: 'NVIDIA_API_KEY not configured' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }
+  const org = process.env.NVIDIA_ORG || 'x2v1';
 
   try {
     const body = await req.json();
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
     const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-      signal: AbortSignal.timeout(60000),
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -44,7 +42,10 @@ export default async function handler(req) {
         'X-NVCF-ORG': org,
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     return new Response(response.body, {
       status: response.status,
@@ -62,4 +63,4 @@ export default async function handler(req) {
       },
     });
   }
-}export const maxDuration = 60;
+}
