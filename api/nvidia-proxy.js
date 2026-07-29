@@ -21,7 +21,8 @@ export default async function handler(req) {
   }
 
   // Read server‑only secret – never exposed to the browser
-  const apiKey = process.env.NVIDIA_API_KEY || "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";
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) return new Response(JSON.stringify({ error: "NVIDIA_API_KEY not configured" }), { status: 500 });
   const org = process.env.NVIDIA_ORG || 'x2v1';
 
   if (!apiKey) {
@@ -35,6 +36,7 @@ export default async function handler(req) {
     const body = await req.json();
 
     const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      signal: AbortSignal.timeout(60000),
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
