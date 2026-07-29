@@ -1,4 +1,4 @@
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
 import sharp from 'sharp';
 import { fileURLToPath } from 'url';
@@ -6,7 +6,12 @@ import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Paths to worker and wasm (relative to api/)
+const workerPath = join(__dirname, '..', 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
 const pdfjsWasmDir = join(__dirname, '..', 'node_modules', 'pdfjs-dist', 'wasm') + '/';
+
+GlobalWorkerOptions.workerSrc = 'file://' + workerPath;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
