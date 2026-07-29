@@ -1,4 +1,3 @@
-export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
   // Handle CORS preflight
@@ -61,4 +60,4 @@ export default async function handler(req) {
       },
     });
   }
-}
+}export const maxDuration = 60;

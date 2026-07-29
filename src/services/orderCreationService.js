@@ -1,6 +1,7 @@
 import apiClient from "@services/api.js";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs";
+pdfjsLib.GlobalWorkerOptions.wasmUrl = "/pdfjs/";
 import { getFGCode as getFGCodeFromStandard } from "@utils/StandardModel.js";
 import { STANDARD_MODEL } from "@utils/StandardModel.js";
 
