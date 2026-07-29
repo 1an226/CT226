@@ -34,6 +34,8 @@ const VALIDATION_SETTINGS = {
   MIN_ITEM_COUNT: parseInt(import.meta.env.VITE_MIN_ITEM_COUNT) || 1,
 };
 
+const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl";
+
 // ─── Customer code lists ─────────────────────────────────────────
 const CLEANSHELF_CUSTOMER_CODES = ["C06223","C00498","C06885","C00505","C07481","C00494","C07212","C04494","C00500","C04838","C00492","C06602","C00507","C00501","C00497","C00495","C04411","C00502","C05747"];
 const JAZARIBU_CUSTOMER_CODES = ["C07455","C07257","C06702","C06667","C06363","C07071","C06791","C07449","C06531","C06882","C06627","C07106","C06570","C06547","C07177","C06351","C07142","C07451","C07450","C07251","C06721"];
@@ -87,7 +89,7 @@ const detectCustomerTypeByCode = (customerCode = null, text = "") => {
   return "NAIVAS";
 };
 
-// ─── NATIVE PDF TEXT EXTRACTION ──────────────────────────────────
+// ─── NATIVE PDF TEXT EXTRACTION (for digital PDFs) ────────────────
 const extractTextFromPdf = async (arrayBuffer) => {
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let fullText = "";
@@ -114,7 +116,7 @@ const extractTextFromPdf = async (arrayBuffer) => {
   return fullText.trim();
 };
 
-// ─── SLM EXTRACTION (single 70B model for all digital PDFs) ─────
+// ─── SLM EXTRACTION (8B model for all customers) ────────────────
 const extractViaSLM = async (text, customerType) => {
   const rules = {
     NAIVAS: "Customer: Naivas Ltd.\nColumns: Item Code (e.g., 13505757 or N051055), Bar Code, Description, Unit (PCS), Quantity, Unit Price, Net Amount.\nLPO: appears as 'P' followed by 8-9 digits (e.g., P038449364). It may have a trailing '-1', which must be stripped.\nExtract the Item Code (not the Bar Code). For quantity, use the number AFTER the word 'PCS'.\nReturn ONLY valid JSON.",
@@ -125,7 +127,11 @@ const extractViaSLM = async (text, customerType) => {
 
     CLEANSHELF: "Customer: Cleanshelf Supermarkets.\nThere are two formats:\n1. Local Purchase Order:\n   - Text layout: Amount, Unit Price, Code (4003xxx), Description, Pack (ignore), Pieces (use).\n   - LPO: appears as 'CLS - ' followed by 5-6 digits (e.g., CLS - 91213).\n   - For each line with a 4003xxx code, ignore numbers before the code. After the code and description, there are two numbers: Pack (ignore) and Pieces (use). Use the Pieces number.\n2. Pending Purchase Order:\n   - Columns: numbers before the code (Outstanding, Orderd Qty., Received), then Code (4003xxx), Description.\n   - LPO: appears as a number with optional commas next to 'LPO No.' (e.g., 111,638 LPO No.). The number is usually BEFORE the words 'LPO No.'.\n   - For each line with a 4003xxx code, use the second of the three numbers before the code (Orderd Qty.).\nFor both formats, extract the Code and the correct quantity. LPO: if local, prepend 'CLS - '. For pending, remove commas from the LPO number.\nReturn ONLY valid JSON.",
 
-    QUICKMART: "Customer: Quickmart Ltd.\nColumns: Scan Code (13-digit barcode), Description, Packing (ignore), Order Qty (real quantity, often followed by 'PCS').\nLPO: appears after 'PURCHASE ORDER #' as a pattern like XXX-XXXXXXXX (e.g., 016-00057714).\nExtract the Scan Code (the 13-digit barcode). For quantity, use the Order Qty (the last number before 'PCS' at the end of the line).\nReturn ONLY valid JSON.",
+    CHANDARANA: "Customer: Chandarana.\nColumns: Bar Code (13 digits), Description, Quantity (real order quantity). Ignore any 'Scan Qty' column.\nLPO: appears after 'Order No.'.\nExtract the Bar Code and the Quantity.\nReturn ONLY valid JSON.",
+
+    MAJID: "Customer: Majid (Carrefour).\nColumns: BAR CODE (13 digits), QTY UC (the order quantity).\nLPO: appears after 'ORDER :'.\nExtract the BAR CODE and the QTY UC.\nReturn ONLY valid JSON.",
+
+    QUICKMART: "Customer: Quickmart Ltd.\nColumns: Code (short number like 700103 – IGNORE this column), Scan Code (13-digit barcode – use THIS as the item code), Description, Packing (always '1 PCS' – ignore), Order Qty (the real order quantity, always followed by 'PCS' and after the description), Unit, Agreed Invoice Price, Total.\nExample: line \"700103 6161102320268 ... 4.00 PCS ...\" → code 6161102320268, quantity 4.\nLPO: appears after 'PURCHASE ORDER #' as a pattern like XXX-XXXXXXXX (e.g., 016-00057714).\nExtract the Scan Code (13-digit) for each item. Do NOT use the short Code column.\nFor quantity, use the Order Qty (the number immediately before 'PCS' that appears after the description, NOT the '1 PCS' packing column).\nReturn ONLY valid JSON.",
   };
 
   const systemPrompt = "You are CT226, a deterministic, physics-informed order-entry transducer.\nYou receive CLEAN, structured text from a digital purchase order.\nYour task: apply the physics gauge map below to extract the LPO and all items with their codes and quantities.\n\n=== PHYSICS GAUGE MAP (only for " + customerType + ") ===\n" + (rules[customerType] || "Extract the most likely item code and order quantity.") + "\n\n=== OUTPUT FORMAT ===\nYour ENTIRE response must be a single line of valid JSON. No markdown, no explanations.\n{\"lpo\":\"string\",\"items\":[{\"code\":\"string\",\"quantity\":integer}]}\nIf no LPO is found, use \"UNKNOWN_LPO\". The quantity must be an integer (round if necessary). Do NOT include any totals - we will calculate them.";
@@ -136,7 +142,7 @@ const extractViaSLM = async (text, customerType) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "meta/llama-3.3-70b-instruct",
+      model: "meta/llama-3.1-8b-instruct",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
@@ -149,7 +155,7 @@ const extractViaSLM = async (text, customerType) => {
 
   const data = await resp.json();
   const content = data.choices[0].message.content;
-  console.log("[LLAMA-70B OUTPUT]", content);
+  console.log("[LLAMA-8B OUTPUT]", content);
 
   let parsed;
   try {
@@ -178,22 +184,170 @@ const extractViaSLM = async (text, customerType) => {
   };
 };
 
-// ─── MAIN EXTRACTION ORCHESTRATOR ────────────────────────────────
-const extractFromFile = async (file, customerType) => {
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-    const arrayBuffer = await file.arrayBuffer();
-    const text = await extractTextFromPdf(arrayBuffer);
-    console.log("[PDF TEXT]", text);
-    if (text.length > PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
-      console.log("[INFO] Using digital PDF path with 70B model");
-      return await extractViaSLM(text, customerType);
+// ─── SCANNED PDF PIPELINE (vision OCR + 8B extraction) ─────────
+const preprocessCropForVision = (cropCanvas) => {
+  const ctx = cropCanvas.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, cropCanvas.width, cropCanvas.height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i+3] === 0) {
+      data[i] = 255;
+      data[i+1] = 255;
+      data[i+2] = 255;
+      data[i+3] = 255;
+      continue;
     }
-    throw new Error("This PDF appears to be a scanned document. Scanned PDFs are not yet supported. Please use the digital version.");
+    const gray = 0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2];
+    const binary = gray > 128 ? 255 : 0;
+    data[i] = data[i+1] = data[i+2] = binary;
   }
-  throw new Error("Image uploads are not yet supported.");
+  ctx.putImageData(imageData, 0, 0);
+  return cropCanvas;
 };
 
-// ─── PUBLIC API ──────────────────────────────────────────────────
+const extractFromScannedPDF = async (file, customerType) => {
+  const prompt = 'This image contains a purchase order. Copy ALL the text from the image exactly as it appears, preserving columns, spaces, and line breaks. Do not add any extra words, explanations, or formatting. Output ONLY the raw text.';
+
+  // ── Majid: server‑side PDF → PNG (bypasses browser canvas) ──
+  if (customerType === 'MAJID') {
+    console.log('[INFO] Using server‑side PDF renderer for Majid');
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+    console.time('Server PDF Render');
+    const resp = await fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/majid-render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pdfBase64 }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error('Majid render API error: ' + (err.error || resp.status));
+    }
+    const { image } = await resp.json();
+    console.timeEnd('Server PDF Render');
+
+    const dataUrl = 'data:image/png;base64,' + image;
+
+    console.time('Vision OCR');
+    const ocrResp = await fetch('/nvidia-api/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: VISION_MODEL,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } }
+            ]
+          }
+        ],
+        temperature: 0,
+        max_tokens: 2048,
+      }),
+    });
+    if (!ocrResp.ok) throw new Error('Vision OCR error: ' + ocrResp.status);
+    const ocrData = await ocrResp.json();
+    const ocrText = ocrData.choices[0].message.content;
+    console.timeEnd('Vision OCR');
+    console.log('[VISION OCR TEXT]', ocrText);
+
+    if (ocrText.length < PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
+      throw new Error('OCR text is too short, likely a blank or unreadable image.');
+    }
+
+    console.time('8B Extraction');
+    const result = await extractViaSLM(ocrText, customerType);
+    console.timeEnd('8B Extraction');
+    return result;
+  }
+
+  // ── Browser pipeline for Chandarana & Quickmart ──
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({ scale: 3.0 });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  console.time('PDF Render');
+  await page.render({ canvasContext: ctx, viewport, intent: 'display' }).promise;
+  console.timeEnd('PDF Render');
+
+  console.time('Binarisation');
+  preprocessCropForVision(canvas);
+  console.timeEnd('Binarisation');
+
+  const dataUrl = canvas.toDataURL('image/png');
+
+  console.time('Vision OCR');
+  const resp = await fetch('/nvidia-api/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: VISION_MODEL,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUrl } }
+          ]
+        }
+      ],
+      temperature: 0,
+      max_tokens: 2048,
+    }),
+  });
+  if (!resp.ok) throw new Error('Vision OCR error: ' + resp.status);
+  const data = await resp.json();
+  const ocrText = data.choices[0].message.content;
+  console.timeEnd('Vision OCR');
+  console.log('[VISION OCR TEXT]', ocrText);
+
+  if (ocrText.length < PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
+    throw new Error('OCR text is too short, likely a blank or unreadable image.');
+  }
+
+  console.time('8B Extraction');
+  const result = await extractViaSLM(ocrText, customerType);
+  console.timeEnd('8B Extraction');
+  return result;
+};
+
+// ─── Updated extractFromFile (handles both digital and scanned) ──
+const extractFromFile = async (file, customerType) => {
+  if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
+    throw new Error("Only PDF files are supported.");
+  }
+
+  const VISION_CUSTOMERS = ["MAJID", "CHANDARANA", "QUICKMART"];
+  if (VISION_CUSTOMERS.includes(customerType)) {
+    console.log("[INFO] Using vision OCR pipeline for scanned PDF (customer: " + customerType + ")");
+    return await extractFromScannedPDF(file, customerType);
+  }
+
+  // Digital PDF path (original, untouched)
+  const arrayBuffer = await file.arrayBuffer();
+  const text = await extractTextFromPdf(arrayBuffer);
+  console.log("[PDF TEXT]", text);
+  if (text.length > PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
+    console.log("[INFO] Using digital PDF path with Llama-3.1-8B (NVIDIA)");
+    return await extractViaSLM(text, customerType);
+  } else {
+    throw new Error("This PDF appears to be a scanned document and is not yet supported for this customer.");
+  }
+};
+
+// ─── PUBLIC API (unchanged) ─────────────────────────────────────
 const parsePOFromDroppedFile = async (file, customerCode = null, customerType = "NAIVAS") => {
   const detected = detectCustomerTypeByCode(customerCode, customerType);
   if (detected !== customerType) customerType = detected;
@@ -251,7 +405,7 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
   };
 };
 
-// ─── MANUAL TEXT INPUT (DeepSeek transducer) ────────────────────
+// ─── MANUAL TEXT INPUT (unchanged) ───────────────────────────────
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   const systemPrompt = "You are CT226, a deterministic order-entry transducer.\n=== LAWS OF EXTRACTION (PHYSICS GAUGE MAP) ===\nExtract LPO and items strictly per this map.\nMajid      : LPO=\"ORDER :\", Code=\"BAR CODE\", Qty=\"QTY UC\"\nChandarana : LPO=\"Order No. :\", Code=\"Bar Code\", Qty=\"Quantity\" (not Scan Qty)\nQuickmart  : LPO=\"PURCHASE ORDER #\", Code=\"Scan Code\", Qty=\"Order Qty\"\nKhetia     : LPO=\"PURCHASE ORDER #\", Code=\"YOUR Code\", Qty=\"Order Qty\"\nJazaribu   : LPO=\"Order No.\" or \"PO-J\", Code=\"No.\" (JT), Qty=\"Quantity\"\nCleanshelf Pending : LPO=\"LPO No.\" (remove commas), Code=\"Code\", Qty=\"Orderd Qty.\"\nCleanshelf Local   : LPO=\"L. P. O. No:\" (keep CLS -), Code=\"CODE\", Qty=\"Pieces\"\nNaivas     : LPO=\"P\" + 8-9 digits (strip \"-1\" suffix), Code=\"Item Code\", Qty=\"Quantity\"\n\n=== OUTPUT FORMAT ===\nReturn ONLY JSON: {\"lpo\":\"string\",\"confidence\":0.0-1.0,\"items\":[{\"code\":\"string\",\"quantity\":integer}]}";
 
@@ -259,7 +413,7 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   const resp = await fetch("/nvidia-api/chat/completions", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "deepseek-ai/deepseek-v4-flash",
+      model: "meta/llama-3.1-8b-instruct",
       messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
       temperature: 0, max_tokens: 1024,
     }),

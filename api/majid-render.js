@@ -22,7 +22,15 @@ export default async function handler(req, res) {
     }
 
     const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-    const pdf = await getDocument({ data: pdfBuffer }).promise;
+    const pdfData = new Uint8Array(pdfBuffer);
+
+    const loadingTask = getDocument({
+      data: pdfData,
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/cmaps/',
+      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/standard_fonts/',
+      wasmUrl: "./pdfjs/",
+    });
+    const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
 
     const viewport = page.getViewport({ scale: 3.0 });
@@ -34,11 +42,12 @@ export default async function handler(req, res) {
 
     await page.render({ canvasContext: ctx, viewport }).promise;
 
+    // Convert to PNG buffer (already black-on-white, no extra threshold needed)
     const pngBuffer = canvas.toBuffer('image/png');
 
+    // Rotate the PNG, keep white background
     const finalBuffer = await sharp(pngBuffer)
       .rotate(-90, { background: { r: 255, g: 255, b: 255, alpha: 1 } })
-      .threshold(128)
       .png()
       .toBuffer();
 

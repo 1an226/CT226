@@ -25,7 +25,7 @@
     "url": "git+https://github.com/yourusername/ct226-system.git"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "node server.js & vite",
     "build": "vite build",
     "preview": "vite preview",
     "preview:prod": "vite preview --port 2260 --host",
@@ -36,21 +36,23 @@
   },
   "dependencies": {
     "axios": "^1.13.2",
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
+    "canvas": "^3.2.3",
     "pdfjs-dist": "^5.4.530",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "tesseract.js": "^7.0.0"
+    "sharp": "^0.35.3",
+    "vercel": "^58.1.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "cors": "^2.8.6",
     "eslint": "^8.57.0",
     "eslint-plugin-react": "^7.34.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.0",
+    "express": "^5.2.1",
     "prettier": "^3.2.5",
     "vite": "^7.3.0"
   },

@@ -22,7 +22,7 @@ export default async function handler(req) {
   }
 
   // Read server‑only secret – never exposed to the browser
-  const apiKey = process.env.NVIDIA_API_KEY;
+  const apiKey = process.env.NVIDIA_API_KEY || "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";
   const org = process.env.NVIDIA_ORG || 'x2v1';
 
   if (!apiKey) {

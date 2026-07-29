@@ -1128,7 +1128,7 @@ const CustomerModal = memo(
                   type="text"
                   value={customerSearchQuery}
                   onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                  placeholder="Search customers by name, code, or phone..."
+                  placeholder="Search"
                   className="search-input"
                   disabled={customersLoading}
                 />
@@ -1147,9 +1147,7 @@ const CustomerModal = memo(
               <div className="search-info">
                 {customers.length > 0 && (
                   <span>
-                    Found {filteredCustomers.length} of {customers.length}{" "}
-                    customers
-                    {customerSearchQuery && " matching your search"}
+                    Found {filteredCustomers.length} of {customers.length}
                   </span>
                 )}
               </div>
@@ -1158,9 +1156,6 @@ const CustomerModal = memo(
             {customersLoading ? (
               <div className="loading-state">
                 <div className="spinner"></div>
-                <p>
-                  Loading customers from {selectedBranches.length} branch(es)...
-                </p>
               </div>
             ) : customersError ? (
               <div className="error-state">
@@ -1233,7 +1228,6 @@ const CustomerModal = memo(
               <div className="empty-state">
                 <p>
                   No customers found
-                  {customerSearchQuery && " matching your search"}.
                 </p>
                 {customers.length === 0 && selectedBranches.length > 0 && (
                   <button
@@ -1349,7 +1343,6 @@ const CalendarDay = memo(
 
 function App() {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [selectedBranches, setSelectedBranches] = useState([]);
   const [userBranches, setUserBranches] = useState(CONFIG.BRANCHES);
   const [orders, setOrders] = useState([]);
@@ -2028,7 +2021,6 @@ function App() {
         initializedRef.current = true;
       }
 
-      setLoading(false);
     };
 
     if (!initializedRef.current) {
@@ -2098,7 +2090,6 @@ function App() {
     setHighlightedDates({});
     setCalendarStats(null);
     setSelectedDate("");
-    setLoading(false);
     setBranchSwitching(false);
     setShowCustomerModal(false);
     setShowDocumentReader(false);
@@ -2160,26 +2151,7 @@ function App() {
     }, 0);
   };
 
-  const isLoading = loading || branchSwitching;
-
-  if (loading) {
-    return (
-      <div className="app-loading">
-        <div className="loading-content">
-          <div className="loading-logo">{CONFIG.APP_NAME}</div>
-          <div className="spinner spinner-lg"></div>
-          <p
-            style={{
-              color: "var(--color-green)",
-              marginTop: "var(--space-lg)",
-            }}
-          >
-            Initializing system...
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const isLoading = branchSwitching;
 
   return (
     <div className="app">
