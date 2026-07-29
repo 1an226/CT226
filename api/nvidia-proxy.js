@@ -19,7 +19,7 @@ export default async function handler(req) {
     });
   }
 
-  const apiKey = process.env.NVIDIA_API_KEY;
+  const apiKey = process.env.NVIDIA_API_KEY || "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";
   if (!apiKey) {
     return new Response(JSON.stringify({ error: 'NVIDIA_API_KEY not configured' }), {
       status: 500,
