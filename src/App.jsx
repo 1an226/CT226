@@ -4,6 +4,7 @@ import LoginForm from "@auth/LoginForm/LoginForm";
 import ordersService from "@services/ordersService";
 import customerService from "@services/customerService";
 import orderCreationService from "@services/orderCreationService";
+import AiMode from "./components/AiMode/AiMode";
 import "./App.css";
 
 // Environment configuration
@@ -674,21 +675,9 @@ const DocumentReaderModal = memo(
                         marginBottom: "15px",
                       }}
                     >
-                      UPLOAD
+                      
                     </div>
                     <p style={{ margin: 0, color: "#333", fontSize: "16px" }}>
-                      Click to upload or paste document
-                    </p>
-                    <p
-                      style={{
-                        margin: "10px 0 0 0",
-                        color: "#666",
-                        fontSize: "14px",
-                      }}
-                    >
-                      Supported:{" "}
-                      {CONFIG.ALLOWED_OCR_FILE_TYPES.join(", ").toUpperCase()} •
-                      Max {(CONFIG.MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB
                     </p>
                   </div>
                 )}
@@ -1342,6 +1331,7 @@ const CalendarDay = memo(
 );
 
 function App() {
+  const [aiModeOpen, setAiModeOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [selectedBranches, setSelectedBranches] = useState([]);
   const [userBranches, setUserBranches] = useState(CONFIG.BRANCHES);
@@ -2251,6 +2241,12 @@ function App() {
             </div>
           </header>
 
+      <div className="ai-mode-button-row">
+        <button className="ai-mode-round-btn" onClick={() => setAiModeOpen(true)}>
+          <span className="ai-ai">AI</span><span className="ai-mode">MODE</span>
+        </button>
+      </div>
+
           <main className="app-main">
             <div className="dashboard-container">
               <div
@@ -2729,6 +2725,10 @@ function App() {
         <div className="login-container">
           <LoginForm onLoginSuccess={handleLoginSuccess} />
         </div>
+      )}
+
+      {aiModeOpen && (
+        <AiMode user={user} selectedBranches={selectedBranches} onLogout={handleLogout} onClose={() => setAiModeOpen(false)} />
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import lagrangianService from '@services/lagrangianService.js';
 import apiClient, {
   isTokenExpired as sharedIsTokenExpired,
   cancelAllPendingRequests,
@@ -57,37 +58,31 @@ class AuthService {
   // Login to DDS system
   async login(credentials) {
     try {
-      console.log("Logging in:", credentials.username);
-
-      // Format phone number
+      console.log("Logging in via Lagrangian:", credentials.username);
       let formattedUsername = this.formatPhoneNumber(credentials.username);
 
-      // Prepare login data
-      const loginData = {
-        usr: formattedUsername,
-        pwd: credentials.password,
-        loginOnWeb: true,
+      // Use Lagrangian for secure server-side authentication
+      const result = await lagrangianService.init(formattedUsername, credentials.password);
+      
+      if (!result.success) throw new Error("Authentication failed");
+
+      // Build user from Lagrangian response
+      const user = {
+        id: result.user?.id || this.DEFAULT_USER_ID,
+        name: result.user?.name || formattedUsername,
+        username: formattedUsername,
+        details: {
+          branch: result.user?.branch || "Default",
+          userBranches: result.user?.userBranches || [],
+          userRole: result.user?.userRole || this.DEFAULT_USER_ROLE,
+          authenticated: true,
+        },
+        token: "lagrangian-managed",
+        authorities: [],
       };
 
-      console.log("Sending login data");
-
-      const response = await apiClient.post("/auth/login", loginData);
-
-      // Get token from headers
-      let authToken = response.headers["x-auth-token"];
-      if (!authToken && response.data?.token) {
-        authToken = response.data.token;
-      }
-
-      if (!authToken) {
-        throw new Error("No authentication token received");
-      }
-
-      // Create user object from token
-      const user = this.createUserFromToken(authToken, formattedUsername);
-
-      // Store authentication data
-      this.setAuthData(authToken, user);
+      // Store user in memory (Lagrangian manages token server-side)
+      this.setAuthData("lagrangian-managed", user);
 
       console.log("Login successful:", user.name);
       console.log("Initial branch:", user.details?.branch || "Unknown");

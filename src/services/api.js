@@ -1,4 +1,5 @@
 import axios from "axios";
+import lagrangianService from './lagrangianService.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -39,7 +40,7 @@ const logError = (...args) => {
 };
 
 const apiClient = axios.create({
-  baseURL: "https://mbnl.ddsolutions.tech/dds-backend/api/v1",
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/dds-backend/api/v1',
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -121,6 +122,22 @@ export const setUnauthorizedHandler = (handlerFn) => {
 
 apiClient.interceptors.request.use(
   async (config) => {
+    // Route DDS API calls through Lagrangian proxy when active
+    if (lagrangianService.isActive() && config.url && !config.url.startsWith('http') && !config.url.includes('nvidia')) {
+      const originalMethod = config.method?.toLowerCase() || 'get';
+      const originalData = config.data;
+      const originalUrl = config.url;
+      
+      config.url = 'http://localhost:3001/api/lagrangian';
+      config.method = 'post';
+      config.data = {
+        action: 'proxy-dds',
+        sessionId: lagrangianService._sessionId,
+        body: { method: originalMethod, endpoint: originalUrl, data: originalData, params: config.params }
+      };
+      config.headers['Content-Type'] = 'application/json';
+    }
+
     const now = Date.now();
     const timeSinceLastRequest = now - lastRequestTime;
 

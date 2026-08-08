@@ -1,6 +1,6 @@
 import apiClient from "@services/api.js";
 import authService from "@services/authService";
-import { DDS_CONFIG } from "@utils/ddsConfig.js";
+import { DDS_CONFIG } from "@utils/DDS_CONFIG.js";
 
 const branchService = {
   // Get all warehouses (API only – no fallback)

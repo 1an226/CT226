@@ -163,7 +163,7 @@ const LoginForm = ({ onLoginSuccess }) => {
           {loading ? (
             <>
               <span className="loading-spinner"></span>
-              Logging in...
+              
             </>
           ) : (
             "LOG IN"

@@ -2,8 +2,8 @@ import apiClient from "@services/api.js";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs";
 pdfjsLib.GlobalWorkerOptions.wasmUrl = "/pdfjs/";
-import { getFGCode as getFGCodeFromStandard } from "@utils/StandardModel.js";
-import { STANDARD_MODEL } from "@utils/StandardModel.js";
+import { getFGCode as getFGCodeFromStandard } from "@utils/StandardModel.js?v=2";
+import { STANDARD_MODEL } from "@utils/StandardModel.js?v=2";
 
 // ─── Configuration ───────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -349,10 +349,16 @@ const extractFromFile = async (file, customerType) => {
 };
 
 // ─── PUBLIC API (unchanged) ─────────────────────────────────────
-const parsePOFromDroppedFile = async (file, customerCode = null, customerType = "NAIVAS") => {
+const parsePOFromDroppedFile = async (file, customerCode = null, customerType = "NAIVAS", preExtractedText = null) => {
   const detected = detectCustomerTypeByCode(customerCode, customerType);
   if (detected !== customerType) customerType = detected;
-  const aiOutput = await extractFromFile(file, customerType);
+  let aiOutput;
+  if (preExtractedText && preExtractedText.length >= PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH && !["MAJID","CHANDARANA","QUICKMART"].includes(detected)) {
+    // Use pre-extracted text for digital PDFs (from autonomous workflow)
+    aiOutput = await extractViaSLM(preExtractedText, detected);
+  } else {
+    aiOutput = await extractFromFile(file, detected);
+  }
   return parsePOTextFromParsedJSON(aiOutput, customerCode, customerType);
 };
 
@@ -483,8 +489,85 @@ const setupDragAndDrop = (element, callback) => {
 };
 
 // ─── Exports ────────────────────────────────────────────────────
+
+// ─── Lightweight Vision OCR for scanned PDFs ────────────────
+export const getVisionOcrText = async (file) => {
+  // Majid PDFs are always scanned – use the server‑side renderer (no pdfjs)
+  if (file.name.toUpperCase().includes('FAX')) {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+    const resp = await fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/majid-render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pdfBase64 }),
+    });
+    if (!resp.ok) throw new Error('Majid render API error: ' + resp.status);
+    const { image } = await resp.json();
+    const dataUrl = 'data:image/png;base64,' + image;
+
+    const prompt = 'Copy ALL text from this purchase order image exactly as it appears. Preserve columns, spaces, and line breaks. Output ONLY the raw text. No explanations.';
+    const ocrResp = await fetch('/nvidia-api/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: VISION_MODEL,
+        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+        temperature: 0,
+        max_tokens: 2048,
+      }),
+    });
+    if (!ocrResp.ok) throw new Error('Vision OCR error: ' + ocrResp.status);
+    const ocrData = await ocrResp.json();
+    return ocrData.choices[0].message.content;
+  }
+
+  // For Chandarana & Quickmart – render first page via pdfjs, then Vision OCR
+  const prompt = 'Copy ALL text from this purchase order image exactly as it appears. Preserve columns, spaces, and line breaks. Output ONLY the raw text. No explanations.';
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdfjsLib = await import('pdfjs-dist');
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({ scale: 3.0 });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: ctx, viewport, intent: 'display' }).promise;
+
+  // Binarize
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i+3] === 0) { data[i]=255; data[i+1]=255; data[i+2]=255; data[i+3]=255; continue; }
+    const gray = 0.2126*data[i] + 0.7152*data[i+1] + 0.0722*data[i+2];
+    const binary = gray > 128 ? 255 : 0;
+    data[i] = data[i+1] = data[i+2] = binary;
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  const dataUrl = canvas.toDataURL('image/png');
+
+  const resp = await fetch('/nvidia-api/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: VISION_MODEL,
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+      temperature: 0,
+      max_tokens: 2048,
+    }),
+  });
+  if (!resp.ok) throw new Error('Vision OCR failed: ' + resp.status);
+  const result = await resp.json();
+  return result.choices[0].message.content;
+};
+
 export default {
-  getProductsByCustomer, parsePOText, parsePOFromDroppedFile, parsePOFromImage: parsePOFromDroppedFile,
+  getVisionOcrText, extractTextFromPdf, getProductsByCustomer, parsePOText, parsePOFromDroppedFile, parsePOFromImage: parsePOFromDroppedFile,
   parseManualTextInput: parsePOText, createOrderFromPO, setupDragAndDrop,
   processDroppedFile: parsePOFromDroppedFile, findItemsAndQuantities, getFGCode, getProductName,
   getConfig: () => ({ DEFAULT_SETTINGS, PERFORMANCE_SETTINGS, VALIDATION_SETTINGS, CUSTOMER_PRICE_LISTS }),
