@@ -2,8 +2,8 @@ import apiClient from "@services/api.js";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs";
 pdfjsLib.GlobalWorkerOptions.wasmUrl = "/pdfjs/";
-import { getFGCode as getFGCodeFromStandard } from "@utils/StandardModel.js?v=2";
-import { STANDARD_MODEL } from "@utils/StandardModel.js?v=2";
+import { getFGCode as getFGCodeFromStandard } from "@utils/StandardModel.js";
+import { STANDARD_MODEL } from "@utils/StandardModel.js";
 
 // ─── Configuration ───────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -36,6 +36,32 @@ const VALIDATION_SETTINGS = {
 };
 
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl";
+
+// ─── NVIDIA API helper — routes through Lagrangian in production ─
+const NVIDIA_API_URL = import.meta.env.PROD ? '/api/lagrangian' : '/nvidia-api/chat/completions';
+
+const callNvidiaAPI = async (body, isVision = false) => {
+  if (import.meta.env.PROD) {
+    const resp = await fetch(NVIDIA_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'proxy-nvidia',
+        body: { endpoint: '/chat/completions', data: body }
+      }),
+    });
+    if (!resp.ok) throw new Error('NVIDIA API error: ' + resp.status);
+    return await resp.json();
+  }
+  // Dev mode: use Vite proxy
+  const resp = await fetch('/nvidia-api/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error('NVIDIA API error: ' + resp.status);
+  return await resp.json();
+};
 
 // ─── Customer code lists ─────────────────────────────────────────
 const CLEANSHELF_CUSTOMER_CODES = ["C06223","C00498","C06885","C00505","C07481","C00494","C07212","C04494","C00500","C04838","C00492","C06602","C00507","C00501","C00497","C00495","C04411","C00502","C05747"];
@@ -122,7 +148,7 @@ const extractViaSLM = async (text, customerType) => {
   const rules = {
     NAIVAS: "Customer: Naivas Ltd.\nColumns: Item Code (e.g., 13505757 or N051055), Bar Code, Description, Unit (PCS), Quantity, Unit Price, Net Amount.\nLPO: appears as 'P' followed by 8-9 digits (e.g., P038449364). It may have a trailing '-1', which must be stripped.\nExtract the Item Code (not the Bar Code). For quantity, use the number AFTER the word 'PCS'.\nReturn ONLY valid JSON.",
 
-    KHETIA: "Customer: Khetia Drapers Ltd.\nColumns: YOUR Code (6-digit item code), Description, Order Qty (the REAL order quantity, always followed by 'PCS'), Packing (ignore, e.g., '1 PCS * 8 PAIR').\nLPO: a 7-digit number (e.g., 2520950) near 'PURCHASE ORDER #' or at the top.\nExtract YOUR Code. For quantity, use the FIRST number that is immediately followed by 'PCS'. Ignore any numbers in the Packing column.\nReturn ONLY valid JSON.",
+    KHETIA: "Customer: Khetia Drapers Ltd.\nColumns: YOUR Code (6-digit item code), Description, Order Qty (the REAL order quantity, always followed by 'PCS'), Packing (ignore, e.g., '1 PCS * 8 PAIR').\nLPO: a 7-digit number (e.g., 2520950) near 'PURCHASE ORDER #' or at the top.\nCRITICAL: The LPO is NEVER a 6-digit number. If you see a 6-digit number, that is an ITEM CODE, not the LPO. The LPO is a 7-digit number.\nExtract YOUR Code. For quantity, use the FIRST number that is immediately followed by 'PCS'. Ignore any numbers in the Packing column.\nReturn ONLY valid JSON.",
 
     JAZARIBU: "Customer: Jazaribu Retail.\nColumns: Barcode, No. (JT code, e.g., JT01098), Description, Quantity (the number right before 'PIECES'), Unit of Measure (PIECES), Cost, Amount.\nIMPORTANT: There are MULTIPLE items. Look at ALL lines that contain a JT code (like JT01098, JT01097, etc.). Extract EVERY JT code you find, along with its quantity.\nLPO: appears as 'PO-J' followed by 3-3-6 digits (e.g., PO-J020-000253). It may be on the line after 'Order No.'.\nExtract the JT code. For quantity, use ONLY the number that appears immediately before the word 'PIECES'. Do NOT use any number from the description (like 400Gm).\nReturn ONLY valid JSON with ALL items.",
 
@@ -139,22 +165,16 @@ const extractViaSLM = async (text, customerType) => {
 
   const userPrompt = "Raw PDF text:\n" + text;
 
-  const resp = await fetch("/nvidia-api/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "meta/llama-3.1-8b-instruct",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0,
-      max_tokens: 1024,
-    }),
+  const data = await callNvidiaAPI({
+    model: "meta/llama-3.1-8b-instruct",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ],
+    temperature: 0,
+    max_tokens: 1024,
   });
-  if (!resp.ok) throw new Error("SLM API error: " + resp.status);
 
-  const data = await resp.json();
   const content = data.choices[0].message.content;
   console.log("[LLAMA-8B OUTPUT]", content);
 
@@ -232,26 +252,20 @@ const extractFromScannedPDF = async (file, customerType) => {
     const dataUrl = 'data:image/png;base64,' + image;
 
     console.time('Vision OCR');
-    const ocrResp = await fetch('/nvidia-api/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: VISION_MODEL,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: dataUrl } }
-            ]
-          }
-        ],
-        temperature: 0,
-        max_tokens: 2048,
-      }),
-    });
-    if (!ocrResp.ok) throw new Error('Vision OCR error: ' + ocrResp.status);
-    const ocrData = await ocrResp.json();
+    const ocrData = await callNvidiaAPI({
+      model: VISION_MODEL,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUrl } }
+          ]
+        }
+      ],
+      temperature: 0,
+      max_tokens: 2048,
+    }, true);
     const ocrText = ocrData.choices[0].message.content;
     console.timeEnd('Vision OCR');
     console.log('[VISION OCR TEXT]', ocrText);
@@ -290,26 +304,20 @@ const extractFromScannedPDF = async (file, customerType) => {
   const dataUrl = canvas.toDataURL('image/png');
 
   console.time('Vision OCR');
-  const resp = await fetch('/nvidia-api/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: VISION_MODEL,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: dataUrl } }
-          ]
-        }
-      ],
-      temperature: 0,
-      max_tokens: 2048,
-    }),
-  });
-  if (!resp.ok) throw new Error('Vision OCR error: ' + resp.status);
-  const data = await resp.json();
+  const data = await callNvidiaAPI({
+    model: VISION_MODEL,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: dataUrl } }
+        ]
+      }
+    ],
+    temperature: 0,
+    max_tokens: 2048,
+  }, true);
   const ocrText = data.choices[0].message.content;
   console.timeEnd('Vision OCR');
   console.log('[VISION OCR TEXT]', ocrText);
@@ -354,7 +362,6 @@ const parsePOFromDroppedFile = async (file, customerCode = null, customerType = 
   if (detected !== customerType) customerType = detected;
   let aiOutput;
   if (preExtractedText && preExtractedText.length >= PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH && !["MAJID","CHANDARANA","QUICKMART"].includes(detected)) {
-    // Use pre-extracted text for digital PDFs (from autonomous workflow)
     aiOutput = await extractViaSLM(preExtractedText, detected);
   } else {
     aiOutput = await extractFromFile(file, detected);
@@ -417,16 +424,11 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   const systemPrompt = "You are CT226, a deterministic order-entry transducer.\n=== LAWS OF EXTRACTION (PHYSICS GAUGE MAP) ===\nExtract LPO and items strictly per this map.\nMajid      : LPO=\"ORDER :\", Code=\"BAR CODE\", Qty=\"QTY UC\"\nChandarana : LPO=\"Order No. :\", Code=\"Bar Code\", Qty=\"Quantity\" (not Scan Qty)\nQuickmart  : LPO=\"PURCHASE ORDER #\", Code=\"Scan Code\", Qty=\"Order Qty\"\nKhetia     : LPO=\"PURCHASE ORDER #\", Code=\"YOUR Code\", Qty=\"Order Qty\"\nJazaribu   : LPO=\"Order No.\" or \"PO-J\", Code=\"No.\" (JT), Qty=\"Quantity\"\nCleanshelf Pending : LPO=\"LPO No.\" (remove commas), Code=\"Code\", Qty=\"Orderd Qty.\"\nCleanshelf Local   : LPO=\"L. P. O. No:\" (keep CLS -), Code=\"CODE\", Qty=\"Pieces\"\nNaivas     : LPO=\"P\" + 8-9 digits (strip \"-1\" suffix), Code=\"Item Code\", Qty=\"Quantity\"\n\n=== OUTPUT FORMAT ===\nReturn ONLY JSON: {\"lpo\":\"string\",\"confidence\":0.0-1.0,\"items\":[{\"code\":\"string\",\"quantity\":integer}]}";
 
   const userPrompt = "Customer: " + customerType + "\n" + text;
-  const resp = await fetch("/nvidia-api/chat/completions", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "meta/llama-3.1-8b-instruct",
-      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-      temperature: 0, max_tokens: 1024,
-    }),
+  const data = await callNvidiaAPI({
+    model: "meta/llama-3.1-8b-instruct",
+    messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+    temperature: 0, max_tokens: 1024,
   });
-  if (!resp.ok) throw new Error("AI Transducer API error: " + resp.status);
-  const data = await resp.json();
   const content = data.choices[0].message.content;
   let parsed;
   try {
@@ -490,9 +492,7 @@ const setupDragAndDrop = (element, callback) => {
 
 // ─── Exports ────────────────────────────────────────────────────
 
-// ─── Lightweight Vision OCR for scanned PDFs ────────────────
 export const getVisionOcrText = async (file) => {
-  // Majid PDFs are always scanned – use the server‑side renderer (no pdfjs)
   if (file.name.toUpperCase().includes('FAX')) {
     const arrayBuffer = await file.arrayBuffer();
     const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
@@ -507,22 +507,15 @@ export const getVisionOcrText = async (file) => {
     const dataUrl = 'data:image/png;base64,' + image;
 
     const prompt = 'Copy ALL text from this purchase order image exactly as it appears. Preserve columns, spaces, and line breaks. Output ONLY the raw text. No explanations.';
-    const ocrResp = await fetch('/nvidia-api/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: VISION_MODEL,
-        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
-        temperature: 0,
-        max_tokens: 2048,
-      }),
-    });
-    if (!ocrResp.ok) throw new Error('Vision OCR error: ' + ocrResp.status);
-    const ocrData = await ocrResp.json();
+    const ocrData = await callNvidiaAPI({
+      model: VISION_MODEL,
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+      temperature: 0,
+      max_tokens: 2048,
+    }, true);
     return ocrData.choices[0].message.content;
   }
 
-  // For Chandarana & Quickmart – render first page via pdfjs, then Vision OCR
   const prompt = 'Copy ALL text from this purchase order image exactly as it appears. Preserve columns, spaces, and line breaks. Output ONLY the raw text. No explanations.';
 
   const arrayBuffer = await file.arrayBuffer();
@@ -538,7 +531,6 @@ export const getVisionOcrText = async (file) => {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   await page.render({ canvasContext: ctx, viewport, intent: 'display' }).promise;
 
-  // Binarize
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
@@ -551,18 +543,12 @@ export const getVisionOcrText = async (file) => {
 
   const dataUrl = canvas.toDataURL('image/png');
 
-  const resp = await fetch('/nvidia-api/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: VISION_MODEL,
-      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
-      temperature: 0,
-      max_tokens: 2048,
-    }),
-  });
-  if (!resp.ok) throw new Error('Vision OCR failed: ' + resp.status);
-  const result = await resp.json();
+  const result = await callNvidiaAPI({
+    model: VISION_MODEL,
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+    temperature: 0,
+    max_tokens: 2048,
+  }, true);
   return result.choices[0].message.content;
 };
 
