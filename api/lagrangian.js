@@ -20,6 +20,7 @@ function parseCookies(cookieHeader) {
 }
 
 function getSessionId(req) {
+  // Try body first, then cookie
   if (req.body?.sessionId) return req.body.sessionId;
   const cookies = parseCookies(req.headers?.cookie);
   return cookies.ct226_sid || null;
@@ -115,6 +116,7 @@ async function handleInit(req, res) {
   const sid = Math.random().toString(36).substr(2, 16);
   sessions.set(sid, { token, customers, products, createdAt: Date.now() });
 
+  // Set httpOnly cookie so session survives page refresh
   res.setHeader('Set-Cookie', `ct226_sid=${sid}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`);
 
   return res.json({
@@ -144,13 +146,8 @@ async function proxyDDS(sessionId, body, res) {
   if (!session) return res.status(401).json({ error: 'Session expired' });
   await refreshTokenIfNeeded(session);
   
-  const { method, endpoint, data, params } = body || {};
-  let url = `${DDS_BASE}${endpoint || ''}`;
-  
-  if (params) {
-    const qs = new URLSearchParams(params).toString();
-    if (qs) url += '?' + qs;
-  }
+  const { method, endpoint, data } = body || {};
+  const url = `${DDS_BASE}${endpoint || ''}`;
   
   const options = {
     method: (method || 'GET').toUpperCase(),
