@@ -1,33 +1,29 @@
 // Lagrangian — Single gateway for DDS, NVIDIA, and AI Agents
 // Deployed on Vercel as serverless function
+// Supports httpOnly cookies for persistent sessions across refreshes
 
 const sessions = new Map();
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
 const NVIDIA_ORG = process.env.NVIDIA_ORG || 'x2v1';
 const DDS_BASE = 'https://mbnl.ddsolutions.tech/dds-backend/api/v1';
-
-// Token refresh buffer — refresh if less than 5 minutes to expiry
 const TOKEN_REFRESH_BUFFER = 300;
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  if (req.method === 'OPTIONS') return res.status(204).end();
+// ─── COOKIE HELPERS ─────────────────────────────────────────────
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  if (!cookieHeader) return cookies;
+  cookieHeader.split(';').forEach(pair => {
+    const [key, val] = pair.trim().split('=');
+    if (key) cookies[key] = decodeURIComponent(val || '');
+  });
+  return cookies;
+}
 
-  const { action, sessionId, query, body } = req.body || {};
-
-  try {
-    switch (action) {
-      case 'init': return await handleInit(req, res);
-      case 'data': return await handleData(sessionId, query, res);
-      case 'proxy-dds': return await proxyDDS(sessionId, body, res);
-      case 'proxy-nvidia': return await proxyNVIDIA(body, res);
-      case 'agent': return await runAgent(sessionId, body, res);
-      default: return res.status(400).json({ error: 'Invalid action' });
-    }
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
+function getSessionId(req) {
+  // Try body first, then cookie
+  if (req.body?.sessionId) return req.body.sessionId;
+  const cookies = parseCookies(req.headers?.cookie);
+  return cookies.ct226_sid || null;
 }
 
 // ─── TOKEN UTILS ────────────────────────────────────────────────
@@ -42,7 +38,6 @@ function isTokenExpiringSoon(token) {
 async function refreshTokenIfNeeded(session) {
   if (!session || !session.token) return;
   if (!isTokenExpiringSoon(session.token)) return;
-
   try {
     const resp = await fetch(`${DDS_BASE}/auth/refresh`, {
       method: 'POST',
@@ -58,6 +53,30 @@ async function refreshTokenIfNeeded(session) {
     }
   } catch (e) {
     console.warn('Token refresh failed:', e.message);
+  }
+}
+
+// ─── MAIN HANDLER ───────────────────────────────────────────────
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+
+  const { action, query, body } = req.body || {};
+  const sessionId = getSessionId(req);
+
+  try {
+    switch (action) {
+      case 'init': return await handleInit(req, res);
+      case 'data': return await handleData(sessionId, query, res);
+      case 'proxy-dds': return await proxyDDS(sessionId, body, res);
+      case 'proxy-nvidia': return await proxyNVIDIA(body, res);
+      case 'agent': return await runAgent(sessionId, body, res);
+      case 'logout': return await handleLogout(sessionId, res);
+      default: return res.status(400).json({ error: 'Invalid action' });
+    }
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 }
 
@@ -97,6 +116,9 @@ async function handleInit(req, res) {
   const sid = Math.random().toString(36).substr(2, 16);
   sessions.set(sid, { token, customers, products, createdAt: Date.now() });
 
+  // Set httpOnly cookie so session survives page refresh
+  res.setHeader('Set-Cookie', `ct226_sid=${sid}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`);
+
   return res.json({
     success: true,
     sessionId: sid,
@@ -122,8 +144,6 @@ async function handleData(sessionId, query, res) {
 async function proxyDDS(sessionId, body, res) {
   const session = sessions.get(sessionId);
   if (!session) return res.status(401).json({ error: 'Session expired' });
-
-  // Proactive token refresh before every DDS call
   await refreshTokenIfNeeded(session);
   
   const { method, endpoint, data } = body || {};
@@ -168,6 +188,13 @@ async function proxyNVIDIA(body, res) {
   
   const responseData = await response.json();
   return res.status(response.status).json(responseData);
+}
+
+// ─── LOGOUT ─────────────────────────────────────────────────────
+async function handleLogout(sessionId, res) {
+  if (sessionId) sessions.delete(sessionId);
+  res.setHeader('Set-Cookie', 'ct226_sid=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
+  return res.json({ success: true });
 }
 
 // ─── AGENT RUNTIME ──────────────────────────────────────────────
