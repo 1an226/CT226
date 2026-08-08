@@ -129,6 +129,7 @@ apiClient.interceptors.request.use(
       const originalData = config.data;
       const originalUrl = config.url;
       
+      config.baseURL = '';
       config.url = LAGRANGIAN_URL;
       config.method = 'post';
       config.data = {
