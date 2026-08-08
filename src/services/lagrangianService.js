@@ -1,4 +1,4 @@
-const LAGRANGIAN_URL = 'http://localhost:3001/api/lagrangian';
+const LAGRANGIAN_URL = import.meta.env.PROD ? '/api/lagrangian' : 'http://localhost:3001/api/lagrangian';
 let sessionId = null;
 let cachedData = null;
 
