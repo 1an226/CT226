@@ -5,7 +5,7 @@
 const sessions = new Map();
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
 const NVIDIA_ORG = process.env.NVIDIA_ORG || 'x2v1';
-const DDS_BASE = 'https://mbnl.ddsolutions.tech/dds-backend/api/v1'\;
+const DDS_BASE = 'https://mbnl.ddsolutions.tech/dds-backend/api/v1';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -28,7 +28,6 @@ export default async function handler(req, res) {
   }
 }
 
-// ─── INIT: Login + fetch all data ───────────────────────────
 async function handleInit(req, res) {
   const { username, password } = req.body;
   const loginRes = await fetch(`${DDS_BASE}/auth/login`, {
@@ -41,7 +40,6 @@ async function handleInit(req, res) {
   const token = loginRes.headers.get('x-auth-token');
   if (!token) return res.status(401).json({ error: 'No token' });
 
-  // Fetch all data in parallel
   const headers = { 'Authorization': `Bearer ${token}`, 'X-Auth-Token': token };
   const [custRes, naivasRes, spRes, depotRes] = await Promise.all([
     fetch(`${DDS_BASE}/customer/list`, { headers }).then(r => r.json()).catch(() => ({})),
@@ -61,10 +59,8 @@ async function handleInit(req, res) {
     KHETIA: depotRes.payload || depotRes || [],
   };
 
-  // Decode JWT for user info
-  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-  
-  const sid = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2);
+  const payload = JSON.parse(atob(token.split('.')[1]));
+  const sid = Math.random().toString(36).substr(2, 16);
   sessions.set(sid, { token, customers, products, createdAt: Date.now() });
 
   return res.json({
@@ -79,7 +75,6 @@ async function handleInit(req, res) {
   });
 }
 
-// ─── DATA: Return cached session data ────────────────────────
 async function handleData(sessionId, query, res) {
   const session = sessions.get(sessionId);
   if (!session) return res.status(401).json({ error: 'Session expired' });
@@ -88,7 +83,6 @@ async function handleData(sessionId, query, res) {
   return res.json({ error: 'Unknown query' });
 }
 
-// ─── PROXY DDS: Forward to DDS with server-side token ────────
 async function proxyDDS(sessionId, body, res) {
   const session = sessions.get(sessionId);
   if (!session) return res.status(401).json({ error: 'Session expired' });
@@ -112,14 +106,12 @@ async function proxyDDS(sessionId, body, res) {
   const response = await fetch(url, options);
   const responseData = await response.json().catch(() => ({}));
   
-  // If branch switch, update session token
   const newToken = response.headers.get('x-auth-token');
   if (newToken) session.token = newToken;
   
   return res.status(response.status).json(responseData);
 }
 
-// ─── PROXY NVIDIA: Forward to NVIDIA API ─────────────────────
 async function proxyNVIDIA(body, res) {
   const { endpoint, data } = body || {};
   const url = `https://integrate.api.nvidia.com/v1${endpoint || '/chat/completions'}`;
@@ -138,7 +130,6 @@ async function proxyNVIDIA(body, res) {
   return res.status(response.status).json(responseData);
 }
 
-// ─── AGENT RUNTIME: Run named agent ──────────────────────────
 async function runAgent(sessionId, body, res) {
   const session = sessions.get(sessionId);
   if (!session) return res.status(401).json({ error: 'Session expired' });
@@ -159,19 +150,16 @@ async function runAgent(sessionId, body, res) {
   }
 }
 
-// ─── ATHENA: Identify exact customer outlet ──────────────────
 function athenaIdentify(ocrText, fileName, session) {
   const text = (ocrText || '').toUpperCase();
   const customers = session.customers || [];
   
-  // FAX detection
   if (fileName && fileName.toUpperCase().includes('FAX')) {
     const majid = customers.find(c => c.code === 'C01994');
     if (majid) return { name: majid.name, code: majid.code, branch: majid.branch, type: 'MAJID' };
     return { name: 'Majid (Carrefour)', code: 'C01994', branch: 'Dandora 3', type: 'MAJID' };
   }
   
-  // Customer type detection
   let detectedType = 'NAIVAS';
   if (text.includes('JAZARIBU')) detectedType = 'JAZARIBU';
   else if (text.includes('CLEANSHELF') || text.includes('CLEAN SHELF')) detectedType = 'CLEANSHELF';
@@ -179,13 +167,11 @@ function athenaIdentify(ocrText, fileName, session) {
   else if (text.includes('CHANDARANA')) detectedType = 'CHANDARANA';
   else if (text.includes('QUICKMART') || text.includes('QUICK MART')) detectedType = 'QUICKMART';
   
-  // Find exact outlet by matching delivery address keywords
   const typeCustomers = customers.filter(c => 
     (c.name || '').toUpperCase().includes(detectedType) ||
     (c.customerType || '').toUpperCase().includes('SUPERMARKET')
   );
   
-  // Score each customer by keyword matches in OCR text
   let bestMatch = null;
   let bestScore = 0;
   
@@ -214,11 +200,9 @@ function athenaIdentify(ocrText, fileName, session) {
     };
   }
   
-  // Fallback
   return { name: detectedType, code: 'C02371', branch: 'Thika', type: detectedType };
 }
 
-// ─── HERMES: Branch switch ───────────────────────────────────
 async function hermesSwitch(branch, session, res) {
   const response = await fetch(`${DDS_BASE}/auth/switchbranch`, {
     method: 'POST',
@@ -236,7 +220,6 @@ async function hermesSwitch(branch, session, res) {
   return { success: response.ok, branch };
 }
 
-// ─── APOLLO: LPO validation ──────────────────────────────────
 function apolloValidate(lpo, customerType) {
   const patterns = {
     NAIVAS: /^P\d{8,9}$/,
@@ -251,7 +234,6 @@ function apolloValidate(lpo, customerType) {
   return { valid: pattern ? pattern.test(lpo) : true, lpo };
 }
 
-// ─── HEPHAESTUS: FG code matching ────────────────────────────
 function hephaestusMatch(items, customerType, session) {
   const products = session.products?.[customerType] || [];
   return items.map(item => {
