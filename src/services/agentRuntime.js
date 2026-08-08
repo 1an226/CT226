@@ -3,7 +3,7 @@ import authService from './authService';
 import ordersService from './ordersService';
 
 // ============================================================================
-// OUTLET EXCEPTIONS — hardcoded mappings for OCR name → DDS outlet
+// OUTLET EXCEPTIONS — checked BEFORE regex. Exact OCR keyword → DDS outlet.
 // ============================================================================
 const OUTLET_EXCEPTIONS = {
   'FRESHMARKET': { name: 'Cleanshelf Supermarket Limited- Shujaa Mall', code: 'C04494', branch: 'Dandora 3', type: 'CLEANSHELF' },
@@ -14,6 +14,7 @@ const OUTLET_EXCEPTIONS = {
 // ============================================================================
 const OUTLET_ALIASES = {
   NAIVAS: {
+    'TATU CITY': 'tatu city',
     'ANANAS': 'annanas',
     'NORTHVIEW': 'survey',
     'KOMAROCK': 'komorocks',
@@ -38,10 +39,13 @@ const OUTLET_ALIASES = {
     'FRESHMART': 'rongai',
   },
   QUICKMART: {
+    'MOMBASA ROAD': 'mombasa rd',
+    'MOMBASA RD': 'mombasa rd',
     'EBP 1': 'eastern bypass',
     'EBP 2': 'fresh and easy',
     'KIKUYU': 'waithaka',
     'OBD': 'cbd',
+    'RONGAI': 'rongai',
   },
 };
 
@@ -49,11 +53,9 @@ const OUTLET_ALIASES = {
 // OUTLET NAME RULES — logical rules for matching
 // ============================================================================
 const OUTLET_RULES = {
-  // Naivas: if two words, the UNIQUE word (not "Thika") identifies the outlet
   NAIVAS: (outletText, customers) => {
     const words = outletText.split(/[\s,]+/).filter(w => w.length > 2);
     if (words.length >= 2) {
-      // Count frequency of each word across all Naivas customers
       const typeCustomers = customers.filter(c => (c.name || '').toUpperCase().includes('NAIVAS'));
       const freq = {};
       for (const w of words) {
@@ -62,28 +64,16 @@ const OUTLET_RULES = {
           if ((c.name || '').toUpperCase().includes(w)) freq[w]++;
         }
       }
-      // Use the rarest word as primary identifier
       const sorted = words.sort((a, b) => freq[a] - freq[b]);
-      return sorted[0]; // Rarest word = most specific
+      return sorted[0];
     }
     return outletText;
   },
 
-  // Quickmart: if "Express" is last word, match on the part before it
-  QUICKMART: (outletText, customers) => {
-    const cleaned = outletText.replace(/EXPRESS$/i, '').trim();
-    return cleaned || outletText;
-  },
+  QUICKMART: (outletText) => outletText,
 
-  // Cleanshelf: if second name is "Freshmart", match on first name
-  CLEANSHELF: (outletText, customers) => {
-    if (outletText.includes('FRESHMART') && outletText !== 'FRESHMART') {
-      return outletText.replace('FRESHMART', '').trim();
-    }
-    return outletText;
-  },
+  CLEANSHELF: (outletText) => outletText,
 
-  // Default: return as-is
   DEFAULT: (outletText) => outletText,
 };
 
@@ -106,7 +96,7 @@ const OUTLET_REGEX = {
 // ============================================================================
 
 function identifyByRegex(text, fileName, customers) {
-  // 1. Check exceptions first
+  // 1. Check exceptions BEFORE anything else
   for (const [keyword, outlet] of Object.entries(OUTLET_EXCEPTIONS)) {
     if (text.includes(keyword)) {
       return { name: outlet.name, code: outlet.code, branch: outlet.branch, type: outlet.type };
@@ -167,13 +157,13 @@ function identifyByRegex(text, fileName, customers) {
   const rule = OUTLET_RULES[type] || OUTLET_RULES.DEFAULT;
   outletText = rule(outletText, customers);
 
-  // 5. Fuzzy match with inverse document frequency weighting
+  // 5. Fuzzy match with IDF weighting
   const typeCustomers = customers.filter(c => (c.name || '').toUpperCase().includes(type));
   if (!typeCustomers.length) return null;
 
   const words = outletText.split(/[\s,]+/).filter(w => w.length > 2);
-  
-  // Count how many customers each word appears in
+  if (words.length === 0) return null;
+
   const wordFrequency = {};
   for (const w of words) {
     wordFrequency[w] = 0;
@@ -182,7 +172,6 @@ function identifyByRegex(text, fileName, customers) {
     }
   }
 
-  // Score each customer — rare words get higher weight (IDF)
   let best = null, bestScore = 0;
   for (const c of typeCustomers) {
     let score = 0;
@@ -203,7 +192,7 @@ function identifyByRegex(text, fileName, customers) {
 }
 
 // ============================================================================
-// AI BACKUP — Llama 8B for complex cases regex can't handle
+// AI BACKUP — Llama 8B, only called if regex returns null
 // ============================================================================
 const identifyCustomerViaAI = async (ocrText, fileName, customers) => {
   const text = (ocrText || '').toUpperCase();
@@ -219,16 +208,14 @@ const identifyCustomerViaAI = async (ocrText, fileName, customers) => {
   const outletList = typeCustomers.map(c => `${c.customerCode || c.code}: ${c.name} (Branch: ${c.branch})`).join('\n');
 
   try {
-    const resp = await fetch('/nvidia-api/chat/completions', {
+    const NVIDIA_URL = import.meta.env.PROD ? '/api/lagrangian' : '/nvidia-api/chat/completions';
+    const body = import.meta.env.PROD 
+      ? { action: 'proxy-nvidia', body: { endpoint: '/chat/completions', data: { model: 'meta/llama-3.1-8b-instruct', messages: [{ role: 'system', content: `Identify the EXACT customer outlet. Return ONLY JSON: {"code":"Cxxxxx"}. Available outlets:\n${outletList}` }, { role: 'user', content: ocrText.substring(0, 3000) }], temperature: 0, max_tokens: 100 } } }
+      : { model: 'meta/llama-3.1-8b-instruct', messages: [{ role: 'system', content: `Identify the EXACT customer outlet. Return ONLY JSON: {"code":"Cxxxxx"}. Available outlets:\n${outletList}` }, { role: 'user', content: ocrText.substring(0, 3000) }], temperature: 0, max_tokens: 100 };
+
+    const resp = await fetch(NVIDIA_URL, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'meta/llama-3.1-8b-instruct',
-        messages: [
-          { role: 'system', content: `Identify the EXACT customer outlet from this purchase order. Return ONLY JSON: {"code":"Cxxxxx"}. Available outlets:\n${outletList}` },
-          { role: 'user', content: ocrText.substring(0, 3000) }
-        ],
-        temperature: 0, max_tokens: 100,
-      }),
+      body: JSON.stringify(body),
     });
     if (!resp.ok) return null;
     const data = await resp.json();
