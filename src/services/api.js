@@ -39,6 +39,8 @@ const logError = (...args) => {
   }
 };
 
+const LAGRANGIAN_URL = import.meta.env.PROD ? '/api/lagrangian' : 'http://localhost:3001/api/lagrangian';
+
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/dds-backend/api/v1',
   headers: {
@@ -122,13 +124,12 @@ export const setUnauthorizedHandler = (handlerFn) => {
 
 apiClient.interceptors.request.use(
   async (config) => {
-    // Route DDS API calls through Lagrangian proxy when active
     if (lagrangianService.isActive() && config.url && !config.url.startsWith('http') && !config.url.includes('nvidia')) {
       const originalMethod = config.method?.toLowerCase() || 'get';
       const originalData = config.data;
       const originalUrl = config.url;
       
-      config.url = 'http://localhost:3001/api/lagrangian';
+      config.url = LAGRANGIAN_URL;
       config.method = 'post';
       config.data = {
         action: 'proxy-dds',
@@ -209,7 +210,6 @@ apiClient.interceptors.response.use(
       activeControllers.delete(error.config._controller);
     }
 
-    // Sanitize sensitive headers before logging
     if (error.config?.headers) {
       delete error.config.headers['Authorization'];
       delete error.config.headers['X-Auth-Token'];
