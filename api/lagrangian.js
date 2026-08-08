@@ -1,11 +1,13 @@
 // Lagrangian — Single gateway for DDS, NVIDIA, and AI Agents
 // Deployed on Vercel as serverless function
-// Local dev: Express server.js handles same endpoints
 
 const sessions = new Map();
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
 const NVIDIA_ORG = process.env.NVIDIA_ORG || 'x2v1';
 const DDS_BASE = 'https://mbnl.ddsolutions.tech/dds-backend/api/v1';
+
+// Token refresh buffer — refresh if less than 5 minutes to expiry
+const TOKEN_REFRESH_BUFFER = 300;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -28,6 +30,38 @@ export default async function handler(req, res) {
   }
 }
 
+// ─── TOKEN UTILS ────────────────────────────────────────────────
+function isTokenExpiringSoon(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const now = Math.floor(Date.now() / 1000);
+    return (payload.exp - now) < TOKEN_REFRESH_BUFFER;
+  } catch { return true; }
+}
+
+async function refreshTokenIfNeeded(session) {
+  if (!session || !session.token) return;
+  if (!isTokenExpiringSoon(session.token)) return;
+
+  try {
+    const resp = await fetch(`${DDS_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.token}`,
+        'X-Auth-Token': session.token,
+      },
+    });
+    const newToken = resp.headers.get('x-auth-token');
+    if (newToken) {
+      session.token = newToken;
+      console.log('Token refreshed proactively');
+    }
+  } catch (e) {
+    console.warn('Token refresh failed:', e.message);
+  }
+}
+
+// ─── INIT: Login + fetch all data ───────────────────────────────
 async function handleInit(req, res) {
   const { username, password } = req.body;
   const loginRes = await fetch(`${DDS_BASE}/auth/login`, {
@@ -75,6 +109,7 @@ async function handleInit(req, res) {
   });
 }
 
+// ─── DATA ───────────────────────────────────────────────────────
 async function handleData(sessionId, query, res) {
   const session = sessions.get(sessionId);
   if (!session) return res.status(401).json({ error: 'Session expired' });
@@ -83,9 +118,13 @@ async function handleData(sessionId, query, res) {
   return res.json({ error: 'Unknown query' });
 }
 
+// ─── PROXY DDS ──────────────────────────────────────────────────
 async function proxyDDS(sessionId, body, res) {
   const session = sessions.get(sessionId);
   if (!session) return res.status(401).json({ error: 'Session expired' });
+
+  // Proactive token refresh before every DDS call
+  await refreshTokenIfNeeded(session);
   
   const { method, endpoint, data } = body || {};
   const url = `${DDS_BASE}${endpoint || ''}`;
@@ -112,6 +151,7 @@ async function proxyDDS(sessionId, body, res) {
   return res.status(response.status).json(responseData);
 }
 
+// ─── PROXY NVIDIA ───────────────────────────────────────────────
 async function proxyNVIDIA(body, res) {
   const { endpoint, data } = body || {};
   const url = `https://integrate.api.nvidia.com/v1${endpoint || '/chat/completions'}`;
@@ -130,6 +170,7 @@ async function proxyNVIDIA(body, res) {
   return res.status(response.status).json(responseData);
 }
 
+// ─── AGENT RUNTIME ──────────────────────────────────────────────
 async function runAgent(sessionId, body, res) {
   const session = sessions.get(sessionId);
   if (!session) return res.status(401).json({ error: 'Session expired' });
