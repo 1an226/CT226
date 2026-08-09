@@ -1,4 +1,5 @@
 import apiClient from "@services/api.js";
+import lagrangianService from "@services/lagrangianService.js";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs";
 pdfjsLib.GlobalWorkerOptions.wasmUrl = "/pdfjs/";
@@ -37,14 +38,19 @@ const VALIDATION_SETTINGS = {
 
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl";
 
-// ─── NVIDIA API helper — routes through Lagrangian in production ─
-const NVIDIA_API_URL = import.meta.env.PROD ? '/api/lagrangian' : '/nvidia-api/chat/completions';
-
+// ─── NVIDIA API helper — routes through Lagrangian whenever Lagrangian ──
+// owns the session, not just when the build is a PROD build. Tying this to
+// `lagrangianService.isActive()` instead of `import.meta.env.PROD` is the
+// actual fix for calls silently going straight to `/nvidia-api` on Vercel:
+// a PROD build running without a live Lagrangian session (or a build-time
+// env mismatch) previously fell through to the dev-proxy path, which
+// doesn't exist on Vercel and just fails.
 const callNvidiaAPI = async (body, isVision = false) => {
-  if (import.meta.env.PROD) {
-    const resp = await fetch(NVIDIA_API_URL, {
+  if (lagrangianService.isActive()) {
+    const resp = await fetch('/api/lagrangian', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         action: 'proxy-nvidia',
         body: { endpoint: '/chat/completions', data: body }
@@ -53,7 +59,7 @@ const callNvidiaAPI = async (body, isVision = false) => {
     if (!resp.ok) throw new Error('NVIDIA API error: ' + resp.status);
     return await resp.json();
   }
-  // Dev mode: use Vite proxy
+  // Manual/V1 mode only: use Vite dev proxy directly.
   const resp = await fetch('/nvidia-api/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -230,6 +236,11 @@ const extractFromScannedPDF = async (file, customerType) => {
   const prompt = 'This image contains a purchase order. Copy ALL the text from the image exactly as it appears, preserving columns, spaces, and line breaks. Do not add any extra words, explanations, or formatting. Output ONLY the raw text.';
 
   // ── Majid: server‑side PDF → PNG (bypasses browser canvas) ──
+  // NOTE: this hits a separate `/api/majid-render` function, not the
+  // Lagrangian gateway — out of scope for this fix, but flagging it here
+  // since it's the one remaining direct serverless call in this file. If
+  // it ever starts 401ing or timing out on Vercel, it needs the same
+  // treatment (credentials included, checked against cold-start behavior).
   if (customerType === 'MAJID') {
     console.log('[INFO] Using server‑side PDF renderer for Majid');
 
@@ -240,6 +251,7 @@ const extractFromScannedPDF = async (file, customerType) => {
     const resp = await fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/majid-render', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ pdfBase64 }),
     });
     if (!resp.ok) {
@@ -500,6 +512,7 @@ export const getVisionOcrText = async (file) => {
     const resp = await fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/majid-render', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ pdfBase64 }),
     });
     if (!resp.ok) throw new Error('Majid render API error: ' + resp.status);
