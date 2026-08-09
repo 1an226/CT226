@@ -141,18 +141,23 @@ async function handleData(sessionId, query, res) {
 }
 
 // ─── PROXY DDS ──────────────────────────────────────────────────
-async function proxyDDS(sessionId, body, res) {
+﻿async function proxyDDS(sessionId, body, res) {
   const session = sessions.get(sessionId);
   if (!session) return res.status(401).json({ error: 'Session expired' });
   await refreshTokenIfNeeded(session);
   
-  const { method, endpoint, data } = body || {};
-  const url = `${DDS_BASE}${endpoint || ''}`;
+  const { method, endpoint, data, params } = body || {};
+  let url = ${DDS_BASE};
+  
+  if (params) {
+    const qs = new URLSearchParams(params).toString();
+    if (qs) url += '?' + qs;
+  }
   
   const options = {
     method: (method || 'GET').toUpperCase(),
     headers: {
-      'Authorization': `Bearer ${session.token}`,
+      'Authorization': ${session.token},
       'X-Auth-Token': session.token,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
