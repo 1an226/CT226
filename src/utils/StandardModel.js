@@ -19,7 +19,23 @@ const MAJID_MAP = parseMapping(import.meta.env.VITE_MAJID_BARCODE_MAPPING);
 const CHANDARANA_MAP = parseMapping(import.meta.env.VITE_CHANDARANA_BARCODE_MAPPING);
 const QUICKMART_MAP = parseMapping(import.meta.env.VITE_QUICKMART_BARCODE_MAPPING);
 
+
+// Hardcoded fallback for Jazaribu JT codes (env may not load on Vercel)
+const JAZARIBU_FALLBACK = {
+  JT01090: "FG030",
+  JT01094: "FG017", 
+  JT01097: "FG018",
+  JT01099: "FG026",
+  JT01093: "FG027",
+  JT01098: "FG015",
+  JT01091: "FG031",
+  JT01100: "FG006",
+  JT01102: "FG007",
+  JT01103: "FG008",
+};
+
 const STANDARD_MODEL = {
+  ...JAZARIBU_FALLBACK,
   ...ITEM_MAP,
   ...CLEANSHELF_MAP,
   ...JAZARIBU_MAP,
