@@ -1,4 +1,4 @@
-// Lagrangian — Single gateway for DDS, NVIDIA, and AI Agents
+﻿// Lagrangian — Single gateway for DDS, NVIDIA, and AI Agents
 // Deployed on Vercel as serverless function
 // Supports httpOnly cookies for persistent sessions across refreshes
 
@@ -20,7 +20,6 @@ function parseCookies(cookieHeader) {
 }
 
 function getSessionId(req) {
-  // Try body first, then cookie
   if (req.body?.sessionId) return req.body.sessionId;
   const cookies = parseCookies(req.headers?.cookie);
   return cookies.ct226_sid || null;
@@ -39,10 +38,10 @@ async function refreshTokenIfNeeded(session) {
   if (!session || !session.token) return;
   if (!isTokenExpiringSoon(session.token)) return;
   try {
-    const resp = await fetch(`${DDS_BASE}/auth/refresh`, {
+    const resp = await fetch(BASE_URL + '/auth/refresh', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${session.token}`,
+        'Authorization': 'Bearer ' + session.token,
         'X-Auth-Token': session.token,
       },
     });
@@ -83,7 +82,7 @@ export default async function handler(req, res) {
 // ─── INIT: Login + fetch all data ───────────────────────────────
 async function handleInit(req, res) {
   const { username, password } = req.body;
-  const loginRes = await fetch(`${DDS_BASE}/auth/login`, {
+  const loginRes = await fetch(DDS_BASE + '/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ usr: username, pwd: password, loginOnWeb: true }),
@@ -93,12 +92,12 @@ async function handleInit(req, res) {
   const token = loginRes.headers.get('x-auth-token');
   if (!token) return res.status(401).json({ error: 'No token' });
 
-  const headers = { 'Authorization': `Bearer ${token}`, 'X-Auth-Token': token };
+  const headers = { 'Authorization': 'Bearer ' + token, 'X-Auth-Token': token };
   const [custRes, naivasRes, spRes, depotRes] = await Promise.all([
-    fetch(`${DDS_BASE}/customer/list`, { headers }).then(r => r.json()).catch(() => ({})),
-    fetch(`${DDS_BASE}/item/listByPrice/Naivas%20Special%20Price`, { headers }).then(r => r.json()).catch(() => ({})),
-    fetch(`${DDS_BASE}/item/listByPrice/Supermarkets%20Price`, { headers }).then(r => r.json()).catch(() => ({})),
-    fetch(`${DDS_BASE}/item/listByPrice/Depot%20Price`, { headers }).then(r => r.json()).catch(() => ({})),
+    fetch(DDS_BASE + '/customer/list', { headers }).then(r => r.json()).catch(() => ({})),
+    fetch(DDS_BASE + '/item/listByPrice/Naivas%20Special%20Price', { headers }).then(r => r.json()).catch(() => ({})),
+    fetch(DDS_BASE + '/item/listByPrice/Supermarkets%20Price', { headers }).then(r => r.json()).catch(() => ({})),
+    fetch(DDS_BASE + '/item/listByPrice/Depot%20Price', { headers }).then(r => r.json()).catch(() => ({})),
   ]);
 
   const customers = custRes.payload || custRes || [];
@@ -116,8 +115,7 @@ async function handleInit(req, res) {
   const sid = Math.random().toString(36).substr(2, 16);
   sessions.set(sid, { token, customers, products, createdAt: Date.now() });
 
-  // Set httpOnly cookie so session survives page refresh
-  res.setHeader('Set-Cookie', `ct226_sid=${sid}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`);
+  res.setHeader('Set-Cookie', 'ct226_sid=' + sid + '; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400');
 
   return res.json({
     success: true,
@@ -141,13 +139,13 @@ async function handleData(sessionId, query, res) {
 }
 
 // ─── PROXY DDS ──────────────────────────────────────────────────
-﻿async function proxyDDS(sessionId, body, res) {
+async function proxyDDS(sessionId, body, res) {
   const session = sessions.get(sessionId);
   if (!session) return res.status(401).json({ error: 'Session expired' });
   await refreshTokenIfNeeded(session);
   
   const { method, endpoint, data, params } = body || {};
-  let url = ${DDS_BASE};
+  let url = DDS_BASE + (endpoint || '');
   
   if (params) {
     const qs = new URLSearchParams(params).toString();
@@ -157,7 +155,7 @@ async function handleData(sessionId, query, res) {
   const options = {
     method: (method || 'GET').toUpperCase(),
     headers: {
-      'Authorization': ${session.token},
+      'Authorization': 'Bearer ' + session.token,
       'X-Auth-Token': session.token,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -179,12 +177,12 @@ async function handleData(sessionId, query, res) {
 // ─── PROXY NVIDIA ───────────────────────────────────────────────
 async function proxyNVIDIA(body, res) {
   const { endpoint, data } = body || {};
-  const url = `https://integrate.api.nvidia.com/v1${endpoint || '/chat/completions'}`;
+  const url = 'https://integrate.api.nvidia.com/v1' + (endpoint || '/chat/completions');
   
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${NVIDIA_API_KEY}`,
+      'Authorization': 'Bearer ' + NVIDIA_API_KEY,
       'Content-Type': 'application/json',
       'X-NVCF-ORG': NVIDIA_ORG,
     },
@@ -219,7 +217,7 @@ async function runAgent(sessionId, body, res) {
     case 'hephaestus':
       return res.json(hephaestusMatch(params.items, params.customerType, session));
     default:
-      return res.status(400).json({ error: `Unknown agent: ${agent}` });
+      return res.status(400).json({ error: 'Unknown agent: ' + agent });
   }
 }
 
@@ -277,10 +275,10 @@ function athenaIdentify(ocrText, fileName, session) {
 }
 
 async function hermesSwitch(branch, session, res) {
-  const response = await fetch(`${DDS_BASE}/auth/switchbranch`, {
+  const response = await fetch(DDS_BASE + '/auth/switchbranch', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${session.token}`,
+      'Authorization': 'Bearer ' + session.token,
       'X-Auth-Token': session.token,
       'Content-Type': 'application/json',
     },
