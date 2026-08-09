@@ -49,6 +49,12 @@ const apiClient = axios.create({
     "X-Requested-With": "XMLHttpRequest",
   },
   timeout: API_TIMEOUT,
+  // Lagrangian's session lives in an httpOnly cookie — this ensures it's
+  // sent even if the request ever crosses a subdomain/port boundary (e.g.
+  // local dev hitting a separate Lagrangian dev server on :3001). Same-origin
+  // requests would have sent it anyway, so this is a no-op in prod, but it
+  // removes one variable when debugging "why didn't the cookie arrive".
+  withCredentials: true,
 });
 
 let activeRequests = 0;
@@ -122,18 +128,34 @@ export const setUnauthorizedHandler = (handlerFn) => {
   }
 };
 
+// Optional hook the UI can register to show a toast/banner instead of a
+// hard redirect when a request under Lagrangian comes back 401 even after
+// a retry. Non-fatal by design — session stays intact, user keeps working.
+let sessionWarningHandler = (error) => {
+  console.warn("Lagrangian session hiccup (non-fatal):", error?.message);
+};
+
+export const setSessionWarningHandler = (handlerFn) => {
+  if (typeof handlerFn === "function") {
+    sessionWarningHandler = handlerFn;
+  }
+};
+
 apiClient.interceptors.request.use(
   async (config) => {
     if (lagrangianService.isActive() && config.url && !config.url.startsWith('http') && !config.url.includes('nvidia')) {
       const originalMethod = config.method?.toLowerCase() || 'get';
       const originalData = config.data;
       const originalUrl = config.url;
-      
+
       config.baseURL = '';
       config.url = LAGRANGIAN_URL;
       config.method = 'post';
       config.data = {
         action: 'proxy-dds',
+        // Kept for back-compat with older Lagrangian deployments; the
+        // current server resolves the session from the httpOnly cookie
+        // and does not require this.
         sessionId: lagrangianService._sessionId,
         body: { method: originalMethod, endpoint: originalUrl, data: originalData, params: config.params }
       };
@@ -159,11 +181,15 @@ apiClient.interceptors.request.use(
       activeControllers.add(controller);
     }
 
-    const token = getToken();
-
-    if (token && !isTokenExpired(token)) {
-      config.headers["X-Auth-Token"] = token;
-      config.headers["Authorization"] = `Bearer ${token}`;
+    // Under Lagrangian the real token is server-side only (httpOnly cookie);
+    // attaching the local placeholder token as a header would be pointless
+    // and confusing to debug, so it's skipped entirely for that mode.
+    if (!lagrangianService.isActive()) {
+      const token = getToken();
+      if (token && !isTokenExpired(token)) {
+        config.headers["X-Auth-Token"] = token;
+        config.headers["Authorization"] = `Bearer ${token}`;
+      }
     }
 
     log("API Request:", {
@@ -172,7 +198,7 @@ apiClient.interceptors.request.use(
       params: config.params,
       activeRequests,
       queued: waitQueue.length,
-      hasToken: !!token,
+      hasToken: !lagrangianService.isActive() && !!getToken(),
     });
 
     return config;
@@ -239,6 +265,29 @@ apiClient.interceptors.response.use(
     ) {
       originalRequest._retriedAfterRefresh = true;
 
+      // ── Lagrangian mode: never logout, never redirect ──────────────
+      // Lagrangian already refreshes the token proactively on every
+      // proxied call. A 401 here means either (a) we hit a cold instance
+      // that lost its in-memory product/customer cache — harmless, the
+      // retry rehydrates it — or (b) the underlying DDS session is truly
+      // dead, which no client-side trick can silently fix without asking
+      // the person to log in again. Either way we do not clear localStorage
+      // and we do not force a redirect; we retry once, then surface a
+      // non-blocking warning so the UI can show a toast if it wants to.
+      if (lagrangianService.isActive()) {
+        try {
+          delete originalRequest._controller;
+          delete originalRequest.signal;
+          log("401 under Lagrangian — retrying request once");
+          return await apiClient(originalRequest);
+        } catch (retryError) {
+          logError("401 persisted after retry under Lagrangian — non-fatal", retryError.message);
+          sessionWarningHandler(retryError);
+          return Promise.reject(retryError);
+        }
+      }
+
+      // ── V1 / manual mode: original localStorage-token refresh flow ──
       try {
         const { default: authService } = await import("@services/authService");
         const refreshed = await authService.refreshToken();
