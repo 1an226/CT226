@@ -47,7 +47,11 @@ const STANDARD_MODEL = {
 
 export const getFGCode = (rawCode) => {
   const cleanCode = rawCode.replace(/^[^0-9]+/, '');
-  return STANDARD_MODEL[cleanCode] || null;
+  const result = STANDARD_MODEL[cleanCode] || null;
+  if (!result && cleanCode.startsWith('JT')) {
+    console.log('[DEBUG getFGCode] JT code lookup failed:', cleanCode, '| STANDARD_MODEL keys:', Object.keys(STANDARD_MODEL).filter(k => k.startsWith('JT')));
+  }
+  return result;
 };
 
 export const getAllFGCODES = () => Object.values(STANDARD_MODEL);
