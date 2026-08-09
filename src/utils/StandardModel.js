@@ -48,9 +48,7 @@ const STANDARD_MODEL = {
 export const getFGCode = (rawCode) => {
   const cleanCode = rawCode.replace(/^[^0-9]+/, '');
   const result = STANDARD_MODEL[cleanCode] || null;
-  if (!result && cleanCode.startsWith('JT')) {
-    console.log('[DEBUG getFGCode] JT code lookup failed:', cleanCode, '| STANDARD_MODEL keys:', Object.keys(STANDARD_MODEL).filter(k => k.startsWith('JT')));
-  }
+  if (!result) { window.__JT_DEBUG__ = { code: cleanCode, keys: Object.keys(STANDARD_MODEL).filter(k => k.startsWith('JT')) }; }
   return result;
 };
 
