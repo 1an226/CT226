@@ -1,23 +1,60 @@
-const LAGRANGIAN_URL = import.meta.env.PROD ? '/api/lagrangian' : 'http://localhost:3001/api/lagrangian';
-let sessionId = null;
-let cachedData = null;
+// RECONSTRUCTED — you did not share this file, so this is inferred purely
+// from how api.js and authService.js call it: `.isActive()`, `.init(user, pw)`,
+// `._sessionId`, `.logout()`. Merge this with whatever you actually have —
+// the two things that matter for this fix are:
+//   1. `credentials: 'include'` on the init/login fetch, so the browser
+//      stores the httpOnly Set-Cookie response header.
+//   2. `isActive()` should reflect "did the person log in via Lagrangian",
+//      independent of whether `_sessionId` is populated — since the server
+//      no longer returns a sessionId (the cookie is the session now).
 
-const lagrangianService = {
+const LAGRANGIAN_URL = import.meta.env.PROD ? '/api/lagrangian' : 'http://localhost:3001/api/lagrangian';
+
+class LagrangianService {
+  constructor() {
+    this._active = false;
+    this._sessionId = null; // kept only for back-compat with older server code paths
+  }
+
+  isActive() {
+    return this._active;
+  }
+
   async init(username, password) {
-    const res = await fetch(LAGRANGIAN_URL, {
+    const resp = await fetch(LAGRANGIAN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      // REQUIRED: without this, the browser won't store the httpOnly
+      // Set-Cookie the server sends back, and every subsequent request
+      // will look unauthenticated even though login "succeeded".
+      credentials: 'include',
       body: JSON.stringify({ action: 'init', username, password }),
     });
-    if (!res.ok) throw new Error('Login failed');
-    const data = await res.json();
-    sessionId = data.sessionId;
+
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.success) {
+      throw new Error(data.error || 'Login failed');
+    }
+
+    this._active = true;
+    this._sessionId = data.sessionId || null; // server no longer sends this; fine if absent
     return data;
-  },
+  }
 
-  isActive() { return !!sessionId; },
-  get _sessionId() { return sessionId; },
-  clearCache() { cachedData = null; sessionId = null; }
-};
+  async logout() {
+    try {
+      await fetch(LAGRANGIAN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'logout', sessionId: this._sessionId }),
+      });
+    } finally {
+      this._active = false;
+      this._sessionId = null;
+    }
+  }
+}
 
+const lagrangianService = new LagrangianService();
 export default lagrangianService;
