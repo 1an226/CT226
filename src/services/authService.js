@@ -38,6 +38,15 @@ class AuthService {
     this.initializeFromStorage();
   }
 
+  // Whether Lagrangian owns auth for this session. When true, the real
+  // token lives server-side (in the httpOnly cookie) — everything in this
+  // file that manages a *local* token (refresh loop, expiry checks, forced
+  // logout on 401) is meaningless for that mode and must be skipped, or it
+  // will fight the server and force-logout a perfectly valid session.
+  isLagrangianActive() {
+    return lagrangianService.isActive();
+  }
+
   // Load from localStorage
   initializeFromStorage() {
     try {
@@ -63,7 +72,7 @@ class AuthService {
 
       // Use Lagrangian for secure server-side authentication
       const result = await lagrangianService.init(formattedUsername, credentials.password);
-      
+
       if (!result.success) throw new Error("Authentication failed");
 
       // Build user from Lagrangian response
@@ -77,6 +86,9 @@ class AuthService {
           userRole: result.user?.userRole || this.DEFAULT_USER_ROLE,
           authenticated: true,
         },
+        // Placeholder only — Lagrangian holds the real token server-side
+        // in the httpOnly cookie. Nothing in this file should try to
+        // decode or expire-check this string.
         token: "lagrangian-managed",
         authorities: [],
       };
@@ -87,7 +99,7 @@ class AuthService {
       console.log("Login successful:", user.name);
       console.log("Initial branch:", user.details?.branch || "Unknown");
 
-      // Start token monitoring
+      // Start token monitoring (no-ops under Lagrangian — see startTokenMonitor)
       this.startTokenMonitor();
 
       return user;
@@ -146,6 +158,11 @@ class AuthService {
 
             // Update token after switch
             await this.updateTokenAfterSwitch(newToken, branch);
+          } else if (this.isLagrangianActive()) {
+            // Under Lagrangian, the new token lives in the rotated cookie,
+            // not in this response header — that's expected, not a failure.
+            apiSuccess = true;
+            this.forceUpdateBranch(branch);
           } else {
             console.warn(`No token in API response for ${branch}`);
             // Fallback to client-side update
@@ -283,21 +300,25 @@ class AuthService {
       }
       user.details.branch = branch;
 
-      // Also update token's user info
-      try {
-        const token = this.getToken();
-        if (token) {
-          const payload = this.decodeJWT(token);
-          if (payload?.auth?.details) {
-            user.details = {
-              ...user.details,
-              ...payload.auth.details,
-              branch: branch,
-            };
+      // Also update token's user info (skip for the Lagrangian placeholder —
+      // "lagrangian-managed" is not a real JWT and decodeJWT would just
+      // fail silently anyway, but no reason to try)
+      if (!this.isLagrangianActive()) {
+        try {
+          const token = this.getToken();
+          if (token) {
+            const payload = this.decodeJWT(token);
+            if (payload?.auth?.details) {
+              user.details = {
+                ...user.details,
+                ...payload.auth.details,
+                branch: branch,
+              };
+            }
           }
+        } catch (error) {
+          // Ignore token decode errors
         }
-      } catch (error) {
-        // Ignore token decode errors
       }
 
       localStorage.setItem("dds_user", JSON.stringify(user));
@@ -373,7 +394,9 @@ class AuthService {
       this.currentBranch = user.details?.branch || "";
       localStorage.setItem("dds_current_branch", this.currentBranch);
 
-      // Update API client with new token
+      // Update API client with new token (harmless under Lagrangian —
+      // these headers are simply ignored server-side since the real auth
+      // is the httpOnly cookie)
       if (apiClient && apiClient.defaults && apiClient.defaults.headers) {
         apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
         apiClient.defaults.headers.common["X-Auth-Token"] = token;
@@ -419,13 +442,16 @@ class AuthService {
         return user.details.branch;
       }
 
-      // Decode token
-      const token = this.getToken();
-      if (token) {
-        const payload = this.decodeJWT(token);
-        if (payload?.auth?.details?.branch) {
-          this.currentBranch = payload.auth.details.branch;
-          return this.currentBranch;
+      // Decode token (V1 only — the Lagrangian placeholder token can't be
+      // decoded and shouldn't be relied on for branch info anyway)
+      if (!this.isLagrangianActive()) {
+        const token = this.getToken();
+        if (token) {
+          const payload = this.decodeJWT(token);
+          if (payload?.auth?.details?.branch) {
+            this.currentBranch = payload.auth.details.branch;
+            return this.currentBranch;
+          }
         }
       }
 
@@ -531,8 +557,15 @@ class AuthService {
     };
   }
 
-  // Token management
+  // ── Token management ──────────────────────────────────────────
+  // Everything below is meaningless under Lagrangian (the real token and
+  // its expiry live server-side, in the httpOnly cookie) and is now
+  // explicitly short-circuited for that mode instead of running against
+  // the "lagrangian-managed" placeholder string.
+
   shouldRefreshToken() {
+    if (this.isLagrangianActive()) return false;
+
     const token = this.getToken();
     if (!token) return false;
 
@@ -546,11 +579,21 @@ class AuthService {
   }
 
   isTokenExpired(token = null) {
+    if (this.isLagrangianActive()) return false; // trust the server/cookie
+
     const tokenToCheck = token || this.getToken();
     return sharedIsTokenExpired(tokenToCheck);
   }
 
   async refreshToken() {
+    if (this.isLagrangianActive()) {
+      // Lagrangian refreshes proactively, server-side, on every proxied
+      // call. There is nothing for the client to do here — and critically,
+      // this must NEVER call logout(). Returning true lets any caller that
+      // was about to retry a request just retry it as-is.
+      return true;
+    }
+
     if (this.refreshAttempts >= this.MAX_REFRESH_ATTEMPTS) {
       console.error("Max refresh attempts reached");
       this.logout();
@@ -622,6 +665,11 @@ class AuthService {
   }
 
   startTokenMonitor() {
+    if (this.isLagrangianActive()) {
+      console.log("Lagrangian active — local token monitor not needed, skipping");
+      return;
+    }
+
     if (!this.ENABLE_TOKEN_MONITOR) {
       console.log("Token monitor disabled by configuration");
       return;
@@ -686,6 +734,11 @@ class AuthService {
     console.log("Logging out");
     this.stopTokenMonitor();
     this.clearAuthData();
+    if (this.isLagrangianActive()) {
+      // Best-effort — clears the httpOnly cookie server-side. Fire and
+      // forget; local state is already cleared regardless of the outcome.
+      lagrangianService.logout?.().catch(() => {});
+    }
   }
 
   // Clear auth data
@@ -713,6 +766,15 @@ class AuthService {
   // Check if authenticated
   isAuthenticated() {
     try {
+      // Under Lagrangian, the real token lives in the httpOnly cookie and
+      // is invisible to JS by design — the only thing we can check locally
+      // is "do we believe we have a logged-in user". A 401 during actual
+      // use is handled non-destructively by the api.js interceptor instead
+      // of being pre-empted here.
+      if (this.isLagrangianActive()) {
+        return !!this.getCurrentUser();
+      }
+
       const token = this.getToken();
       const user = this.getCurrentUser();
 
@@ -764,6 +826,10 @@ class AuthService {
 
   // Get current token info
   getTokenInfo() {
+    if (this.isLagrangianActive()) {
+      return { managedBy: 'lagrangian' };
+    }
+
     const token = this.getToken();
     if (!token) return null;
 
