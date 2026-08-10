@@ -3,6 +3,31 @@ import authService from './authService';
 import ordersService from './ordersService';
 
 // ============================================================================
+// DETERMINISTIC OUTLET MAP — proof-of-concept for 7 tested formats
+// OCR text keyword → exact DDS outlet (no AI, no regex, no uncertainty)
+// ============================================================================
+const DETERMINISTIC_MAP = [
+  // Naivas
+  { keywords: ['NAIVAS', 'THIKA ANANAS'], name: 'Naivas Limited - Annanas', code: 'C04163', branch: 'Thika', type: 'NAIVAS' },
+  // Cleanshelf Pending PO — check FRESHMARKET before LIMURU
+  { keywords: ['CLEANSHELF', 'FRESHMARKET'], name: 'Cleanshelf Supermarket Limited- Shujaa Mall', code: 'C04494', branch: 'Dandora 3', type: 'CLEANSHELF' },
+  { keywords: ['CLEAN SHELF', 'FRESHMARKET'], name: 'Cleanshelf Supermarket Limited- Shujaa Mall', code: 'C04494', branch: 'Dandora 3', type: 'CLEANSHELF' },
+  // Cleanshelf Local PO
+  { keywords: ['CLEANSHELF', 'LIMURU'], name: 'Cleanshelf Supermarket Limited- Limuru', code: 'C00501', branch: 'Dandora 1', type: 'CLEANSHELF' },
+  { keywords: ['CLEAN SHELF', 'LIMURU'], name: 'Cleanshelf Supermarket Limited- Limuru', code: 'C00501', branch: 'Dandora 1', type: 'CLEANSHELF' },
+  // Quickmart
+  { keywords: ['QUICKMART', 'RONGAI MAIN'], name: 'Quickmart Limited- Rongai', code: 'C02848', branch: 'Dandora 3', type: 'QUICKMART' },
+  { keywords: ['QUICK MART', 'RONGAI MAIN'], name: 'Quickmart Limited- Rongai', code: 'C02848', branch: 'Dandora 3', type: 'QUICKMART' },
+  // Khetia
+  { keywords: ['KHETIA', 'LIMURU'], name: 'Khetia Drapers Limited-Limuru', code: 'C04872', branch: 'Dandora 1', type: 'KHETIA' },
+  // Chandarana
+  { keywords: ['CHANDARANA', 'RHAPTA'], name: 'Chandarana Supermarket Limited- Rhapta', code: 'C05067', branch: 'Dandora 3', type: 'CHANDARANA' },
+  // Majid
+  { keywords: ['MAJID', 'NEXTGEN'], name: 'Majid Al Futtaim Hypermarkets Limited (Carrefour)- Nextgen', code: 'C04299', branch: 'Dandora 3', type: 'MAJID' },
+  { keywords: ['CARREFOUR', 'NEXTGEN'], name: 'Majid Al Futtaim Hypermarkets Limited (Carrefour)- Nextgen', code: 'C04299', branch: 'Dandora 3', type: 'MAJID' },
+];
+
+// ============================================================================
 // OUTLET EXCEPTIONS — checked BEFORE regex. Exact OCR keyword → DDS outlet.
 // ============================================================================
 const OUTLET_EXCEPTIONS = {
@@ -96,14 +121,22 @@ const OUTLET_REGEX = {
 // ============================================================================
 
 function identifyByRegex(text, fileName, customers) {
-  // 1. Check exceptions BEFORE anything else
+  // 1. Check deterministic map (proof-of-concept outlets)
+  for (const entry of DETERMINISTIC_MAP) {
+    const allMatch = entry.keywords.every(kw => text.includes(kw));
+    if (allMatch) {
+      return { name: entry.name, code: entry.code, branch: entry.branch, type: entry.type };
+    }
+  }
+
+  // 2. Check exceptions
   for (const [keyword, outlet] of Object.entries(OUTLET_EXCEPTIONS)) {
     if (text.includes(keyword)) {
       return { name: outlet.name, code: outlet.code, branch: outlet.branch, type: outlet.type };
     }
   }
 
-  // 2. Detect customer type and extract outlet text using format-specific regex
+  // 3. Detect customer type and extract outlet text using format-specific regex
   let type = 'NAIVAS';
   let outletText = '';
 
@@ -144,7 +177,7 @@ function identifyByRegex(text, fileName, customers) {
 
   if (!outletText) return null;
 
-  // 3. Apply alias mappings
+  // 4. Apply alias mappings
   const aliases = OUTLET_ALIASES[type] || {};
   for (const [ocrName, ddsName] of Object.entries(aliases)) {
     if (outletText.toUpperCase().includes(ocrName)) {
@@ -153,11 +186,11 @@ function identifyByRegex(text, fileName, customers) {
     }
   }
 
-  // 4. Apply logical rules per customer type
+  // 5. Apply logical rules per customer type
   const rule = OUTLET_RULES[type] || OUTLET_RULES.DEFAULT;
   outletText = rule(outletText, customers);
 
-  // 5. Fuzzy match with IDF weighting
+  // 6. Fuzzy match with IDF weighting
   const typeCustomers = customers.filter(c => (c.name || '').toUpperCase().includes(type));
   if (!typeCustomers.length) return null;
 
