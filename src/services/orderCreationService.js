@@ -475,21 +475,108 @@ const getProductsByCustomer = async (customerType = "NAIVAS") => {
   return products;
 };
 
-const createOrderFromPO = async (poData, warehouse = DEFAULT_SETTINGS.WAREHOUSE) => {
-  const matched = poData.items.filter(i => i.status === "matched");
-  if (matched.length < VALIDATION_SETTINGS.MIN_ITEM_COUNT) throw new Error("No matched items found");
-  const orderItems = matched.map(item => ({ item: item.product, quantity: item.quantity, amount: item.netAmount || item.product.itemPrice * item.quantity }));
-  const totalAmount = orderItems.reduce((s,i)=>s+i.amount,0);
-  const due = new Date(Date.now() + 24*60*60*1000);
-  const dueDate = due.getFullYear() + "-" + String(due.getMonth()+1).padStart(2,'0') + "-" + String(due.getDate()).padStart(2,'0') + "T00:00:00.000Z";
-  const payload = {
-    customer: poData.customer, orderType: DEFAULT_SETTINGS.ORDER_TYPE,
-    sellingPriceList: CUSTOMER_PRICE_LISTS[poData.customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST,
-    dueDate, isTopUp: DEFAULT_SETTINGS.IS_TOP_UP, warehouse, remarks: DEFAULT_SETTINGS.REMARKS,
-    lpo: poData.lpoNumber !== "UNKNOWN_LPO" ? poData.lpoNumber : null, items: orderItems,
-  };
-  const resp = await apiClient.post("/orders/create", payload);
-  return { success: true, orderNumber: resp.data && resp.data.payload ? resp.data.payload : "Unknown", totalAmount, totalQuantity: orderItems.reduce((s,i)=>s+i.quantity,0) };
+// ─── Order submission guard ──────────────────────────────────────
+// Root cause of the Eldoret incident, bug #2: nothing stopped a second
+// click from firing a second POST while the first was still in flight (or
+// right after it succeeded). Two layers here:
+//   1. In-flight lock — a second call for the same customer+LPO+branch
+//      while the first hasn't resolved yet gets the SAME promise instead
+//      of starting a new request. This is what actually matters for a
+//      "clicked twice 8 seconds apart" scenario if the first request was
+//      still pending (slow DDS response).
+//   2. Cooldown window — even after the first call finishes, a repeat for
+//      the same key within ORDER_SUBMIT_COOLDOWN_MS returns the cached
+//      result instead of re-posting. This is what matters if the double
+//      click happened after the first request had already completed.
+// Genuine failures are never cached — only successful submissions block
+// a repeat, so a real retry-after-error is never blocked.
+const ORDER_SUBMIT_COOLDOWN_MS = 60 * 1000;
+const inFlightOrders = new Map();    // dedupeKey -> Promise
+const recentlySubmitted = new Map(); // dedupeKey -> { timestamp, result }
+
+const buildOrderDedupeKey = (poData, branch) =>
+  [poData.customer, poData.lpoNumber, branch].join('::');
+
+const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SETTINGS.WAREHOUSE) => {
+  // ── THE OTHER FIX (bug #1 — this is what actually caused "Eldoret") ──
+  // DDS's /orders/create payload has no `branch` field at all — branch is
+  // implicit in whatever the session token is currently switched to. The
+  // old code just posted and trusted the session was already on the right
+  // branch. It wasn't. `customerBranch` is now a REQUIRED argument, not a
+  // default, on purpose: silently falling back to "whatever the session
+  // happens to be on" is exactly the bug you hit. Every call site now has
+  // to explicitly pass the branch of the customer being ordered for —
+  // which you already have on hand, since it's a field on the customer
+  // record you matched during extraction (the same `.branch` field
+  // Lagrangian's athenaIdentify uses).
+  if (!customerBranch) {
+    throw new Error(
+      "createOrderFromPO: customerBranch is required. Refusing to submit " +
+      "an order without an explicit branch rather than trusting session state."
+    );
+  }
+
+  const dedupeKey = buildOrderDedupeKey(poData, customerBranch);
+
+  if (inFlightOrders.has(dedupeKey)) {
+    console.warn("[GUARD] Duplicate submit blocked — already in flight:", dedupeKey);
+    return inFlightOrders.get(dedupeKey);
+  }
+
+  const recent = recentlySubmitted.get(dedupeKey);
+  if (recent && (Date.now() - recent.timestamp) < ORDER_SUBMIT_COOLDOWN_MS) {
+    const secondsAgo = Math.round((Date.now() - recent.timestamp) / 1000);
+    console.warn(`[GUARD] Duplicate submit blocked — same LPO/customer/branch submitted ${secondsAgo}s ago`);
+    return recent.result;
+  }
+
+  const submitPromise = (async () => {
+    const matched = poData.items.filter(i => i.status === "matched");
+    if (matched.length < VALIDATION_SETTINGS.MIN_ITEM_COUNT) throw new Error("No matched items found");
+    const orderItems = matched.map(item => ({ item: item.product, quantity: item.quantity, amount: item.netAmount || item.product.itemPrice * item.quantity }));
+    const totalAmount = orderItems.reduce((s,i)=>s+i.amount,0);
+    const due = new Date(Date.now() + 24*60*60*1000);
+    const dueDate = due.getFullYear() + "-" + String(due.getMonth()+1).padStart(2,'0') + "-" + String(due.getDate()).padStart(2,'0') + "T00:00:00.000Z";
+    const payload = {
+      customer: poData.customer, orderType: DEFAULT_SETTINGS.ORDER_TYPE,
+      sellingPriceList: CUSTOMER_PRICE_LISTS[poData.customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST,
+      dueDate,
+      isTopUp: false, // per requirement: normal orders only, top-ups are a manual exception elsewhere
+      warehouse, remarks: DEFAULT_SETTINGS.REMARKS,
+      lpo: poData.lpoNumber !== "UNKNOWN_LPO" ? poData.lpoNumber : null, items: orderItems,
+    };
+
+    // Switch (and verify) the session into customerBranch immediately
+    // before submitting, as part of THIS call — not as a side effect of
+    // whatever branch the UI last happened to be on. ensureBranchContext
+    // also queues concurrent calls internally, so two orders for
+    // different branches fired close together can't race each other's
+    // branch-switch state either.
+    const { default: authService } = await import("@services/authService");
+    const resp = await authService.ensureBranchContext(customerBranch, () =>
+      apiClient.post("/orders/create", payload)
+    );
+
+    return {
+      success: true,
+      orderNumber: resp.data && resp.data.payload ? resp.data.payload : "Unknown",
+      totalAmount,
+      totalQuantity: orderItems.reduce((s,i)=>s+i.quantity,0),
+    };
+  })();
+
+  inFlightOrders.set(dedupeKey, submitPromise);
+
+  try {
+    const result = await submitPromise;
+    recentlySubmitted.set(dedupeKey, { timestamp: Date.now(), result });
+    return result;
+  } finally {
+    // Always release the in-flight lock, success or failure. Failures are
+    // deliberately NOT written into recentlySubmitted so a real retry
+    // after a genuine error isn't blocked by the cooldown.
+    inFlightOrders.delete(dedupeKey);
+  }
 };
 
 const setupDragAndDrop = (element, callback) => {
