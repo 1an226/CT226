@@ -38,13 +38,7 @@ const VALIDATION_SETTINGS = {
 
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl";
 
-// ─── NVIDIA API helper — routes through Lagrangian whenever Lagrangian ──
-// owns the session, not just when the build is a PROD build. Tying this to
-// `lagrangianService.isActive()` instead of `import.meta.env.PROD` is the
-// actual fix for calls silently going straight to `/nvidia-api` on Vercel:
-// a PROD build running without a live Lagrangian session (or a build-time
-// env mismatch) previously fell through to the dev-proxy path, which
-// doesn't exist on Vercel and just fails.
+// ─── NVIDIA API helper — routes through Lagrangian when active ──
 const callNvidiaAPI = async (body, isVision = false) => {
   if (lagrangianService.isActive()) {
     const resp = await fetch('/api/lagrangian', {
@@ -59,7 +53,7 @@ const callNvidiaAPI = async (body, isVision = false) => {
     if (!resp.ok) throw new Error('NVIDIA API error: ' + resp.status);
     return await resp.json();
   }
-  // Manual/V1 mode only: use Vite dev proxy directly.
+
   const resp = await fetch('/nvidia-api/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -235,15 +229,8 @@ const preprocessCropForVision = (cropCanvas) => {
 const extractFromScannedPDF = async (file, customerType) => {
   const prompt = 'This image contains a purchase order. Copy ALL the text from the image exactly as it appears, preserving columns, spaces, and line breaks. Do not add any extra words, explanations, or formatting. Output ONLY the raw text.';
 
-  // ── Majid: server‑side PDF → PNG (bypasses browser canvas) ──
-  // NOTE: this hits a separate `/api/majid-render` function, not the
-  // Lagrangian gateway — out of scope for this fix, but flagging it here
-  // since it's the one remaining direct serverless call in this file. If
-  // it ever starts 401ing or timing out on Vercel, it needs the same
-  // treatment (credentials included, checked against cold-start behavior).
   if (customerType === 'MAJID') {
     console.log('[INFO] Using server‑side PDF renderer for Majid');
-
     const arrayBuffer = await file.arrayBuffer();
     const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
@@ -260,21 +247,12 @@ const extractFromScannedPDF = async (file, customerType) => {
     }
     const { image } = await resp.json();
     console.timeEnd('Server PDF Render');
-
     const dataUrl = 'data:image/png;base64,' + image;
 
     console.time('Vision OCR');
     const ocrData = await callNvidiaAPI({
       model: VISION_MODEL,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: dataUrl } }
-          ]
-        }
-      ],
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
       temperature: 0,
       max_tokens: 2048,
     }, true);
@@ -292,7 +270,6 @@ const extractFromScannedPDF = async (file, customerType) => {
     return result;
   }
 
-  // ── Browser pipeline for Chandarana & Quickmart ──
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const page = await pdf.getPage(1);
@@ -301,7 +278,6 @@ const extractFromScannedPDF = async (file, customerType) => {
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   const ctx = canvas.getContext('2d');
-
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -318,15 +294,7 @@ const extractFromScannedPDF = async (file, customerType) => {
   console.time('Vision OCR');
   const data = await callNvidiaAPI({
     model: VISION_MODEL,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUrl } }
-        ]
-      }
-    ],
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
     temperature: 0,
     max_tokens: 2048,
   }, true);
@@ -356,7 +324,6 @@ const extractFromFile = async (file, customerType) => {
     return await extractFromScannedPDF(file, customerType);
   }
 
-  // Digital PDF path (original, untouched)
   const arrayBuffer = await file.arrayBuffer();
   const text = await extractTextFromPdf(arrayBuffer);
   console.log("[PDF TEXT]", text);
@@ -475,40 +442,26 @@ const getProductsByCustomer = async (customerType = "NAIVAS") => {
   return products;
 };
 
-// ─── Order submission guard ──────────────────────────────────────
-// Root cause of the Eldoret incident, bug #2: nothing stopped a second
-// click from firing a second POST while the first was still in flight (or
-// right after it succeeded). Two layers here:
-//   1. In-flight lock — a second call for the same customer+LPO+branch
-//      while the first hasn't resolved yet gets the SAME promise instead
-//      of starting a new request. This is what actually matters for a
-//      "clicked twice 8 seconds apart" scenario if the first request was
-//      still pending (slow DDS response).
-//   2. Cooldown window — even after the first call finishes, a repeat for
-//      the same key within ORDER_SUBMIT_COOLDOWN_MS returns the cached
-//      result instead of re-posting. This is what matters if the double
-//      click happened after the first request had already completed.
-// Genuine failures are never cached — only successful submissions block
-// a repeat, so a real retry-after-error is never blocked.
+// ─── Order submission guard + synchronous audit ──────────────────
 const ORDER_SUBMIT_COOLDOWN_MS = 60 * 1000;
-const inFlightOrders = new Map();    // dedupeKey -> Promise
-const recentlySubmitted = new Map(); // dedupeKey -> { timestamp, result }
+const inFlightOrders = new Map();
+const recentlySubmitted = new Map();
 
 const buildOrderDedupeKey = (poData, branch) =>
   [poData.customer, poData.lpoNumber, branch].join('::');
 
+const notifyAudit = (success, message) => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ct226-order-audit', { detail: { success, message } }));
+  }
+  if (success) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+};
+
 const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SETTINGS.WAREHOUSE) => {
-  // ── THE OTHER FIX (bug #1 — this is what actually caused "Eldoret") ──
-  // DDS's /orders/create payload has no `branch` field at all — branch is
-  // implicit in whatever the session token is currently switched to. The
-  // old code just posted and trusted the session was already on the right
-  // branch. It wasn't. `customerBranch` is now a REQUIRED argument, not a
-  // default, on purpose: silently falling back to "whatever the session
-  // happens to be on" is exactly the bug you hit. Every call site now has
-  // to explicitly pass the branch of the customer being ordered for —
-  // which you already have on hand, since it's a field on the customer
-  // record you matched during extraction (the same `.branch` field
-  // Lagrangian's athenaIdentify uses).
   if (!customerBranch) {
     throw new Error(
       "createOrderFromPO: customerBranch is required. Refusing to submit " +
@@ -533,35 +486,116 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
   const submitPromise = (async () => {
     const matched = poData.items.filter(i => i.status === "matched");
     if (matched.length < VALIDATION_SETTINGS.MIN_ITEM_COUNT) throw new Error("No matched items found");
-    const orderItems = matched.map(item => ({ item: item.product, quantity: item.quantity, amount: item.netAmount || item.product.itemPrice * item.quantity }));
-    const totalAmount = orderItems.reduce((s,i)=>s+i.amount,0);
-    const due = new Date(Date.now() + 24*60*60*1000);
-    const dueDate = due.getFullYear() + "-" + String(due.getMonth()+1).padStart(2,'0') + "-" + String(due.getDate()).padStart(2,'0') + "T00:00:00.000Z";
+
+    const orderItems = matched.map(item => ({
+      item: item.product,
+      quantity: item.quantity,
+      amount: item.netAmount || item.product.itemPrice * item.quantity,
+    }));
+
+    const totalAmount = orderItems.reduce((s, i) => s + i.amount, 0);
+    const due = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const dueDate = due.getFullYear() + "-" + String(due.getMonth() + 1).padStart(2, '0') + "-" + String(due.getDate()).padStart(2, '0') + "T00:00:00.000Z";
+
     const payload = {
-      customer: poData.customer, orderType: DEFAULT_SETTINGS.ORDER_TYPE,
+      customer: poData.customer,
+      orderType: DEFAULT_SETTINGS.ORDER_TYPE,
       sellingPriceList: CUSTOMER_PRICE_LISTS[poData.customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST,
       dueDate,
-      isTopUp: false, // per requirement: normal orders only, top-ups are a manual exception elsewhere
-      warehouse, remarks: DEFAULT_SETTINGS.REMARKS,
-      lpo: poData.lpoNumber !== "UNKNOWN_LPO" ? poData.lpoNumber : null, items: orderItems,
+      isTopUp: DEFAULT_SETTINGS.IS_TOP_UP,   // ← REVERTED to env default (true)
+      warehouse,
+      remarks: DEFAULT_SETTINGS.REMARKS,
+      lpo: poData.lpoNumber !== "UNKNOWN_LPO" ? poData.lpoNumber : null,
+      items: orderItems,
     };
 
-    // Switch (and verify) the session into customerBranch immediately
-    // before submitting, as part of THIS call — not as a side effect of
-    // whatever branch the UI last happened to be on. ensureBranchContext
-    // also queues concurrent calls internally, so two orders for
-    // different branches fired close together can't race each other's
-    // branch-switch state either.
     const { default: authService } = await import("@services/authService");
     const resp = await authService.ensureBranchContext(customerBranch, () =>
       apiClient.post("/orders/create", payload)
     );
 
+    const orderNumber = resp.data && resp.data.payload ? resp.data.payload : "Unknown";
+    if (orderNumber === "Unknown") {
+      throw new Error("Order creation returned no order number");
+    }
+
+    // ─── SYNCHRONOUS AUDIT ──────────────────────────────────────
+    const detailResp = await apiClient.get("/orders/detail/" + orderNumber);
+    const detail = detailResp.data?.payload || detailResp.data;
+    if (!detail) {
+      throw new Error("Audit failed: could not retrieve order detail for " + orderNumber);
+    }
+
+    const mismatches = [];
+
+    if (detail.branch !== customerBranch) {
+      mismatches.push(`branch ${detail.branch} != ${customerBranch}`);
+    }
+    if (detail.customerCode !== poData.customer) {
+      mismatches.push(`customer ${detail.customerCode} != ${poData.customer}`);
+    }
+
+    const expectedLpo = poData.lpoNumber !== "UNKNOWN_LPO" ? poData.lpoNumber : null;
+    if ((detail.lpo || null) !== expectedLpo) {
+      mismatches.push(`LPO ${detail.lpo} != ${expectedLpo}`);
+    }
+
+    const actualItems = detail.orderItems || [];
+    if (actualItems.length !== orderItems.length) {
+      mismatches.push(`item count ${actualItems.length} != ${orderItems.length}`);
+    } else {
+      const expectedMap = new Map();
+      for (const item of orderItems) {
+        expectedMap.set(item.item.itemCode, (expectedMap.get(item.item.itemCode) || 0) + item.quantity);
+      }
+      const actualMap = new Map();
+      for (const di of actualItems) {
+        actualMap.set(di.itemCode, (actualMap.get(di.itemCode) || 0) + di.quantity);
+      }
+      for (const [code, qty] of expectedMap) {
+        if (actualMap.get(code) !== qty) {
+          mismatches.push(`item ${code} qty ${actualMap.get(code)} != ${qty}`);
+        }
+      }
+    }
+
+    const status = (detail.orderStatus || '').toLowerCase();
+    const allowedStatuses = ['pending', 'to deliver and tobill', 'to deliver and to bill'];
+    if (!allowedStatuses.some(s => status.includes(s))) {
+      mismatches.push(`unexpected status ${detail.orderStatus}`);
+    }
+
+    if (mismatches.length > 0) {
+      // Cancel the order immediately
+      try {
+        await apiClient.post("/orders/close/" + orderNumber, {
+          overrideWarning: true,
+          status: "Cancel",
+        });
+      } catch (cancelError) {
+        console.error("Failed to cancel order after audit failure:", cancelError.message);
+      }
+
+      const msg = `Audit failed for ${poData.customer} ${poData.lpoNumber}: ${mismatches.join('; ')}. Order ${orderNumber} cancelled.`;
+      notifyAudit(false, msg);
+      return {
+        success: false,
+        error: msg,
+        audit: 'failed',
+        orderNumber,
+        totalAmount,
+        totalQuantity: orderItems.reduce((s, i) => s + i.quantity, 0),
+      };
+    }
+
+    const successMsg = `Audit passed for ${poData.customer} ${poData.lpoNumber}. Order ${orderNumber} verified.`;
+    notifyAudit(true, successMsg);
     return {
       success: true,
-      orderNumber: resp.data && resp.data.payload ? resp.data.payload : "Unknown",
+      orderNumber,
       totalAmount,
-      totalQuantity: orderItems.reduce((s,i)=>s+i.quantity,0),
+      totalQuantity: orderItems.reduce((s, i) => s + i.quantity, 0),
+      audit: 'passed',
     };
   })();
 
@@ -572,16 +606,16 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
     recentlySubmitted.set(dedupeKey, { timestamp: Date.now(), result });
     return result;
   } finally {
-    // Always release the in-flight lock, success or failure. Failures are
-    // deliberately NOT written into recentlySubmitted so a real retry
-    // after a genuine error isn't blocked by the cooldown.
     inFlightOrders.delete(dedupeKey);
   }
 };
 
 const setupDragAndDrop = (element, callback) => {
   if (!element) return;
-  ["dragenter","dragover","dragleave","drop"].forEach(ev => { element.addEventListener(ev, e => e.preventDefault()); document.addEventListener(ev, e => e.preventDefault()); });
+  ["dragenter","dragover","dragleave","drop"].forEach(ev => {
+    element.addEventListener(ev, e => e.preventDefault());
+    document.addEventListener(ev, e => e.preventDefault());
+  });
   element.addEventListener("drop", e => {
     const file = e.dataTransfer.files[0];
     if (file && /\.(png|jpg|jpeg|webp|txt|pdf)$/i.test(file.name)) callback(file);
@@ -590,7 +624,6 @@ const setupDragAndDrop = (element, callback) => {
 };
 
 // ─── Exports ────────────────────────────────────────────────────
-
 export const getVisionOcrText = async (file) => {
   if (file.name.toUpperCase().includes('FAX')) {
     const arrayBuffer = await file.arrayBuffer();
@@ -653,8 +686,18 @@ export const getVisionOcrText = async (file) => {
 };
 
 export default {
-  getVisionOcrText, extractTextFromPdf, getProductsByCustomer, parsePOText, parsePOFromDroppedFile, parsePOFromImage: parsePOFromDroppedFile,
-  parseManualTextInput: parsePOText, createOrderFromPO, setupDragAndDrop,
-  processDroppedFile: parsePOFromDroppedFile, findItemsAndQuantities, getFGCode, getProductName,
+  getVisionOcrText,
+  extractTextFromPdf,
+  getProductsByCustomer,
+  parsePOText,
+  parsePOFromDroppedFile,
+  parsePOFromImage: parsePOFromDroppedFile,
+  parseManualTextInput: parsePOText,
+  createOrderFromPO,
+  setupDragAndDrop,
+  processDroppedFile: parsePOFromDroppedFile,
+  findItemsAndQuantities,
+  getFGCode,
+  getProductName,
   getConfig: () => ({ DEFAULT_SETTINGS, PERFORMANCE_SETTINGS, VALIDATION_SETTINGS, CUSTOMER_PRICE_LISTS }),
 };
