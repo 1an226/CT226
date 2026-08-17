@@ -431,7 +431,7 @@ const parsePOText = async (text, customerCode = null, customerType = "NAIVAS") =
   return parsePOTextFromParsedJSON(aiOutput, customerCode, customerType);
 };
 
-// ─── PRODUCT FETCHING & ORDER CREATION ──────────────────────────
+// ─── PRODUCT FETCHING ─────────────────────────────────────────
 const getProductsByCustomer = async (customerType = "NAIVAS") => {
   const priceList = CUSTOMER_PRICE_LISTS[customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST;
   if (cachedProducts[customerType]) return cachedProducts[customerType];
@@ -442,6 +442,48 @@ const getProductsByCustomer = async (customerType = "NAIVAS") => {
   return products;
 };
 
+// ─── Audit notification bus ──────────────────────────────────────
+// Fires synchronously, inline with order creation — this is NOT a
+// queued/batched job. createOrderFromPO awaits the audit check (the
+// GET /orders/detail call and comparison logic) to completion before
+// notifyAudit ever runs, so by the time any listener sees an event the
+// pass/fail outcome is already final and the cancel (if any) has
+// already happened.
+//
+// A small bounded history is kept here — not just dispatched and
+// forgotten — so UI that isn't mounted yet when an audit resolves (e.g.
+// AI Mode's Messages tab, if that panel happens to be closed at the
+// moment an order is created from elsewhere) can still show it
+// retroactively via getAuditLog() once it mounts.
+const AUDIT_LOG_MAX = 50;
+let auditLog = [];
+let auditListeners = [];
+
+export const onOrderAudit = (callback) => {
+  auditListeners.push(callback);
+  return () => {
+    auditListeners = auditListeners.filter(fn => fn !== callback);
+  };
+};
+
+export const getAuditLog = () => auditLog;
+
+const notifyAudit = (success, message) => {
+  const event = { success, message, timestamp: Date.now() };
+
+  auditLog = [...auditLog, event].slice(-AUDIT_LOG_MAX);
+  auditListeners.forEach(fn => {
+    try {
+      fn(event);
+    } catch (e) {
+      console.error('Audit listener threw:', e);
+    }
+  });
+
+  if (success) console.log(message);
+  else console.error(message);
+};
+
 // ─── Order submission guard + synchronous audit ──────────────────
 const ORDER_SUBMIT_COOLDOWN_MS = 60 * 1000;
 const inFlightOrders = new Map();
@@ -449,17 +491,6 @@ const recentlySubmitted = new Map();
 
 const buildOrderDedupeKey = (poData, branch) =>
   [poData.customer, poData.lpoNumber, branch].join('::');
-
-const notifyAudit = (success, message) => {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('ct226-order-audit', { detail: { success, message } }));
-  }
-  if (success) {
-    console.log(message);
-  } else {
-    console.error(message);
-  }
-};
 
 const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SETTINGS.WAREHOUSE) => {
   if (!customerBranch) {
@@ -502,7 +533,10 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
       orderType: DEFAULT_SETTINGS.ORDER_TYPE,
       sellingPriceList: CUSTOMER_PRICE_LISTS[poData.customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST,
       dueDate,
-      isTopUp: DEFAULT_SETTINGS.IS_TOP_UP,   // ← REVERTED to env default (true)
+      // Kept as the env default (true): a customer can legitimately have
+      // more than one order in a day, and isTopUp:false was blocking the
+      // second one from being submitted.
+      isTopUp: DEFAULT_SETTINGS.IS_TOP_UP,
       warehouse,
       remarks: DEFAULT_SETTINGS.REMARKS,
       lpo: poData.lpoNumber !== "UNKNOWN_LPO" ? poData.lpoNumber : null,
@@ -566,7 +600,6 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
     }
 
     if (mismatches.length > 0) {
-      // Cancel the order immediately
       try {
         await apiClient.post("/orders/close/" + orderNumber, {
           overrideWarning: true,
@@ -699,5 +732,7 @@ export default {
   findItemsAndQuantities,
   getFGCode,
   getProductName,
+  onOrderAudit,
+  getAuditLog,
   getConfig: () => ({ DEFAULT_SETTINGS, PERFORMANCE_SETTINGS, VALIDATION_SETTINGS, CUSTOMER_PRICE_LISTS }),
 };
