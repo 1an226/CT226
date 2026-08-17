@@ -11,6 +11,7 @@ const AutonomousWorkflow = () => {
   const [rawOcrText, setRawOcrText] = useState('');
   const [showRawOcr, setShowRawOcr] = useState(false);
   const [fileDropped, setFileDropped] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(null); // NEW
 
   const addStep = (msg, status = 'running') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -39,6 +40,7 @@ const AutonomousWorkflow = () => {
     setShowRawOcr(false);
     setFileDropped(true);
     setSteps([]);
+    setOrderSuccess(null); // clear any old success
 
     try {
       // Step 1: Extract OCR text
@@ -108,13 +110,6 @@ const AutonomousWorkflow = () => {
   const handleCreateOrder = async () => {
     if (!orderPreview) return;
 
-    // FIX: createOrderFromPO requires an explicit branch — it will
-    // never fall back to "whatever the session happens to be on" (that
-    // silent fallback is exactly what caused the Eldoret mix-up). The
-    // branch is already sitting on orderPreview.customerInfo from the
-    // identifyCustomer step above; the old code just never passed it,
-    // so this call has been throwing "customerBranch is required" on
-    // every single click since that fix went in.
     const branch = orderPreview.customerInfo?.branch;
     if (!branch) {
       setError('Missing customer branch — refusing to submit without one.');
@@ -127,11 +122,6 @@ const AutonomousWorkflow = () => {
       const s = addStep('Creating order...');
       const result = await orderCreationService.createOrderFromPO(orderPreview, branch);
 
-      // FIX: createOrderFromPO can resolve successfully while carrying
-      // { success: false, ... } — that's the audit-failed-and-cancelled
-      // path, not a thrown error. The old code only checked the catch
-      // block, so an audit failure was reported to the user as "Order
-      // #Unknown created" instead of surfacing the actual mismatch.
       if (!result.success) {
         markFailed(s, result.error || 'Order failed audit and was cancelled.');
         setError(result.error || 'Order failed audit and was cancelled.');
@@ -140,17 +130,17 @@ const AutonomousWorkflow = () => {
 
       markDone(s, `Order #${result.orderNumber} created and verified.`);
 
-      // ================================================================
-      // FIX: Clear preview state after successful order (autonomous mode UI bug).
-      // This matches manual mode's behavior (reset to drop zone).
-      // ================================================================
+      // --- SUCCESS: store info, clear preview, keep steps visible ---
+      const total = orderPreview.items.reduce(
+        (sum, i) => sum + (i.quantity || 0) * (i.unitPrice || 0),
+        0
+      );
+      setOrderSuccess({
+        orderNumber: result.orderNumber,
+        total,
+      });
       setOrderPreview(null);
-      setFileDropped(false);
-      setRawOcrText('');
-      setShowRawOcr(false);
-      setSteps([]);
-      setError(null);
-
+      // Do NOT clear fileDropped or steps yet – banner will handle reset
     } catch (err) {
       setError(err.message);
       addStep(`Failed: ${err.message}`, 'failed');
@@ -159,7 +149,10 @@ const AutonomousWorkflow = () => {
     }
   };
 
-  const totalAmount = orderPreview?.items?.reduce((sum, i) => sum + ((i.quantity || 0) * (i.unitPrice || 0)), 0) || 0;
+  const totalAmount = orderPreview?.items?.reduce(
+    (sum, i) => sum + ((i.quantity || 0) * (i.unitPrice || 0)),
+    0
+  ) || 0;
 
   if (!agentRuntime.isReady()) {
     return (
@@ -176,7 +169,7 @@ const AutonomousWorkflow = () => {
     <div className="autonomous-workflow">
       <h2 class="section-header">~ AUTONOMOUS ORDER PROCESSING</h2>
 
-      {!fileDropped && (
+      {!fileDropped && !orderSuccess && (
         <div
           className={`drop-zone ${processing ? 'processing' : ''}`}
           onDrop={e => { e.preventDefault(); handleFileDrop(e.dataTransfer.files[0]); }}
@@ -186,6 +179,27 @@ const AutonomousWorkflow = () => {
           {processing ? 'Processing...' : 'Click or drop PDF to process order'}
           <input id="auto-file-input" type="file" accept=".pdf" style={{ display: 'none' }}
             onChange={e => e.target.files[0] && handleFileDrop(e.target.files[0])} />
+        </div>
+      )}
+
+      {orderSuccess && (
+        <div className="order-success-banner">
+          <p>
+            ✅ Order #{orderSuccess.orderNumber} created!
+            Total: Ksh {orderSuccess.total.toFixed(2)}
+          </p>
+          <button
+            onClick={() => {
+              setOrderSuccess(null);
+              setSteps([]);
+              setFileDropped(false);
+              setRawOcrText('');
+              setShowRawOcr(false);
+              setError(null);
+            }}
+          >
+            OK
+          </button>
         </div>
       )}
 
