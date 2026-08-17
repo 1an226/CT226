@@ -6,6 +6,7 @@ import Messages from './Messages';
 import Checklist from './Checklist';
 import agentDataService from '@services/agentDataService';
 import agentRuntime from '@services/agentRuntime';
+import orderCreationService, { onOrderAudit, getAuditLog } from '@services/orderCreationService';
 import './AiMode.css';
 
 const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
@@ -26,26 +27,22 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
   // Subscribe to agent events – only add the summary once
   useEffect(() => {
     let summaryAdded = false;
-
     const unsubscribe = agentRuntime.onProgress((event) => {
       setLogs(prev => {
         // Skip duplicate summary
         if (event.emoji === '' && summaryAdded) return prev;
         if (event.emoji === '') summaryAdded = true;
-
         const newLog = {
           id: Date.now() + Math.random(),
           emoji: event.emoji || '',
           text: event.message,
           time: new Date().toLocaleTimeString(),
         };
-
         // Increment unread if the messages tab is not active
         setUnreadCount(count => count + 1);
         return [...prev, newLog];
       });
     });
-
     // If data was already loaded before subscription, add the summary now
     if (agentDataService.isReady() && !summaryAdded) {
       const customers = agentDataService.getCustomers();
@@ -75,6 +72,39 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
         summaryAdded = true;
       }
     }
+    return unsubscribe;
+  }, []);
+
+  // Subscribe to order audit results — fires synchronously the instant
+  // createOrderFromPO's audit check resolves (pass OR fail), whether the
+  // order came from AI Mode's Autonomous tab or the manual-mode flow in
+  // App.jsx, since orderCreationService is a shared singleton either way.
+  //
+  // Seeds from getAuditLog() first, so an order created while this panel
+  // was closed still shows up here once it's reopened, instead of being
+  // silently missed.
+  useEffect(() => {
+    const toLog = (event) => ({
+      id: 'audit-' + event.timestamp + '-' + Math.random(),
+      emoji: event.success ? '✅' : '🚫',
+      text: event.message,
+      time: new Date(event.timestamp).toLocaleTimeString(),
+    });
+
+    const history = getAuditLog();
+    if (history.length > 0) {
+      setLogs(prev => {
+        const existingIds = new Set(prev.map(l => l.id));
+        const newEntries = history.map(toLog).filter(l => !existingIds.has(l.id));
+        if (newEntries.length === 0) return prev;
+        return [...prev, ...newEntries];
+      });
+    }
+
+    const unsubscribe = onOrderAudit((event) => {
+      setLogs(prev => [...prev, toLog(event)]);
+      setUnreadCount(count => count + 1);
+    });
 
     return unsubscribe;
   }, []);
