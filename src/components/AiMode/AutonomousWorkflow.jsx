@@ -139,6 +139,18 @@ const AutonomousWorkflow = () => {
       }
 
       markDone(s, `Order #${result.orderNumber} created and verified.`);
+
+      // ================================================================
+      // FIX: Clear preview state after successful order (autonomous mode UI bug).
+      // This matches manual mode's behavior (reset to drop zone).
+      // ================================================================
+      setOrderPreview(null);
+      setFileDropped(false);
+      setRawOcrText('');
+      setShowRawOcr(false);
+      setSteps([]);
+      setError(null);
+
     } catch (err) {
       setError(err.message);
       addStep(`Failed: ${err.message}`, 'failed');
