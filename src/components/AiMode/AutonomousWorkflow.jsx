@@ -107,11 +107,38 @@ const AutonomousWorkflow = () => {
 
   const handleCreateOrder = async () => {
     if (!orderPreview) return;
+
+    // FIX: createOrderFromPO requires an explicit branch — it will
+    // never fall back to "whatever the session happens to be on" (that
+    // silent fallback is exactly what caused the Eldoret mix-up). The
+    // branch is already sitting on orderPreview.customerInfo from the
+    // identifyCustomer step above; the old code just never passed it,
+    // so this call has been throwing "customerBranch is required" on
+    // every single click since that fix went in.
+    const branch = orderPreview.customerInfo?.branch;
+    if (!branch) {
+      setError('Missing customer branch — refusing to submit without one.');
+      addStep('Failed: missing customer branch', 'failed');
+      return;
+    }
+
     setProcessing(true);
     try {
       const s = addStep('Creating order...');
-      const result = await orderCreationService.createOrderFromPO(orderPreview);
-      markDone(s, `Order #${result.orderNumber} created.`);
+      const result = await orderCreationService.createOrderFromPO(orderPreview, branch);
+
+      // FIX: createOrderFromPO can resolve successfully while carrying
+      // { success: false, ... } — that's the audit-failed-and-cancelled
+      // path, not a thrown error. The old code only checked the catch
+      // block, so an audit failure was reported to the user as "Order
+      // #Unknown created" instead of surfacing the actual mismatch.
+      if (!result.success) {
+        markFailed(s, result.error || 'Order failed audit and was cancelled.');
+        setError(result.error || 'Order failed audit and was cancelled.');
+        return;
+      }
+
+      markDone(s, `Order #${result.orderNumber} created and verified.`);
     } catch (err) {
       setError(err.message);
       addStep(`Failed: ${err.message}`, 'failed');
