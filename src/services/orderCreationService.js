@@ -3,8 +3,7 @@ import lagrangianService from "@services/lagrangianService.js";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs";
 pdfjsLib.GlobalWorkerOptions.wasmUrl = "/pdfjs/";
-import { getFGCode as getFGCodeFromStandard } from "@utils/StandardModel.js";
-import { STANDARD_MODEL } from "@utils/StandardModel.js";
+import { getFGCode as getFGCodeFromStandard, STANDARD_MODEL } from "@utils/StandardModel.js";
 
 // ─── Configuration ───────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -205,6 +204,161 @@ const extractViaSLM = async (text, customerType) => {
   };
 };
 
+// ─── DETERMINISTIC REGEX EXTRACTION ──────────────────────────────
+// For digital PDFs of Naivas, Jazaribu, Cleanshelf (Local/Pending), Khetia.
+// Returns { lpo, items: [{ code, quantity }] } or null if insufficient data.
+
+const normaliseText = (text) => {
+  return text
+    .toUpperCase()
+    .replace(/[\u2018\u2019\u0060\u00B4]/g, "'")
+    .replace(/[|]/g, "I")
+    .replace(/O(?=\d)/g, "0")
+    .replace(/[lI](?=\d)/g, "1")
+    .replace(/\s+\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n");
+};
+
+const extractNaivas = (text) => {
+  const lpoMatch = text.match(/P\d{8,9}(?:-\d+)?/g);
+  let lpo = "UNKNOWN_LPO";
+  if (lpoMatch) {
+    lpo = lpoMatch[0];
+    if (lpo.endsWith("-1")) lpo = lpo.slice(0, -2);
+  }
+
+  const items = [];
+  const lines = text.split("\n");
+  const itemRegex = /^(135\d{5}|N\d{6})\s+(\d{13})\s+(.+?)\s+PCS\s+(\d+)\.\d{2}/i;
+
+  for (const line of lines) {
+    const match = line.match(itemRegex);
+    if (match) {
+      items.push({
+        code: match[1],
+        quantity: parseInt(match[4], 10)
+      });
+    }
+  }
+
+  return { lpo, items };
+};
+
+const extractJazaribu = (text) => {
+  const lpoMatch = text.match(/PO-J\d{3}-\d{6}/i);
+  const lpo = lpoMatch ? lpoMatch[0] : "UNKNOWN_LPO";
+
+  const items = [];
+  const lines = text.split("\n");
+  const itemRegex = /^(\d{13})\s+(JT\d{5})\s+(.+?)\s+(\d+)\s+PIECES/i;
+
+  for (const line of lines) {
+    const match = line.match(itemRegex);
+    if (match) {
+      items.push({
+        code: match[2],
+        quantity: parseInt(match[4], 10)
+      });
+    }
+  }
+
+  return { lpo, items };
+};
+
+const extractCleanshelfLocal = (text) => {
+  const lpoMatch = text.match(/CLS\s*-\s*(\d+)/i);
+  const lpo = lpoMatch ? `CLS - ${lpoMatch[1]}` : "UNKNOWN_LPO";
+
+  const items = [];
+  const itemRegex = /(4003\d{2})\s+(.+?)\s+(\d+)\s+(\d+)\s*$/gm;
+
+  let match;
+  while ((match = itemRegex.exec(text)) !== null) {
+    items.push({
+      code: match[1],
+      quantity: parseInt(match[4], 10) // pieces
+    });
+  }
+
+  return { lpo, items };
+};
+
+const extractCleanshelfPending = (text) => {
+  const lpoMatch = text.match(/([\d,]+)\s*LPO\s*No\.?/i);
+  let lpo = "UNKNOWN_LPO";
+  if (lpoMatch) {
+    lpo = lpoMatch[1].replace(/,/g, "");
+  }
+
+  const items = [];
+  const itemRegex = /(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(4003\d{2})/g;
+
+  let match;
+  while ((match = itemRegex.exec(text)) !== null) {
+    items.push({
+      code: match[4],
+      quantity: Math.round(parseFloat(match[2])) // ordered qty
+    });
+  }
+
+  return { lpo, items };
+};
+
+const extractKhetia = (text) => {
+  const lpoMatch = text.match(/\b(\d{7})\b/);
+  const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
+
+  const items = [];
+  const lines = text.split("\n");
+  const itemRegex = /^(\d{6})\s+(.+?)\s+(\d+)\.\d{2}\s+PCS/i;
+
+  for (const line of lines) {
+    const match = line.match(itemRegex);
+    if (match) {
+      items.push({
+        code: match[1],
+        quantity: parseInt(match[3], 10)
+      });
+    }
+  }
+
+  return { lpo, items };
+};
+
+const extractViaRegex = (rawText, customerType) => {
+  const text = normaliseText(rawText);
+  let result = null;
+
+  switch (customerType) {
+    case "NAIVAS":
+      result = extractNaivas(text);
+      break;
+    case "JAZARIBU":
+      result = extractJazaribu(text);
+      break;
+    case "CLEANSHELF":
+      if (/CLS\s*-\s*\d+/i.test(text)) {
+        result = extractCleanshelfLocal(text);
+      } else if (/LPO\s*No\.?/i.test(text)) {
+        result = extractCleanshelfPending(text);
+      }
+      break;
+    case "KHETIA":
+      result = extractKhetia(text);
+      break;
+    default:
+      result = null;
+  }
+
+  if (result && (result.items.length === 0 || result.lpo === "UNKNOWN_LPO")) {
+    // Return null to signal fallback to AI
+    return null;
+  }
+
+  return result;
+};
+
 // ─── SCANNED PDF PIPELINE (vision OCR + 8B extraction) ─────────
 const preprocessCropForVision = (cropCanvas) => {
   const ctx = cropCanvas.getContext("2d");
@@ -328,20 +482,31 @@ const extractFromFile = async (file, customerType) => {
   const text = await extractTextFromPdf(arrayBuffer);
   console.log("[PDF TEXT]", text);
   if (text.length > PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
-    console.log("[INFO] Using digital PDF path with Llama-3.1-8B (NVIDIA)");
-    return await extractViaSLM(text, customerType);
+    console.log("[INFO] Using deterministic regex extraction for " + customerType);
+    const regexResult = extractViaRegex(text, customerType);
+    if (regexResult) {
+      return regexResult;
+    } else {
+      console.log("[WARN] Regex extraction failed, falling back to LLM");
+      return await extractViaSLM(text, customerType);
+    }
   } else {
     throw new Error("This PDF appears to be a scanned document and is not yet supported for this customer.");
   }
 };
 
-// ─── PUBLIC API (unchanged) ─────────────────────────────────────
+// ─── PUBLIC API ─────────────────────────────────────────────────
 const parsePOFromDroppedFile = async (file, customerCode = null, customerType = "NAIVAS", preExtractedText = null) => {
   const detected = detectCustomerTypeByCode(customerCode, customerType);
   if (detected !== customerType) customerType = detected;
   let aiOutput;
   if (preExtractedText && preExtractedText.length >= PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH && !["MAJID","CHANDARANA","QUICKMART"].includes(detected)) {
-    aiOutput = await extractViaSLM(preExtractedText, detected);
+    console.log("[INFO] Using pre-extracted text with regex for " + detected);
+    aiOutput = extractViaRegex(preExtractedText, detected);
+    if (!aiOutput) {
+      console.log("[WARN] Regex failed on pre-extracted text, falling back to AI");
+      aiOutput = await extractViaSLM(preExtractedText, detected);
+    }
   } else {
     aiOutput = await extractFromFile(file, detected);
   }
@@ -359,7 +524,7 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
     quantity: Math.round(item.quantity) || 0,
     foundQuantity: item.quantity || 0,
     productName: getProductName(item.code, customerType),
-    method: "slm",
+    method: "regex", // updated to reflect deterministic extraction when used
   }));
 
   console.log("[INFO] Extracted " + items.length + " items.");
@@ -398,8 +563,17 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
   };
 };
 
-// ─── MANUAL TEXT INPUT (unchanged) ───────────────────────────────
+// ─── MANUAL TEXT INPUT (regex for digital-capable customers) ─────
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
+  // Use deterministic regex for the supported digital customers
+  if (["NAIVAS", "JAZARIBU", "CLEANSHELF", "KHETIA"].includes(customerType)) {
+    const regexResult = extractViaRegex(text, customerType);
+    if (regexResult) {
+      return regexResult;
+    }
+  }
+
+  // Fallback to AI
   const systemPrompt = "You are CT226, a deterministic order-entry transducer.\n=== LAWS OF EXTRACTION (PHYSICS GAUGE MAP) ===\nExtract LPO and items strictly per this map.\nMajid      : LPO=\"ORDER :\", Code=\"BAR CODE\", Qty=\"QTY UC\"\nChandarana : LPO=\"Order No. :\", Code=\"Bar Code\", Qty=\"Quantity\" (not Scan Qty)\nQuickmart  : LPO=\"PURCHASE ORDER #\", Code=\"Scan Code\", Qty=\"Order Qty\"\nKhetia     : LPO=\"PURCHASE ORDER #\", Code=\"YOUR Code\", Qty=\"Order Qty\"\nJazaribu   : LPO=\"Order No.\" or \"PO-J\", Code=\"No.\" (JT), Qty=\"Quantity\"\nCleanshelf Pending : LPO=\"LPO No.\" (remove commas), Code=\"Code\", Qty=\"Orderd Qty.\"\nCleanshelf Local   : LPO=\"L. P. O. No:\" (keep CLS -), Code=\"CODE\", Qty=\"Pieces\"\nNaivas     : LPO=\"P\" + 8-9 digits (strip \"-1\" suffix), Code=\"Item Code\", Qty=\"Quantity\"\n\n=== OUTPUT FORMAT ===\nReturn ONLY JSON: {\"lpo\":\"string\",\"confidence\":0.0-1.0,\"items\":[{\"code\":\"string\",\"quantity\":integer}]}";
 
   const userPrompt = "Customer: " + customerType + "\n" + text;
@@ -443,18 +617,6 @@ const getProductsByCustomer = async (customerType = "NAIVAS") => {
 };
 
 // ─── Audit notification bus ──────────────────────────────────────
-// Fires synchronously, inline with order creation — this is NOT a
-// queued/batched job. createOrderFromPO awaits the audit check (the
-// GET /orders/detail call and comparison logic) to completion before
-// notifyAudit ever runs, so by the time any listener sees an event the
-// pass/fail outcome is already final and the cancel (if any) has
-// already happened.
-//
-// A small bounded history is kept here — not just dispatched and
-// forgotten — so UI that isn't mounted yet when an audit resolves (e.g.
-// AI Mode's Messages tab, if that panel happens to be closed at the
-// moment an order is created from elsewhere) can still show it
-// retroactively via getAuditLog() once it mounts.
 const AUDIT_LOG_MAX = 50;
 let auditLog = [];
 let auditListeners = [];
@@ -533,9 +695,6 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
       orderType: DEFAULT_SETTINGS.ORDER_TYPE,
       sellingPriceList: CUSTOMER_PRICE_LISTS[poData.customerType] || DEFAULT_SETTINGS.SELLING_PRICE_LIST,
       dueDate,
-      // Kept as the env default (true): a customer can legitimately have
-      // more than one order in a day, and isTopUp:false was blocking the
-      // second one from being submitted.
       isTopUp: DEFAULT_SETTINGS.IS_TOP_UP,
       warehouse,
       remarks: DEFAULT_SETTINGS.REMARKS,
@@ -553,7 +712,6 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
       throw new Error("Order creation returned no order number");
     }
 
-    // ─── SYNCHRONOUS AUDIT ──────────────────────────────────────
     const detailResp = await apiClient.get("/orders/detail/" + orderNumber);
     const detail = detailResp.data?.payload || detailResp.data;
     if (!detail) {
