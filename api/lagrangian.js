@@ -284,18 +284,39 @@ async function proxyNVIDIA(body, res) {
   const { endpoint, data } = body || {};
   const url = 'https://integrate.api.nvidia.com/v1' + (endpoint || '/chat/completions');
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + NVIDIA_API_KEY,
-      'Content-Type': 'application/json',
-      'X-NVCF-ORG': NVIDIA_ORG,
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + NVIDIA_API_KEY,
+        'Content-Type': 'application/json',
+        'X-NVCF-ORG': NVIDIA_ORG,
+      },
+      body: JSON.stringify(data),
+    });
 
-  const responseData = await response.json();
-  return res.status(response.status).json(responseData);
+    const responseText = await response.text();
+    console.log('[NVIDIA] Status:', response.status);
+    console.log('[NVIDIA] URL:', url);
+    console.log('[NVIDIA] Response body:', responseText);
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (e) {
+      responseData = {
+        error: 'Non-JSON NVIDIA response',
+        raw: responseText.slice(0, 500),
+      };
+    }
+
+    return res.status(response.status).json(responseData);
+  } catch (error) {
+    console.error('[NVIDIA] Fetch error:', error.message);
+    return res.status(500).json({
+      error: 'NVIDIA upstream error: ' + error.message,
+    });
+  }
 }
 
 // ─── LOGOUT ─────────────────────────────────────────────────────
