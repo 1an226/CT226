@@ -372,14 +372,55 @@ const extractMajid = (text) => {
   const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
 
   const items = [];
-  const lines = text.split("\n");
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+  // Vertical layout: barcode on its own line, followed by ref, fam, description, quantity
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const barcodeMatch = line.match(/^U?(\d{13})$/);
+    if (!barcodeMatch) continue;
+
+    const code = barcodeMatch[1];
+    let description = null;
+    let quantity = null;
+
+    for (let j = i + 1; j < lines.length && j < i + 15; j++) {
+      const cur = lines[j];
+
+      if (/^U?\d{13}$/.test(cur)) break;
+
+      if (!description && /[A-Z]/.test(cur) && !/^\d+(\.\d+)?$/.test(cur)) {
+        description = cur;
+
+        for (let k = j + 1; k < lines.length && k < j + 6; k++) {
+          const numLine = lines[k];
+          if (/^\d{1,2}$/.test(numLine)) {
+            quantity = parseInt(numLine, 10);
+            break;
+          }
+          if (/^U?\d{13}$/.test(numLine)) break;
+        }
+
+        break;
+      }
+    }
+
+    if (quantity !== null) {
+      items.push({ code, quantity });
+    }
+  }
+
+  if (items.length > 0) {
+    return { outlet, lpo, items };
+  }
+
+  // Compact / pipe layout fallback
   const pipeRegex = /^U?(\d{13})\s+\d+\s+\d+\s*\|\s*(.+?)\s*\|\s*(\d+)\s*\|/;
   const simpleRegex = /^U?(\d{13})\s+\d+\s+\d+\s+(.+?)\s+(\d+)\s+[\d.]+/;
 
   for (const rawLine of lines) {
-    const line = rawLine.trim();
-    let match = line.match(pipeRegex);
-    if (!match) match = line.match(simpleRegex);
+    let match = rawLine.match(pipeRegex);
+    if (!match) match = rawLine.match(simpleRegex);
     if (match) {
       items.push({
         code: match[1],
