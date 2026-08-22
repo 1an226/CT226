@@ -32,32 +32,27 @@ const JAZARIBU_FALLBACK = {
   JT01103: "FG008",
 };
 
+// Additional cross-customer fallback codes
+const ADDITIONAL_FALLBACK = {
+  JT01092: "FG009",
+  "400340": "FG009",
+  "400399": "FG013",
+  "415601": "FG009",
+  "6161102320411": "FG009",
+};
+
 const STANDARD_MODEL = {
   ...ITEM_MAP,
   ...CLEANSHELF_MAP,
   ...JAZARIBU_MAP,
   ...JAZARIBU_FALLBACK,
+  ...ADDITIONAL_FALLBACK,
   ...KHETIA_MAP,
   ...MAJID_MAP,
   ...CHANDARANA_MAP,
   ...QUICKMART_MAP,
 };
 
-// FIX: the old implementation did `rawCode.replace(/^[^0-9]+/, '')` —
-// stripping every leading non-digit character before ever attempting a
-// lookup. That's correct for pure junk (a stray "-" or "*" ahead of a
-// numeric barcode) but it also strips the "N" off "N051055"/"N051056"
-// and the "JT" off every single Jazaribu code, since those prefixes are
-// letters and this regex doesn't distinguish "junk" from "part of the
-// real code". Every JT-prefixed lookup and both N-prefixed Naivas SKUs
-// were silently missing and falling through to "UNKNOWN_...".
-//
-// Codes reaching this function come from the SLM's structured JSON
-// extraction, not raw OCR text — so they should already be clean. The
-// fix tries the exact code first (this covers every valid format:
-// numeric barcodes, N051055/N051056, JT01098, 4003xx, etc.), and only
-// falls back to stripping non-alphanumeric junk — never letters — if
-// the exact match misses.
 export const getFGCode = (rawCode) => {
   if (!rawCode) return null;
   const trimmed = String(rawCode).trim();
