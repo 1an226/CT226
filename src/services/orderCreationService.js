@@ -142,21 +142,15 @@ const extractTextFromPdf = async (arrayBuffer) => {
   return fullText.trim();
 };
 
-// ─── SLM EXTRACTION (8B model for all customers) ────────────────
+// ─── SLM EXTRACTION (8B model fallback) ──────────────────────────
 const extractViaSLM = async (text, customerType) => {
   const rules = {
     NAIVAS: "Customer: Naivas Ltd.\nColumns: Item Code (e.g., 13505757 or N051055), Bar Code, Description, Unit (PCS), Quantity, Unit Price, Net Amount.\nLPO: appears as 'P' followed by 8-9 digits (e.g., P038449364). It may have a trailing '-1', which must be stripped.\nExtract the Item Code (not the Bar Code). For quantity, use the number AFTER the word 'PCS'.\nReturn ONLY valid JSON.",
-
     KHETIA: "Customer: Khetia Drapers Ltd.\nColumns: YOUR Code (6-digit item code), Description, Order Qty (the REAL order quantity, always followed by 'PCS'), Packing (ignore, e.g., '1 PCS * 8 PAIR').\nLPO: a 7-digit number (e.g., 2520950) near 'PURCHASE ORDER #' or at the top.\nCRITICAL: The LPO is NEVER a 6-digit number. If you see a 6-digit number, that is an ITEM CODE, not the LPO. The LPO is a 7-digit number.\nExtract YOUR Code. For quantity, use the FIRST number that is immediately followed by 'PCS'. Ignore any numbers in the Packing column.\nReturn ONLY valid JSON.",
-
     JAZARIBU: "Customer: Jazaribu Retail.\nColumns: Barcode, No. (JT code, e.g., JT01098), Description, Quantity (the number right before 'PIECES'), Unit of Measure (PIECES), Cost, Amount.\nIMPORTANT: There are MULTIPLE items. Look at ALL lines that contain a JT code (like JT01098, JT01097, etc.). Extract EVERY JT code you find, along with its quantity.\nLPO: appears as 'PO-J' followed by 3-3-6 digits (e.g., PO-J020-000253). It may be on the line after 'Order No.'.\nExtract the JT code. For quantity, use ONLY the number that appears immediately before the word 'PIECES'. Do NOT use any number from the description (like 400Gm).\nReturn ONLY valid JSON with ALL items.",
-
     CLEANSHELF: "Customer: Cleanshelf Supermarkets.\nThere are two formats:\n1. Local Purchase Order:\n   - Text layout: Amount, Unit Price, Code (4003xxx), Description, Pack (ignore), Pieces (use).\n   - LPO: appears as 'CLS - ' followed by 5-6 digits (e.g., CLS - 91213).\n   - For each line with a 4003xxx code, ignore numbers before the code. After the code and description, there are two numbers: Pack (ignore) and Pieces (use). Use the Pieces number.\n2. Pending Purchase Order:\n   - Columns: numbers before the code (Outstanding, Orderd Qty., Received), then Code (4003xxx), Description.\n   - LPO: appears as a number with optional commas next to 'LPO No.' (e.g., 111,638 LPO No.). The number is usually BEFORE the words 'LPO No.'.\n   - For each line with a 4003xxx code, use the second of the three numbers before the code (Orderd Qty.).\nFor both formats, extract the Code and the correct quantity. LPO: if local, prepend 'CLS - '. For pending, remove commas from the LPO number.\nReturn ONLY valid JSON.",
-
     CHANDARANA: "Customer: Chandarana.\nColumns: Bar Code (13 digits), Description, Quantity (real order quantity). Ignore any 'Scan Qty' column.\nLPO: appears after 'Order No.'.\nExtract the Bar Code and the Quantity.\nReturn ONLY valid JSON.",
-
     MAJID: "Customer: Majid (Carrefour).\nColumns: BAR CODE (13 digits), QTY UC (the order quantity).\nLPO: appears after 'ORDER :'.\nExtract the BAR CODE and the QTY UC.\nReturn ONLY valid JSON.",
-
     QUICKMART: "Customer: Quickmart Ltd.\nColumns: Code (short number like 700103 – IGNORE this column), Scan Code (13-digit barcode – use THIS as the item code), Description, Packing (always '1 PCS' – ignore), Order Qty (the real order quantity, always followed by 'PCS' and after the description), Unit, Agreed Invoice Price, Total.\nExample: line \"700103 6161102320268 ... 4.00 PCS ...\" → code 6161102320268, quantity 4.\nLPO: appears after 'PURCHASE ORDER #' as a pattern like XXX-XXXXXXXX (e.g., 016-00057714).\nExtract the Scan Code (13-digit) for each item. Do NOT use the short Code column.\nFor quantity, use the Order Qty (the number immediately before 'PCS' that appears after the description, NOT the '1 PCS' packing column).\nReturn ONLY valid JSON.",
   };
 
@@ -205,16 +199,16 @@ const extractViaSLM = async (text, customerType) => {
 };
 
 // ─── DETERMINISTIC REGEX EXTRACTION ──────────────────────────────
-// For digital PDFs of Naivas, Jazaribu, Cleanshelf (Local/Pending), Khetia.
-// Returns { lpo, items: [{ code, quantity }] } or null if insufficient data.
-
+// Digital: Naivas, Jazaribu, Cleanshelf, Khetia
+// Scanned after OCR: Majid, Chandarana, Quickmart
 const normaliseText = (text) => {
   return text
     .toUpperCase()
     .replace(/[\u2018\u2019\u0060\u00B4]/g, "'")
-    .replace(/[|]/g, "I")
+    .replace(/[|]/g, " ")
     .replace(/O(?=\d)/g, "0")
     .replace(/[lI](?=\d)/g, "1")
+    .replace(/U(?=\d{13})/g, "")
     .replace(/\s+\n/g, "\n")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{2,}/g, "\n");
@@ -236,10 +230,7 @@ const extractNaivas = (text) => {
     const line = rawLine.trim();
     const match = line.match(itemRegex);
     if (match) {
-      items.push({
-        code: match[1],
-        quantity: parseInt(match[4], 10)
-      });
+      items.push({ code: match[1], quantity: parseInt(match[4], 10) });
     }
   }
 
@@ -258,10 +249,7 @@ const extractJazaribu = (text) => {
     const line = rawLine.trim();
     const match = line.match(itemRegex);
     if (match) {
-      items.push({
-        code: match[2],
-        quantity: parseInt(match[4], 10)
-      });
+      items.push({ code: match[2], quantity: parseInt(match[4], 10) });
     }
   }
 
@@ -280,10 +268,7 @@ const extractCleanshelfLocal = (text) => {
 
   let match;
   while ((match = itemRegex.exec(text)) !== null) {
-    items.push({
-      code: match[1],
-      quantity: parseInt(match[4], 10) // pieces
-    });
+    items.push({ code: match[1], quantity: parseInt(match[4], 10) });
   }
 
   return { lpo, items };
@@ -303,7 +288,7 @@ const extractCleanshelfPending = (text) => {
   while ((match = itemRegex.exec(text)) !== null) {
     items.push({
       code: match[4],
-      quantity: Math.round(parseFloat(match[2])) // ordered qty
+      quantity: Math.round(parseFloat(match[2]))
     });
   }
 
@@ -322,6 +307,80 @@ const extractKhetia = (text) => {
     const line = rawLine.trim();
     const match = line.match(itemRegex);
     if (match) {
+      items.push({ code: match[1], quantity: parseInt(match[3], 10) });
+    }
+  }
+
+  return { lpo, items };
+};
+
+const extractQuickmart = (text) => {
+  const outletMatch = text.match(/QUICK\s*MART\s+([A-Z\s]+?)\s*BRANCH/i);
+  const outlet = outletMatch ? outletMatch[1].trim() : "UNKNOWN_OUTLET";
+
+  const lpoMatch = text.match(/PURCHASE\s*ORDER\s*#\s*(\d{3}-\d{8})/i);
+  const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
+
+  const items = [];
+  const lines = text.split("\n");
+  const lineRegex = /(\d{13})\b[^\n]*?\b1\s+PCS\s+(\d+(?:\.\d+)?)\s+PCS/;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const match = line.match(lineRegex);
+    if (match) {
+      items.push({
+        code: match[1],
+        quantity: Math.round(parseFloat(match[2]))
+      });
+    }
+  }
+
+  return { outlet, lpo, items };
+};
+
+const extractChandarana = (text) => {
+  const outletMatch = text.match(/Delivery\s*To\s*-\s*([^\n]+)/i);
+  const outlet = outletMatch ? outletMatch[1].trim() : "UNKNOWN_OUTLET";
+
+  const lpoMatch = text.match(/Order\s*No\.\s*&\s*Date\s*-\s*(\d{13,14})/i);
+  const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
+
+  const items = [];
+  const lines = text.split("\n");
+  const lineRegex = /^(\d+)\s+(\d{13})\s+.*?\s+([\d.]+)\s+([\d.]+)\s+(\d+)\s+([\d.]+)$/;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const match = line.match(lineRegex);
+    if (match) {
+      items.push({
+        code: match[2],
+        quantity: Math.round(parseFloat(match[6]))
+      });
+    }
+  }
+
+  return { outlet, lpo, items };
+};
+
+const extractMajid = (text) => {
+  const outletMatch = text.match(/DELIVERED\s*TO\s*:\s*([^\n]+)/i);
+  const outlet = outletMatch ? outletMatch[1].trim() : "UNKNOWN_OUTLET";
+
+  const lpoMatch = text.match(/ORDER\s*:\s*(\d+)/i);
+  const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
+
+  const items = [];
+  const lines = text.split("\n");
+  const pipeRegex = /^U?(\d{13})\s+\d+\s+\d+\s*\|\s*(.+?)\s*\|\s*(\d+)\s*\|/;
+  const simpleRegex = /^U?(\d{13})\s+\d+\s+\d+\s+(.+?)\s+(\d+)\s+[\d.]+/;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    let match = line.match(pipeRegex);
+    if (!match) match = line.match(simpleRegex);
+    if (match) {
       items.push({
         code: match[1],
         quantity: parseInt(match[3], 10)
@@ -329,7 +388,7 @@ const extractKhetia = (text) => {
     }
   }
 
-  return { lpo, items };
+  return { outlet, lpo, items };
 };
 
 const extractViaRegex = (rawText, customerType) => {
@@ -353,19 +412,27 @@ const extractViaRegex = (rawText, customerType) => {
     case "KHETIA":
       result = extractKhetia(text);
       break;
+    case "MAJID":
+      result = extractMajid(text);
+      break;
+    case "CHANDARANA":
+      result = extractChandarana(text);
+      break;
+    case "QUICKMART":
+      result = extractQuickmart(text);
+      break;
     default:
       result = null;
   }
 
   if (result && (result.items.length === 0 || result.lpo === "UNKNOWN_LPO")) {
-    // Return null to signal fallback to AI
     return null;
   }
 
   return result;
 };
 
-// ─── SCANNED PDF PIPELINE (vision OCR + 8B extraction) ─────────
+// ─── SCANNED PDF PIPELINE (vision OCR + regex/AI extraction) ─────
 const preprocessCropForVision = (cropCanvas) => {
   const ctx = cropCanvas.getContext("2d");
   const imageData = ctx.getImageData(0, 0, cropCanvas.width, cropCanvas.height);
@@ -424,6 +491,9 @@ const extractFromScannedPDF = async (file, customerType) => {
       throw new Error('OCR text is too short, likely a blank or unreadable image.');
     }
 
+    const regexResult = extractViaRegex(ocrText, customerType);
+    if (regexResult) return regexResult;
+
     console.time('8B Extraction');
     const result = await extractViaSLM(ocrText, customerType);
     console.timeEnd('8B Extraction');
@@ -465,6 +535,9 @@ const extractFromScannedPDF = async (file, customerType) => {
   if (ocrText.length < PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
     throw new Error('OCR text is too short, likely a blank or unreadable image.');
   }
+
+  const regexResult = extractViaRegex(ocrText, customerType);
+  if (regexResult) return regexResult;
 
   console.time('8B Extraction');
   const result = await extractViaSLM(ocrText, customerType);
@@ -530,11 +603,15 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
     quantity: Math.round(item.quantity) || 0,
     foundQuantity: item.quantity || 0,
     productName: getProductName(item.code, customerType),
-    method: "regex", // updated to reflect deterministic extraction when used
+    method: "regex",
   }));
 
-  // Enhanced logging: show LPO and each item's FG mapping + quantity
+  // Enhanced logging: outlet (if available), LPO, and each item mapping
+  if (parsedAI.outlet) {
+    console.log(`[OUTLET] ${parsedAI.outlet}`);
+  }
   console.log(`[LPO] ${lpoNumber}`);
+
   for (const found of items) {
     console.log(`[ITEM] ${found.ocrItemCode} -> ${found.actualItemCode} = ${found.quantity}`);
   }
@@ -577,15 +654,13 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
 
 // ─── MANUAL TEXT INPUT (regex for digital-capable customers) ─────
 const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
-  // Use deterministic regex for the supported digital customers
-  if (["NAIVAS", "JAZARIBU", "CLEANSHELF", "KHETIA"].includes(customerType)) {
+  if (["NAIVAS", "JAZARIBU", "CLEANSHELF", "KHETIA", "MAJID", "CHANDARANA", "QUICKMART"].includes(customerType)) {
     const regexResult = extractViaRegex(text, customerType);
     if (regexResult) {
       return regexResult;
     }
   }
 
-  // Fallback to AI
   const systemPrompt = "You are CT226, a deterministic order-entry transducer.\n=== LAWS OF EXTRACTION (PHYSICS GAUGE MAP) ===\nExtract LPO and items strictly per this map.\nMajid      : LPO=\"ORDER :\", Code=\"BAR CODE\", Qty=\"QTY UC\"\nChandarana : LPO=\"Order No. :\", Code=\"Bar Code\", Qty=\"Quantity\" (not Scan Qty)\nQuickmart  : LPO=\"PURCHASE ORDER #\", Code=\"Scan Code\", Qty=\"Order Qty\"\nKhetia     : LPO=\"PURCHASE ORDER #\", Code=\"YOUR Code\", Qty=\"Order Qty\"\nJazaribu   : LPO=\"Order No.\" or \"PO-J\", Code=\"No.\" (JT), Qty=\"Quantity\"\nCleanshelf Pending : LPO=\"LPO No.\" (remove commas), Code=\"Code\", Qty=\"Orderd Qty.\"\nCleanshelf Local   : LPO=\"L. P. O. No:\" (keep CLS -), Code=\"CODE\", Qty=\"Pieces\"\nNaivas     : LPO=\"P\" + 8-9 digits (strip \"-1\" suffix), Code=\"Item Code\", Qty=\"Quantity\"\n\n=== OUTPUT FORMAT ===\nReturn ONLY JSON: {\"lpo\":\"string\",\"confidence\":0.0-1.0,\"items\":[{\"code\":\"string\",\"quantity\":integer}]}";
 
   const userPrompt = "Customer: " + customerType + "\n" + text;
