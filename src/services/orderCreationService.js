@@ -230,9 +230,10 @@ const extractNaivas = (text) => {
 
   const items = [];
   const lines = text.split("\n");
-  const itemRegex = /^(135\d{5}|N\d{6})\s+(\d{13})\s+(.+?)\s+PCS\s+(\d+)\.\d{2}/i;
+  const itemRegex = /^(135\d{5}|N\d{6})\s+(\d{13,14})\s+(.+?)\s+PCS\s+(\d+)\.\d{2}/i;
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
     const match = line.match(itemRegex);
     if (match) {
       items.push({
@@ -253,7 +254,8 @@ const extractJazaribu = (text) => {
   const lines = text.split("\n");
   const itemRegex = /^(\d{13})\s+(JT\d{5})\s+(.+?)\s+(\d+)\s+PIECES/i;
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
     const match = line.match(itemRegex);
     if (match) {
       items.push({
@@ -267,8 +269,11 @@ const extractJazaribu = (text) => {
 };
 
 const extractCleanshelfLocal = (text) => {
-  const lpoMatch = text.match(/CLS\s*-\s*(\d+)/i);
-  const lpo = lpoMatch ? `CLS - ${lpoMatch[1]}` : "UNKNOWN_LPO";
+  const lpoMatch = text.match(/(\d+)\s*L\.\s*P\.\s*O\.\s*No:/i);
+  let lpo = "UNKNOWN_LPO";
+  if (lpoMatch) {
+    lpo = `CLS - ${lpoMatch[1]}`;
+  }
 
   const items = [];
   const itemRegex = /(4003\d{2})\s+(.+?)\s+(\d+)\s+(\d+)\s*$/gm;
@@ -313,7 +318,8 @@ const extractKhetia = (text) => {
   const lines = text.split("\n");
   const itemRegex = /^(\d{6})\s+(.+?)\s+(\d+)\.\d{2}\s+PCS/i;
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
     const match = line.match(itemRegex);
     if (match) {
       items.push({
@@ -526,6 +532,12 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
     productName: getProductName(item.code, customerType),
     method: "regex", // updated to reflect deterministic extraction when used
   }));
+
+  // Enhanced logging: show LPO and each item's FG mapping + quantity
+  console.log(`[LPO] ${lpoNumber}`);
+  for (const found of items) {
+    console.log(`[ITEM] ${found.ocrItemCode} -> ${found.actualItemCode} = ${found.quantity}`);
+  }
 
   console.log("[INFO] Extracted " + items.length + " items.");
 
