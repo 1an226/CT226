@@ -69,9 +69,12 @@ const AutonomousWorkflow = () => {
       }
       markDone(s2, `Customer: ${customer.name}`);
 
-      // Step 3: Parallel branch switch + AI extraction
+      // Step 3: Parallel branch switch + deterministic regex extraction
       const s3a = addStep('Checking branch context...');
-      const s3b = addStep('AI extracting order data...');
+      const typeLabel = customer.type
+        ? customer.type.charAt(0) + customer.type.slice(1).toLowerCase()
+        : 'order';
+      const s3b = addStep(`${typeLabel} regex extracting...`);
 
       const [branchMsg, parsedData] = await Promise.all([
         (async () => {
