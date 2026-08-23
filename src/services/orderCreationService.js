@@ -4,7 +4,6 @@ import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs";
 pdfjsLib.GlobalWorkerOptions.wasmUrl = "/pdfjs/";
 import { getFGCode as getFGCodeFromStandard, STANDARD_MODEL } from "@utils/StandardModel.js";
-import { runBrowserOcr } from './browserOcr';
 
 // ─── Configuration ───────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -200,8 +199,6 @@ const extractViaSLM = async (text, customerType) => {
 };
 
 // ─── DETERMINISTIC REGEX EXTRACTION ──────────────────────────────
-// Digital: Naivas, Jazaribu, Cleanshelf, Khetia
-// Scanned after OCR: Majid, Chandarana, Quickmart
 const normaliseText = (text) => {
   return text
     .toUpperCase()
@@ -504,7 +501,7 @@ const extractViaRegex = (rawText, customerType) => {
   return result;
 };
 
-// ─── SCANNED PDF PIPELINE (browser OCR + fallback) ─────────────
+// ─── SCANNED PDF PIPELINE (NVIDIA Vision OCR primary) ─────────────
 const preprocessCropForVision = (cropCanvas) => {
   const ctx = cropCanvas.getContext("2d");
   const imageData = ctx.getImageData(0, 0, cropCanvas.width, cropCanvas.height);
@@ -548,29 +545,16 @@ const extractFromScannedPDF = async (file, customerType) => {
     console.timeEnd('Server PDF Render');
     const dataUrl = 'data:image/png;base64,' + image;
 
-    let ocrText = '';
-
-    try {
-      console.time('Browser OCR');
-      ocrText = await runBrowserOcr(dataUrl);
-      console.timeEnd('Browser OCR');
-      console.log('[BROWSER OCR TEXT]', ocrText);
-    } catch (e) {
-      console.warn('Browser OCR failed, falling back to NVIDIA', e);
-    }
-
-    if (ocrText.length < PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
-      console.time('Vision OCR');
-      const ocrData = await callNvidiaAPI({
-        model: VISION_MODEL,
-        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
-        temperature: 0,
-        max_tokens: 2048,
-      }, true);
-      ocrText = ocrData.choices[0].message.content;
-      console.timeEnd('Vision OCR');
-      console.log('[VISION OCR TEXT]', ocrText);
-    }
+    console.time('Vision OCR');
+    const ocrData = await callNvidiaAPI({
+      model: VISION_MODEL,
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+      temperature: 0,
+      max_tokens: 2048,
+    }, true);
+    const ocrText = ocrData.choices[0].message.content;
+    console.timeEnd('Vision OCR');
+    console.log('[VISION OCR TEXT]', ocrText);
 
     if (ocrText.length < PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
       throw new Error('OCR text is too short, likely a blank or unreadable image.');
@@ -606,29 +590,16 @@ const extractFromScannedPDF = async (file, customerType) => {
 
   const dataUrl = canvas.toDataURL('image/png');
 
-  let ocrText = '';
-
-  try {
-    console.time('Browser OCR');
-    ocrText = await runBrowserOcr(dataUrl);
-    console.timeEnd('Browser OCR');
-    console.log('[BROWSER OCR TEXT]', ocrText);
-  } catch (e) {
-    console.warn('Browser OCR failed, falling back to NVIDIA', e);
-  }
-
-  if (ocrText.length < PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
-    console.time('Vision OCR');
-    const data = await callNvidiaAPI({
-      model: VISION_MODEL,
-      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
-      temperature: 0,
-      max_tokens: 2048,
-    }, true);
-    ocrText = data.choices[0].message.content;
-    console.timeEnd('Vision OCR');
-    console.log('[VISION OCR TEXT]', ocrText);
-  }
+  console.time('Vision OCR');
+  const data = await callNvidiaAPI({
+    model: VISION_MODEL,
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+    temperature: 0,
+    max_tokens: 2048,
+  }, true);
+  const ocrText = data.choices[0].message.content;
+  console.timeEnd('Vision OCR');
+  console.log('[VISION OCR TEXT]', ocrText);
 
   if (ocrText.length < PERFORMANCE_SETTINGS.MIN_TEXT_LENGTH) {
     throw new Error('OCR text is too short, likely a blank or unreadable image.');
