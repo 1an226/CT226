@@ -2327,3 +2327,67 @@ body {
 .ai-mode-round-btn:hover { box-shadow: 0 0 20px rgba(0,255,0,0.6); }
 .ai-ai { background: #000; color: #00ff00; padding: 8px 12px; }
 .ai-mode { background: #00ff00; color: #000; padding: 8px 12px; }
+
+/* Manual-mode AI-style order preview */
+.order-preview {
+  margin-top: 20px;
+}
+
+.order-preview h3 {
+  color: #00ff00;
+  margin-bottom: 15px;
+}
+
+.order-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+
+.order-preview th,
+.order-preview td {
+  border: 1px solid #00ff00;
+  padding: 10px;
+  text-align: left;
+}
+
+.order-preview th {
+  background: rgba(0, 30, 0, 0.5);
+}
+
+.order-preview-meta {
+  margin: 15px 0;
+  padding: 10px;
+  background: rgba(0, 30, 0, 0.3);
+  border-left: 3px solid #00ff00;
+}
+
+.order-preview-meta p {
+  margin: 5px 0;
+  color: #00ff00;
+}
+
+.order-total {
+  text-align: right;
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #00ff00;
+  margin-top: 10px;
+}
+
+.order-preview-edit-btn {
+  background: rgba(0, 30, 0, 0.5);
+  border: 1px solid #00ff00;
+  color: #00ff00;
+  padding: 8px 15px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+  margin-bottom: 10px;
+}
+
+.order-preview-edit-btn:hover {
+  background: rgba(0, 255, 0, 0.1);
+}
