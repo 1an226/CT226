@@ -11,7 +11,7 @@ async function getWorker() {
         throw new Error('Tesseract.js is not loaded');
       }
 
-      const worker = window.Tesseract.createWorker('eng', 1, {
+      const worker = await window.Tesseract.createWorker('eng', 1, {
         workerPath: '/ocr/tesseract/worker.min.js',
         corePath: '/ocr/tesseract/tesseract-core.wasm.js',
         langPath: '/ocr/tesseract',
