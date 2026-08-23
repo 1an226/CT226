@@ -722,198 +722,71 @@ const DocumentReaderModal = memo(
               </div>
             )}
 
-            {/* Parsed Order Preview */}
+            {/* Parsed Order Preview - updated to match AI Mode */}
             {parsedOrderData && !isProcessing && (
-              <div
-                className="parsed-order-preview"
-                style={{
-                  background: "#e8f5e9",
-                  padding: "20px",
-                  borderRadius: "8px",
-                  marginTop: "20px",
-                  border: "2px solid #4CAF50",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "15px",
+              <>
+                <button
+                  type="button"
+                  className="order-preview-edit-btn"
+                  onClick={() => {
+                    setParsedOrderData(null);
+                    if (inputMode === "text") {
+                      setTimeout(() => textAreaRef.current?.focus(), 0);
+                    }
                   }}
                 >
-                  <div></div>
-                  <button
-                    onClick={() => {
-                      setParsedOrderData(null);
-                      if (inputMode === "text") {
-                        setTimeout(() => textAreaRef.current?.focus(), 0);
-                      }
-                    }}
-                    className="btn btn-sm"
-                    style={{
-                      background: "#ff9800",
-                      color: "white",
-                      border: "none",
-                      padding: "8px 15px",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontWeight: "500",
-                    }}
-                  >
-                    Edit PO
-                  </button>
+                  EDIT PO
+                </button>
+
+                <div className="order-preview">
+                  <h3>ORDER PREVIEW</h3>
+                  <div className="order-preview-meta">
+                    <p>Customer: {selectedCustomer?.name} ({selectedCustomer?.code})</p>
+                    <p>LPO: {parsedOrderData.lpoNumber}</p>
+                  </div>
+
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsedOrderData.items.map((item, index) => (
+                        <tr key={index}>
+                          <td>{item.product?.itemName || item.description}</td>
+                          <td>{item.quantity}</td>
+                          <td>{(item.unitPrice || 0).toFixed(2)}</td>
+                          <td>{((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <p className="order-total">
+                    Total: Ksh{" "}
+                    {parsedOrderData.items
+                      .reduce(
+                        (sum, item) =>
+                          sum + (item.quantity || 0) * (item.unitPrice || 0),
+                        0,
+                      )
+                      .toFixed(2)}
+                  </p>
                 </div>
 
-                {/* Items List */}
-                {parsedOrderData.items && parsedOrderData.items.length > 0 && (
-                  <div style={{ marginTop: "15px" }}>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "3fr 1fr 1fr 1fr",
-                        gap: "10px",
-                        padding: "12px",
-                        background: "white",
-                        borderRadius: "6px",
-                        fontWeight: "bold",
-                        borderBottom: "2px solid #4CAF50",
-                        fontSize: "14px",
-                      }}
-                    >
-                      <div>Item Description</div>
-                      <div style={{ textAlign: "center" }}>Quantity</div>
-                      <div style={{ textAlign: "center" }}>Unit Price</div>
-                      <div style={{ textAlign: "right" }}>Total</div>
-                    </div>
-                    {parsedOrderData.items.map((item, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "3fr 1fr 1fr 1fr",
-                          gap: "10px",
-                          padding: "12px",
-                          background: "white",
-                          borderRadius: "6px",
-                          marginTop: "8px",
-                          borderLeft: `4px solid ${item.status === "matched" ? "#4CAF50" : "#ff9800"}`,
-                          fontSize: "14px",
-                        }}
-                      >
-                        <div>
-                          <div
-                            style={{ fontWeight: "bold", marginBottom: "3px" }}
-                          >
-                            {item.description}
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#666" }}>
-                            {item.product
-                              ? `${item.product.itemCode} - ${item.product.itemName}`
-                              : "Product not found in system"}
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            textAlign: "center",
-                            alignSelf: "center",
-                            fontWeight: "500",
-                          }}
-                        >
-                          {item.quantity}
-                        </div>
-                        <div
-                          style={{
-                            textAlign: "center",
-                            alignSelf: "center",
-                            fontWeight: "500",
-                          }}
-                        >
-                          Ksh {item.unitPrice?.toFixed(2)}
-                        </div>
-                        <div
-                          style={{
-                            textAlign: "right",
-                            alignSelf: "center",
-                            fontWeight: "bold",
-                            color: "#2E7D32",
-                          }}
-                        >
-                          Ksh {item.netAmount?.toFixed(2)}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Totals */}
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "3fr 1fr 1fr 1fr",
-                        gap: "10px",
-                        padding: "15px",
-                        background: "#2E7D32",
-                        color: "white",
-                        borderRadius: "6px",
-                        marginTop: "12px",
-                        fontWeight: "bold",
-                        fontSize: "15px",
-                      }}
-                    >
-                      <div>ORDER TOTAL</div>
-                      <div style={{ textAlign: "center" }}>
-                        {parsedOrderData.items.reduce(
-                          (sum, item) => sum + (item.quantity || 0),
-                          0,
-                        )}
-                      </div>
-                      <div></div>
-                      <div style={{ textAlign: "right" }}>
-                        Ksh{" "}
-                        {parsedOrderData.items
-                          .reduce((sum, item) => sum + (item.netAmount || 0), 0)
-                          .toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Warnings */}
                 {parsedOrderData.parsingWarnings &&
                   parsedOrderData.parsingWarnings.length > 0 && (
-                    <div
-                      style={{
-                        background: "#fff3cd",
-                        padding: "12px",
-                        borderRadius: "6px",
-                        marginTop: "15px",
-                        border: "1px solid #ffc107",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontWeight: "bold",
-                          color: "#856404",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Notices:
-                      </div>
+                    <div className="error-message">
                       {parsedOrderData.parsingWarnings.map((warning, index) => (
-                        <div
-                          key={index}
-                          style={{
-                            fontSize: "13px",
-                            color: "#856404",
-                            marginBottom: "3px",
-                            paddingLeft: "10px",
-                          }}
-                        >
-                          • {warning}
-                        </div>
+                        <div key={index}>• {warning}</div>
                       ))}
                     </div>
                   )}
-              </div>
+              </>
             )}
           </div>
 
