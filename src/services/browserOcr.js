@@ -11,13 +11,16 @@ async function getWorker() {
         throw new Error('Tesseract.js is not loaded');
       }
 
-      const worker = await window.Tesseract.createWorker('eng', 1, {
+      const worker = await window.Tesseract.createWorker({
         workerPath: '/ocr/tesseract/worker.min.js',
         corePath: '/ocr/tesseract/tesseract-core.wasm.js',
         langPath: '/ocr/tesseract',
         gzip: false,
         cachePath: 'browser',
       });
+
+      await worker.loadLanguage('eng');
+      await worker.initialize('eng');
 
       await worker.setParameters({
         preserve_interword_spaces: '1',
