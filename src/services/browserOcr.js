@@ -1,15 +1,9 @@
-import * as ocr from '@paddlejs-models/ocr';
+let ocrPromise = null;
 
-let initialized = false;
-
-async function initOnce() {
-  if (initialized) return;
-
-  // Default models load from Paddle.js CDN.
-  // No PO data is sent — only static model files are downloaded.
-  await ocr.init();
-
-  initialized = true;
+function ensureModuleGlobal() {
+  if (typeof window !== 'undefined' && !window.Module) {
+    window.Module = {};
+  }
 }
 
 function loadImage(dataUrl) {
@@ -21,9 +15,21 @@ function loadImage(dataUrl) {
   });
 }
 
-export async function runBrowserOcr(dataUrl) {
-  await initOnce();
+async function getOcr() {
+  if (!ocrPromise) {
+    ensureModuleGlobal();
 
+    ocrPromise = import('@paddlejs-models/ocr').then(async (ocr) => {
+      await ocr.init();
+      return ocr;
+    });
+  }
+
+  return ocrPromise;
+}
+
+export async function runBrowserOcr(dataUrl) {
+  const ocr = await getOcr();
   const img = await loadImage(dataUrl);
   const result = await ocr.recognize(img);
 
