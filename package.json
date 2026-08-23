@@ -36,7 +36,6 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.3",
-    "@paddlejs-models/ocr": "^1.2.4",
     "axios": "^1.13.2",
     "canvas": "^3.2.3",
     "pdfjs-dist": "^5.4.530",
