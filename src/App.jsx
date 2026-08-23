@@ -14,7 +14,7 @@ const CONFIG = {
     import.meta.env.VITE_ALLOWED_FILE_TYPES || "pdf,png,jpg,jpeg,webp,txt"
   ).split(","),
   ALLOWED_OCR_FILE_TYPES: (
-    import.meta.env.VITE_ALLOWED_OCR_FILE_TYPES || "pdf,png,jpg,jpeg,webp"
+    import.meta.env.VITE_ALLOWED_OCR_FILE_TYPES || "pdf,png,jpg,jpeg,webp,txt"
   ).split(","),
   ITEMS_PER_PAGE: parseInt(import.meta.env.VITE_ITEMS_PER_PAGE) || 25,
   DEFAULT_PAGE_SIZE: parseInt(import.meta.env.VITE_DEFAULT_PAGE_SIZE) || 1000,
