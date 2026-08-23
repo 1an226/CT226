@@ -1,6 +1,5 @@
-// src/services/browserOcr.js
 // Local browser OCR engine using self-hosted Tesseract.js assets.
-// No external CDN. Data stays on the user's device.
+// Fast mode: dictionaries disabled, PSM configurable.
 
 let workerPromise = null;
 
@@ -24,6 +23,13 @@ async function getWorker() {
 
       await worker.setParameters({
         preserve_interword_spaces: '1',
+        load_system_dawg: '0',
+        load_freq_dawg: '0',
+        load_unambig_dawg: '0',
+        load_punc_dawg: '0',
+        load_number_dawg: '0',
+        load_bigram_dawg: '0',
+        load_fixed_length_dawgs: '0',
       });
 
       return worker;
@@ -37,7 +43,7 @@ function preprocessImage(imageSrc) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const maxDim = 1800;
+      const maxDim = 1600;
       let width = img.width;
       let height = img.height;
 
