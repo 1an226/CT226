@@ -111,27 +111,32 @@ const DocumentReaderModal = memo(
         if (CONFIG.ENABLE_CONSOLE_LOGS) console.log("Auto-paste not available");
       }
     };
+const validateFile = (file) => {
+  const errors = [];
 
-    const validateFile = (file) => {
-      const errors = [];
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  const mimeMain = file.type.split("/")[0]?.toLowerCase() || "";
+  const mimeSub = file.type.split("/")[1]?.toLowerCase() || "";
 
-      if (
-        !CONFIG.ALLOWED_OCR_FILE_TYPES.includes(file.type.split("/")[1]) &&
-        !CONFIG.ALLOWED_OCR_FILE_TYPES.includes(file.type.split("/")[0])
-      ) {
-        errors.push(
-          `File type ${file.type} not allowed. Supported types: ${CONFIG.ALLOWED_OCR_FILE_TYPES.join(", ")}`,
-        );
-      }
+  const allowed = CONFIG.ALLOWED_OCR_FILE_TYPES.map((t) => t.trim().toLowerCase());
+  const allowedExtension = allowed.includes(ext);
+  const allowedMimeMain = allowed.includes(mimeMain);
+  const allowedMimeSub = allowed.includes(mimeSub);
 
-      if (file.size > CONFIG.MAX_FILE_SIZE) {
-        errors.push(
-          `File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds maximum ${CONFIG.MAX_FILE_SIZE / 1024 / 1024}MB`,
-        );
-      }
+  if (!allowedExtension && !allowedMimeMain && !allowedMimeSub) {
+    errors.push(
+      `File type ${file.type} not allowed. Supported types: ${CONFIG.ALLOWED_OCR_FILE_TYPES.join(", ")}`,
+    );
+  }
 
-      return errors;
-    };
+  if (file.size > CONFIG.MAX_FILE_SIZE) {
+    errors.push(
+      `File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds maximum ${CONFIG.MAX_FILE_SIZE / 1024 / 1024}MB`,
+    );
+  }
+
+  return errors;
+};
 
     const handlePasteFromClipboard = async () => {
       try {
