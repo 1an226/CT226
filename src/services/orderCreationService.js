@@ -445,7 +445,7 @@ const extractMajidDigital = (text) => {
 
     const afterStart = match.index + barcode.length;
     const after = text.slice(afterStart, afterStart + 40);
-    const qtyMatch = after.match(/^01021009001000000(\d{1,3})/);
+    const qtyMatch = after.match(/^01021009001000000(\d{1,2})/);
 
     if (qtyMatch) {
       items.push({
