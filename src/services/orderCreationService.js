@@ -432,6 +432,32 @@ const extractMajid = (text) => {
   return { outlet, lpo, items };
 };
 
+const extractMajidDigital = (text) => {
+  const lpoMatch = text.match(/KEJ(\d{8})/);
+  const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
+
+  const items = [];
+  const barcodeRegex = /(616\d{10})/g;
+  let match;
+
+  while ((match = barcodeRegex.exec(text)) !== null) {
+    const barcode = match[1];
+
+    const afterStart = match.index + barcode.length;
+    const after = text.slice(afterStart, afterStart + 40);
+    const qtyMatch = after.match(/^01021009001000000(\d{1,3})/);
+
+    if (qtyMatch) {
+      items.push({
+        code: barcode,
+        quantity: parseInt(qtyMatch[1], 10)
+      });
+    }
+  }
+
+  return { outlet: "", lpo, items };
+};
+
 const extractViaRegex = (rawText, customerType) => {
   const text = normaliseText(rawText);
   let result = null;
@@ -454,7 +480,11 @@ const extractViaRegex = (rawText, customerType) => {
       result = extractKhetia(text);
       break;
     case "MAJID":
-      result = extractMajid(text);
+      if (/KEJ\d{8}/.test(text) && !/DELIVERED\s*TO/i.test(text)) {
+        result = extractMajidDigital(text);
+      } else {
+        result = extractMajid(text);
+      }
       break;
     case "CHANDARANA":
       result = extractChandarana(text);
