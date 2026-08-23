@@ -1,6 +1,6 @@
 // src/services/browserOcr.js
-// Local browser OCR engine using Tesseract.js
-// No external API. Data stays on the user's device.
+// Local browser OCR engine using self-hosted Tesseract.js assets.
+// No external CDN. Data stays on the user's device.
 
 let workerPromise = null;
 
@@ -10,13 +10,23 @@ async function getWorker() {
       if (!window.Tesseract) {
         throw new Error('Tesseract.js is not loaded');
       }
-      const worker = await window.Tesseract.createWorker('eng');
+
+      const worker = window.Tesseract.createWorker('eng', 1, {
+        workerPath: '/ocr/tesseract/worker.min.js',
+        corePath: '/ocr/tesseract/tesseract-core.wasm.js',
+        langPath: '/ocr/tesseract',
+        gzip: false,
+        cachePath: 'browser',
+      });
+
       await worker.setParameters({
         preserve_interword_spaces: '1',
       });
+
       return worker;
     })();
   }
+
   return workerPromise;
 }
 
@@ -24,7 +34,6 @@ function preprocessImage(imageSrc) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      // Resize to max 1800px longest side for OCR quality/speed balance
       const maxDim = 1800;
       let width = img.width;
       let height = img.height;
@@ -43,7 +52,6 @@ function preprocessImage(imageSrc) {
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Convert to grayscale + binary threshold for clean OCR
       const imageData = ctx.getImageData(0, 0, width, height);
       const data = imageData.data;
 
@@ -67,8 +75,8 @@ export async function runBrowserOcr(dataUrl, options = {}) {
   const worker = await getWorker();
 
   const {
-    psm = '6',              // Default: assume uniform block of text
-    whitelist = '',         // e.g. '0123456789' for digit-only crops
+    psm = '6',
+    whitelist = '',
   } = options;
 
   const params = {};
@@ -82,7 +90,6 @@ export async function runBrowserOcr(dataUrl, options = {}) {
 
   const { data: { text } } = await worker.recognize(processedDataUrl);
 
-  // Reset params to avoid affecting next call
   if (whitelist) {
     await worker.setParameters({ tessedit_char_whitelist: '' });
   }
