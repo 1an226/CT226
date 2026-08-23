@@ -224,13 +224,13 @@ const extractNaivas = (text) => {
 
   const items = [];
   const lines = text.split("\n");
-  const itemRegex = /^(135\d{5}|N\d{6})\s+(\d{13,14})\s+(.+?)\s+PCS\s+(\d+)\.\d{2}/i;
+  const itemRegex = /^(135\d{5}|N\d{6})\s+[^\n]+?\s+PCS\s+(\d+)\.\d{2}/i;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
     const match = line.match(itemRegex);
     if (match) {
-      items.push({ code: match[1], quantity: parseInt(match[4], 10) });
+      items.push({ code: match[1], quantity: parseInt(match[2], 10) });
     }
   }
 
