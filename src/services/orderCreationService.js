@@ -433,7 +433,7 @@ const extractMajid = (text) => {
 };
 
 const extractMajidDigital = (text) => {
-  const lpoMatch = text.match(/KEJ(\d{8})/);
+  const lpoMatch = text.match(/[A-Z]+(\d{8})/);
   const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
 
   const items = [];
@@ -480,7 +480,7 @@ const extractViaRegex = (rawText, customerType) => {
       result = extractKhetia(text);
       break;
     case "MAJID":
-      if (/KEJ\d{8}/.test(text) && !/DELIVERED\s*TO/i.test(text)) {
+      if (/[A-Z]+\d{8}/.test(text) && !/DELIVERED\s*TO/i.test(text)) {
         result = extractMajidDigital(text);
       } else {
         result = extractMajid(text);
