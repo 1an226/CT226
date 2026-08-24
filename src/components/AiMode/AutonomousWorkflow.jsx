@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import orderCreationService from '@services/orderCreationService';
 import authService from '@services/authService';
 import agentRuntime from '@services/agentRuntime';
-
+import agentDataService from '@services/agentDataService';
+import { resolveCustomerCodeFromLpo, resolveMajidDigitalCustomerCode } from '@utils/deterministicLpoMap';
 
 function formatDuration(ms) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -70,63 +71,95 @@ const AutonomousWorkflow = () => {
       markDone(s1, 'OCR text extracted.');
       setRawOcrText(rawText);
 
-      // Step 2: Identify customer
+      // Step 2: Identify customer (initial guess)
       const s2 = addStep('Identifying customer...');
-      const customer = await agentRuntime.identifyCustomer(rawText, file.name);
+      let customer = await agentRuntime.identifyCustomer(rawText, file.name);
       if (!customer || !customer.branch) {
         throw new Error('Could not identify customer or branch.');
       }
       markDone(s2, `Customer: ${customer.name}`);
 
-      // Step 3: Parallel branch switch + deterministic regex extraction
-      const s3a = addStep('Checking branch context...');
-      const typeLabel = customer.type
-        ? customer.type.charAt(0) + customer.type.slice(1).toLowerCase()
-        : 'order';
-      const s3b = addStep(`${typeLabel} regex extracting...`);
+      // Step 3: Parse PO with regex (no branch switch yet)
+      const s3 = addStep(`${customer.type ? customer.type.charAt(0) + customer.type.slice(1).toLowerCase() : 'order'} regex extracting...`);
+      const parsedData = await orderCreationService.parsePOFromDroppedFile(
+        file,
+        customer.code,
+        customer.type,
+        rawText
+      );
+      markDone(s3, `Extracted ${parsedData.items.length} items.`);
 
-      const [branchMsg, parsedData] = await Promise.all([
-        (async () => {
-          const current = authService.getCurrentBranch();
-          if (current !== customer.branch) {
-            await authService.switchBranch(customer.branch);
-            return `Switched to ${customer.branch}.`;
-          }
-          return `Already in ${customer.branch}.`;
-        })(),
-        orderCreationService.parsePOFromDroppedFile(file, customer.code, customer.type, rawText),
-      ]);
+      // Step 4: Correct customer/branch using deterministic LPO map
+      const s4 = addStep('Validating customer from LPO...');
+      const deterministicCode =
+        resolveCustomerCodeFromLpo(parsedData.lpoNumber, customer.type) ||
+        resolveMajidDigitalCustomerCode(rawText);
 
-      markDone(s3a, branchMsg);
-      markDone(s3b, `Extracted ${parsedData.items.length} items.`);
+      if (deterministicCode && deterministicCode !== customer.code) {
+        const allCustomers = agentDataService.getCustomers();
+        const correctCustomer = allCustomers.find(c => c.code === deterministicCode);
+        if (correctCustomer) {
+          customer = {
+            name: correctCustomer.name,
+            code: correctCustomer.code,
+            branch: correctCustomer.branch,
+            type: customer.type,
+          };
+          markDone(s4, `Corrected to ${customer.name}`);
+        } else {
+          markDone(s4, `LPO maps to ${deterministicCode} but not in cache; keeping ${customer.name}`);
+        }
+      } else {
+        markDone(s4, `Customer ${customer.name} matches LPO rule`);
+      }
 
-      // Step 4: Match products
-      const s4 = addStep('Matching products and prices...');
+      // Step 5: Switch branch if needed
+      const s5 = addStep('Checking branch context...');
+      const current = authService.getCurrentBranch();
+      if (current !== customer.branch) {
+        await authService.switchBranch(customer.branch);
+        markDone(s5, `Switched to ${customer.branch}.`);
+      } else {
+        markDone(s5, `Already in ${customer.branch}.`);
+      }
+
+      // Step 6: Match products
+      const s6 = addStep('Matching products and prices...');
       const products = await orderCreationService.getProductsByCustomer(customer.type);
       const matchedItems = parsedData.items.map(item => {
         const fgCode = item.fgCode || item.actualItemCode;
         const product = products.find(p => p.itemCode === fgCode);
         return { ...item, fgCode, product, status: product ? 'matched' : 'unmatched' };
       });
-      markDone(s4, 'Products matched.');
 
-      const finalOrderData = { ...parsedData, items: matchedItems, customerInfo: customer };
+      const unmatchedCount = matchedItems.filter(i => i.status !== 'matched').length;
+      if (unmatchedCount > 0) {
+        addStep(`Warning: ${unmatchedCount} item(s) unmatched and will be excluded`, 'running');
+      }
+
+      markDone(s6, 'Products matched.');
+
+      const finalOrderData = {
+        ...parsedData,
+        items: matchedItems.filter(i => i.status === 'matched'),
+        customerInfo: customer,
+      };
       setOrderPreview(finalOrderData);
 
-      // Step 5: Automatically create order
-      const s5 = addStep('Creating order...');
+      // Step 7: Auto-create order
+      const s7 = addStep('Creating order...');
       try {
         const result = await orderCreationService.createOrderFromPO(finalOrderData, customer.branch);
 
         if (!result.success) {
-          markFailed(s5, result.error || 'Order failed audit and was cancelled.');
+          markFailed(s7, result.error || 'Order failed audit and was cancelled.');
           setError(result.error || 'Order failed audit and was cancelled.');
         } else {
           const elapsedMs = performance.now() - startTimeRef.current;
-          markDone(s5, `Order #${result.orderNumber} created and verified. (${formatDuration(elapsedMs)})`);
+          markDone(s7, `Order #${result.orderNumber} created and verified. (${formatDuration(elapsedMs)})`);
         }
       } catch (err) {
-        markFailed(s5, err.message);
+        markFailed(s7, err.message);
         setError(err.message);
       }
     } catch (err) {
