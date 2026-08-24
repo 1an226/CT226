@@ -57,6 +57,24 @@ function setSessionCookie(res, token, tabId = '') {
   );
 }
 
+
+function clearStaleTabCookies(req, res, currentTabId) {
+  const cookies = parseCookies(req.headers?.cookie);
+  const stale = [];
+  for (const key of Object.keys(cookies)) {
+    if (key.startsWith(COOKIE_NAME + '_') && key !== getCookieName(currentTabId)) {
+      stale.push(key);
+    }
+  }
+  if (stale.length > 0) {
+    const headers = stale.map(name =>
+      `${name}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`
+    );
+    const existing = res.getHeader('Set-Cookie') || [];
+    res.setHeader('Set-Cookie', [...(Array.isArray(existing) ? existing : [existing]), ...headers]);
+  }
+}
+
 function clearSessionCookie(res, tabId = '') {
   const cookieName = getCookieName(tabId);
   res.setHeader(
@@ -221,6 +239,7 @@ async function handleInit(req, res) {
 
   const tabId = req.body?.tabId || '';
   tokenCache.set(token, { token, customers, products, tabId });
+  clearStaleTabCookies(req, res, tabId);
   setSessionCookie(res, token, tabId);
 
   return res.json({
@@ -333,6 +352,7 @@ async function proxyNVIDIA(body, res) {
 // ─── LOGOUT ─────────────────────────────────────────────────────
 async function handleLogout(req, res) {
   const tabId = req.body?.tabId || '';
+  clearStaleTabCookies(req, res, tabId);
   clearSessionCookie(res, tabId);
   return res.json({ success: true });
 }
