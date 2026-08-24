@@ -1,12 +1,12 @@
 const LAGRANGIAN_URL = import.meta.env.PROD ? '/api/lagrangian' : 'http://localhost:3001/api/lagrangian';
 
+let tabId = null;
+
 export function getTabId() {
-  let tabId = sessionStorage.getItem('ct226_tab_id');
   if (!tabId) {
     tabId = crypto.randomUUID
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    sessionStorage.setItem('ct226_tab_id', tabId);
   }
   return tabId;
 }
@@ -54,7 +54,6 @@ class LagrangianService {
     } finally {
       this._active = false;
       this._sessionId = null;
-      sessionStorage.removeItem('ct226_tab_id');
     }
   }
 }

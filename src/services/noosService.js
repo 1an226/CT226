@@ -77,7 +77,7 @@ You: {"function":"get_customers","params":{"branch":"Eldoret","type":"supermarke
 function getUserId() {
   try {
     const user = authService.getCurrentUser();
-    return user?.details?.id ? String(user.details.id) : 'anonymous';
+    return user?.id ? String(user.id) : 'anonymous';
   } catch {
     return 'anonymous';
   }

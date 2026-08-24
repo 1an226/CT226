@@ -10,8 +10,8 @@ const ChatInterface = () => {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const chatRef = useRef(null);
 
-  const userId = authService.getCurrentUser()?.details?.id
-    ? String(authService.getCurrentUser().details.id)
+  const userId = authService.getCurrentUser()?.id
+    ? String(authService.getCurrentUser().id)
     : 'anonymous';
 
   useEffect(() => {
