@@ -366,7 +366,25 @@ const extractMajid = (text) => {
   const outletMatch = text.match(/DELIVERED\s*TO\s*:\s*([^\n]+)/i);
   const outlet = outletMatch ? outletMatch[1].trim() : "UNKNOWN_OUTLET";
 
-  const lpoMatch = text.match(/ORDER\s*:\s*(\d+)/i);
+  let lpoMatch = text.match(/ORDER\s*:\s*(\d+)/i);
+  if (!lpoMatch) {
+    lpoMatch = text.match(/ORDER\s*\n\s*(\d{8})/i);
+  }
+  if (!lpoMatch) {
+    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i] === 'ORDER') {
+        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+          const candidate = lines[j].replace(/[^0-9]/g, '');
+          if (/^\d{8}$/.test(candidate)) {
+            lpoMatch = [null, candidate];
+            break;
+          }
+        }
+        if (lpoMatch) break;
+      }
+    }
+  }
   const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
 
   const items = [];
@@ -661,19 +679,80 @@ const parsePOFromDroppedFile = async (file, customerCode = null, customerType = 
   return parsePOTextFromParsedJSON(aiOutput, customerCode, customerType);
 };
 
+
+// Known barcode whitelists for scanned customers (used for closed-set correction)
+const MAJID_BARCODES = [
+  "6161102320404","6161102320305","6164000136610","6161102320183",
+  "6161102320534","6161102320138","6161102320299","6161102320268",
+  "6161102320442","6161102320435","6161102320459","6161100480155",
+  "6161100481961","6161102320411"
+];
+const CHANDARANA_BARCODES = [
+  "6161102320459","6161102320046","6161102320138","6161102320404",
+  "6161102320299","6161102320442","6161102320183","6161102320435",
+  "6161102320169","6161102321074","6161102320268","6161102320060",
+  "6161102320305","6161102320411"
+];
+const QUICKMART_BARCODES = [
+  "6161102320459","6161102320183","6161102320169","6161102320305",
+  "6161102320442","6161102320435","6161102320268","6161102320138",
+  "6161102320060","6161102320299","6161102320046","6161102320404",
+  "6161102320411"
+];
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = Math.min(
+        dp[i-1][j] + 1,
+        dp[i][j-1] + 1,
+        dp[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1)
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function correctBarcode(rawCode, customerType) {
+  if (!rawCode || rawCode.startsWith("UNKNOWN")) return rawCode;
+  const list = customerType === "MAJID" ? MAJID_BARCODES :
+    customerType === "CHANDARANA" ? CHANDARANA_BARCODES :
+    customerType === "QUICKMART" ? QUICKMART_BARCODES : null;
+  if (!list) return rawCode;
+  if (list.includes(rawCode)) return rawCode;
+  let best = null, bestDist = 3;
+  for (const valid of list) {
+    const dist = levenshtein(rawCode, valid);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = valid;
+    }
+  }
+  return best || rawCode;
+}
+
 const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) => {
   let lpoNumber = parsedAI.lpo || "UNKNOWN_LPO";
   if (customerType === "CLEANSHELF" && lpoNumber.includes(",")) lpoNumber = lpoNumber.replace(/,/g, "");
   if (customerType === "NAIVAS" && lpoNumber.endsWith("-1")) lpoNumber = lpoNumber.slice(0, -2);
 
-  const items = (parsedAI.items || []).map(item => ({
-    ocrItemCode: item.code,
-    actualItemCode: getFGCode(item.code, customerType),
-    quantity: Math.round(item.quantity) || 0,
-    foundQuantity: item.quantity || 0,
-    productName: getProductName(item.code, customerType),
-    method: "regex",
-  }));
+  const items = (parsedAI.items || []).map(item => {
+    const correctedCode = correctBarcode(item.code, customerType);
+    const fgCode = getFGCode(correctedCode, customerType);
+    return {
+      ocrItemCode: item.code,
+      correctedCode,
+      actualItemCode: fgCode,
+      quantity: Math.round(item.quantity) || 0,
+      foundQuantity: item.quantity || 0,
+      productName: getProductName(correctedCode, customerType),
+      method: "regex",
+    };
+  });
 
   // Enhanced logging: outlet (if available), LPO, and each item mapping
   if (parsedAI.outlet) {
@@ -685,12 +764,23 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
     console.log(`[ITEM] ${found.ocrItemCode} -> ${found.actualItemCode} = ${found.quantity}`);
   }
 
-  console.log("[INFO] Extracted " + items.length + " items.");
+  // Remove duplicates by actualItemCode (keep first)
+  const seen = new Set();
+  const uniqueItems = items.filter(item => {
+    if (seen.has(item.actualItemCode)) return false;
+    seen.add(item.actualItemCode);
+    return true;
+  });
+
+  // Keep only items with known FG code (not UNKNOWN_)
+  const knownItems = uniqueItems.filter(item => !item.actualItemCode.startsWith("UNKNOWN_"));
+
+  console.log("[INFO] Extracted " + items.length + " items; " + knownItems.length + " known items after correction.");
 
   const products = await getProductsByCustomer(customerType);
   const resultItems = [];
   let totalValue = 0;
-  for (const found of items) {
+  for (const found of knownItems) {
     const product = products.find(p => p.itemCode === found.actualItemCode);
     if (product) {
       const itemValue = found.quantity * (product.itemPrice || 0);

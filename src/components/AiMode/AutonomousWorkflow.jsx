@@ -53,25 +53,34 @@ const AutonomousWorkflow = () => {
     startTimeRef.current = performance.now();
 
     try {
-      // Step 1: Extract OCR text
-      const s1 = addStep('Extracting PDF content...');
+      const isTextFile = file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
+
       let rawText = '';
 
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        rawText = await orderCreationService.extractTextFromPdf(arrayBuffer);
-      } catch (e) {
-        rawText = '';
+      if (isTextFile) {
+        const s0 = addStep('Reading text file...');
+        rawText = await file.text();
+        markDone(s0, 'Text file loaded.');
+        setRawOcrText(rawText);
+      } else {
+        // Step 1: Extract OCR text
+        const s1 = addStep('Extracting PDF content...');
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          rawText = await orderCreationService.extractTextFromPdf(arrayBuffer);
+        } catch (e) {
+          rawText = '';
+        }
+
+        if (rawText.length < 50) {
+          rawText = await orderCreationService.getVisionOcrText(file);
+        }
+
+        markDone(s1, 'OCR text extracted.');
+        setRawOcrText(rawText);
       }
 
-      if (rawText.length < 50) {
-        rawText = await orderCreationService.getVisionOcrText(file);
-      }
-
-      markDone(s1, 'OCR text extracted.');
-      setRawOcrText(rawText);
-
-      // Step 2: Identify customer (initial guess)
+      // Step 2: Identify customer
       const s2 = addStep('Identifying customer...');
       let customer = await agentRuntime.identifyCustomer(rawText, file.name);
       if (!customer || !customer.branch) {
@@ -79,17 +88,31 @@ const AutonomousWorkflow = () => {
       }
       markDone(s2, `Customer: ${customer.name}`);
 
-      // Step 3: Parse PO with regex (no branch switch yet)
-      const s3 = addStep(`${customer.type ? customer.type.charAt(0) + customer.type.slice(1).toLowerCase() : 'order'} regex extracting...`);
-      const parsedData = await orderCreationService.parsePOFromDroppedFile(
-        file,
-        customer.code,
-        customer.type,
-        rawText
-      );
-      markDone(s3, `Extracted ${parsedData.items.length} items.`);
+      // Step 3: Parallel parse PO and fetch products
+      const s3a = addStep('Parsing order data...');
+      const s3b = addStep('Fetching product catalogue...');
+      const s3c = addStep('Checking branch context...');
 
-      // Step 4: Correct customer/branch using deterministic LPO map
+      const [parsedData, products, branchMsg] = await Promise.all([
+        isTextFile
+          ? orderCreationService.parsePOText(rawText, customer.code, customer.type)
+          : orderCreationService.parsePOFromDroppedFile(file, customer.code, customer.type, rawText),
+        orderCreationService.getProductsByCustomer(customer.type),
+        (async () => {
+          const current = authService.getCurrentBranch();
+          if (current !== customer.branch) {
+            await authService.switchBranch(customer.branch);
+            return `Switched to ${customer.branch}.`;
+          }
+          return `Already in ${customer.branch}.`;
+        })(),
+      ]);
+
+      markDone(s3a, `Extracted ${parsedData.items.length} items.`);
+      markDone(s3b, 'Products loaded.');
+      markDone(s3c, branchMsg);
+
+      // Step 4: Correct customer/branch from LPO if deterministic
       const s4 = addStep('Validating customer from LPO...');
       const deterministicCode =
         resolveCustomerCodeFromLpo(parsedData.lpoNumber, customer.type) ||
@@ -113,53 +136,48 @@ const AutonomousWorkflow = () => {
         markDone(s4, `Customer ${customer.name} matches LPO rule`);
       }
 
-      // Step 5: Switch branch if needed
-      const s5 = addStep('Checking branch context...');
-      const current = authService.getCurrentBranch();
-      if (current !== customer.branch) {
-        await authService.switchBranch(customer.branch);
-        markDone(s5, `Switched to ${customer.branch}.`);
-      } else {
-        markDone(s5, `Already in ${customer.branch}.`);
-      }
-
-      // Step 6: Match products
-      const s6 = addStep('Matching products and prices...');
-      const products = await orderCreationService.getProductsByCustomer(customer.type);
+      // Step 5: Match products
+      const s5 = addStep('Matching products and prices...');
       const matchedItems = parsedData.items.map(item => {
         const fgCode = item.fgCode || item.actualItemCode;
         const product = products.find(p => p.itemCode === fgCode);
         return { ...item, fgCode, product, status: product ? 'matched' : 'unmatched' };
       });
 
-      const unmatchedCount = matchedItems.filter(i => i.status !== 'matched').length;
+      const finalItems = matchedItems.filter(i => i.status === 'matched');
+      const unmatchedCount = matchedItems.length - finalItems.length;
+
       if (unmatchedCount > 0) {
         addStep(`Warning: ${unmatchedCount} item(s) unmatched and will be excluded`, 'running');
       }
 
-      markDone(s6, 'Products matched.');
+      if (finalItems.length === 0) {
+        throw new Error('No matched items found. Order creation blocked.');
+      }
+
+      markDone(s5, `Products matched (${finalItems.length} items).`);
 
       const finalOrderData = {
         ...parsedData,
-        items: matchedItems.filter(i => i.status === 'matched'),
+        items: finalItems,
         customerInfo: customer,
       };
       setOrderPreview(finalOrderData);
 
-      // Step 7: Auto-create order
-      const s7 = addStep('Creating order...');
+      // Step 6: Auto-create order
+      const s6 = addStep('Creating order...');
       try {
         const result = await orderCreationService.createOrderFromPO(finalOrderData, customer.branch);
 
         if (!result.success) {
-          markFailed(s7, result.error || 'Order failed audit and was cancelled.');
+          markFailed(s6, result.error || 'Order failed audit and was cancelled.');
           setError(result.error || 'Order failed audit and was cancelled.');
         } else {
           const elapsedMs = performance.now() - startTimeRef.current;
-          markDone(s7, `Order #${result.orderNumber} created and verified. (${formatDuration(elapsedMs)})`);
+          markDone(s6, `Order #${result.orderNumber} created and verified. (${formatDuration(elapsedMs)})`);
         }
       } catch (err) {
-        markFailed(s7, err.message);
+        markFailed(s6, err.message);
         setError(err.message);
       }
     } catch (err) {
