@@ -1,7 +1,16 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import orderCreationService from '@services/orderCreationService';
 import authService from '@services/authService';
 import agentRuntime from '@services/agentRuntime';
+
+
+function formatDuration(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
 
 const AutonomousWorkflow = () => {
   const [processing, setProcessing] = useState(false);
@@ -11,6 +20,7 @@ const AutonomousWorkflow = () => {
   const [rawOcrText, setRawOcrText] = useState('');
   const [showRawOcr, setShowRawOcr] = useState(false);
   const [fileDropped, setFileDropped] = useState(false);
+  const startTimeRef = useRef(null);
 
   const addStep = (msg, status = 'running') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -39,6 +49,7 @@ const AutonomousWorkflow = () => {
     setShowRawOcr(false);
     setFileDropped(true);
     setSteps([]);
+    startTimeRef.current = performance.now();
 
     try {
       // Step 1: Extract OCR text
@@ -111,7 +122,8 @@ const AutonomousWorkflow = () => {
           markFailed(s5, result.error || 'Order failed audit and was cancelled.');
           setError(result.error || 'Order failed audit and was cancelled.');
         } else {
-          markDone(s5, `Order #${result.orderNumber} created and verified.`);
+          const elapsedMs = performance.now() - startTimeRef.current;
+          markDone(s5, `Order #${result.orderNumber} created and verified. (${formatDuration(elapsedMs)})`);
         }
       } catch (err) {
         markFailed(s5, err.message);
