@@ -17,6 +17,10 @@ const DDS_BASE = 'https://mbnl.ddsolutions.tech/dds-backend/api/v1';
 const TOKEN_REFRESH_BUFFER = 300;
 const COOKIE_NAME = 'ct226_session';
 
+function getCookieName(tabId) {
+  return tabId ? `${COOKIE_NAME}_${tabId}` : COOKIE_NAME;
+}
+
 // ─── COOKIE HELPERS ─────────────────────────────────────────────
 function parseCookies(cookieHeader) {
   const cookies = {};
@@ -42,20 +46,22 @@ function decodeSessionCookie(value) {
   }
 }
 
-function setSessionCookie(res, token) {
+function setSessionCookie(res, token, tabId = '') {
+  const cookieName = getCookieName(tabId);
   const value = encodeSessionCookie(token);
   // NOTE: max-age here should roughly track the DDS token's own lifetime.
   // 86400s (24h) matches the original code's assumption.
   res.setHeader(
     'Set-Cookie',
-    `${COOKIE_NAME}=${value}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`
+    `${cookieName}=${value}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`
   );
 }
 
-function clearSessionCookie(res) {
+function clearSessionCookie(res, tabId = '') {
+  const cookieName = getCookieName(tabId);
   res.setHeader(
     'Set-Cookie',
-    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`
+    `${cookieName}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`
   );
 }
 
@@ -65,9 +71,11 @@ function clearSessionCookie(res) {
 // there is no server-memory dependency for the auth decision itself.
 function getSession(req) {
   const cookies = parseCookies(req.headers?.cookie);
+  const tabId = req.body?.tabId || req.headers?.['x-tab-id'] || '';
+  const cookieName = getCookieName(tabId);
   let token = null;
 
-  const cookieVal = cookies[COOKIE_NAME];
+  const cookieVal = cookies[cookieName];
   if (cookieVal) {
     const decoded = decodeSessionCookie(cookieVal);
     if (decoded?.t) token = decoded.t;
@@ -80,8 +88,10 @@ function getSession(req) {
 
   let cache = tokenCache.get(token);
   if (!cache) {
-    cache = { token, customers: null, products: null };
+    cache = { token, customers: null, products: null, tabId };
     tokenCache.set(token, cache);
+  } else {
+    cache.tabId = tabId;
   }
   return cache;
 }
@@ -93,7 +103,7 @@ function adoptNewToken(session, newToken, res) {
   tokenCache.delete(session.token);
   session.token = newToken;
   tokenCache.set(newToken, session);
-  if (res) setSessionCookie(res, newToken);
+  if (res) setSessionCookie(res, newToken, session.tabId || '');
 }
 
 // Lazily refetches customers/products for a session whose cache was lost
@@ -167,7 +177,7 @@ export default async function handler(req, res) {
       case 'proxy-dds': return await proxyDDS(req, body, res);
       case 'proxy-nvidia': return await proxyNVIDIA(body, res);
       case 'agent': return await runAgent(req, body, res);
-      case 'logout': return await handleLogout(res);
+      case 'logout': return await handleLogout(req, res);
       default: return res.status(400).json({ error: 'Invalid action' });
     }
   } catch (error) {
@@ -209,8 +219,9 @@ async function handleInit(req, res) {
 
   const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'));
 
-  tokenCache.set(token, { token, customers, products });
-  setSessionCookie(res, token);
+  const tabId = req.body?.tabId || '';
+  tokenCache.set(token, { token, customers, products, tabId });
+  setSessionCookie(res, token, tabId);
 
   return res.json({
     success: true,
@@ -320,8 +331,9 @@ async function proxyNVIDIA(body, res) {
 }
 
 // ─── LOGOUT ─────────────────────────────────────────────────────
-async function handleLogout(res) {
-  clearSessionCookie(res);
+async function handleLogout(req, res) {
+  const tabId = req.body?.tabId || '';
+  clearSessionCookie(res, tabId);
   return res.json({ success: true });
 }
 

@@ -50,7 +50,7 @@ class AuthService {
   // Load from localStorage
   initializeFromStorage() {
     try {
-      const userStr = localStorage.getItem("dds_user");
+      const userStr = sessionStorage.getItem("dds_user");
       if (userStr) {
         const user = JSON.parse(userStr);
         this.currentBranch = user.details?.branch || "";
@@ -321,7 +321,7 @@ class AuthService {
         }
       }
 
-      localStorage.setItem("dds_user", JSON.stringify(user));
+      sessionStorage.setItem("dds_user", JSON.stringify(user));
     } else {
       // Create minimal user object
       const newUser = {
@@ -332,7 +332,7 @@ class AuthService {
           userBranches: [],
         },
       };
-      localStorage.setItem("dds_user", JSON.stringify(newUser));
+      sessionStorage.setItem("dds_user", JSON.stringify(newUser));
     }
 
     // Store branch separately
@@ -386,9 +386,7 @@ class AuthService {
   setAuthData(token, user) {
     try {
       // Store everything
-      localStorage.setItem("dds_access_token", token);
-      localStorage.setItem("dds_user", JSON.stringify(user));
-      localStorage.setItem("dds_token_timestamp", Date.now().toString());
+      sessionStorage.setItem("dds_user", JSON.stringify(user));
 
       // Set current branch
       this.currentBranch = user.details?.branch || "";
@@ -744,9 +742,7 @@ class AuthService {
   // Clear auth data
   clearAuthData() {
     try {
-      localStorage.removeItem("dds_access_token");
-      localStorage.removeItem("dds_user");
-      localStorage.removeItem("dds_token_timestamp");
+      sessionStorage.removeItem("dds_user");
       sessionStorage.removeItem("dds_current_branch");
 
       if (apiClient && apiClient.defaults && apiClient.defaults.headers) {
@@ -790,7 +786,7 @@ class AuthService {
   // Get current user
   getCurrentUser() {
     try {
-      const userStr = localStorage.getItem("dds_user");
+      const userStr = sessionStorage.getItem("dds_user");
       return userStr ? JSON.parse(userStr) : null;
     } catch (error) {
       console.error("Error getting current user:", error);
@@ -800,7 +796,7 @@ class AuthService {
 
   // Get token
   getToken() {
-    return localStorage.getItem("dds_access_token");
+    return null;
   }
 
   // Get user branches

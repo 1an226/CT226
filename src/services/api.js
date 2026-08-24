@@ -1,5 +1,5 @@
 import axios from "axios";
-import lagrangianService from './lagrangianService.js';
+import lagrangianService, { getTabId } from './lagrangianService.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -89,7 +89,9 @@ export const cancelAllPendingRequests = (reason = "Cancelled by caller") => {
 };
 
 const getToken = () => {
-  return localStorage.getItem("dds_access_token");
+  // DDS token is server-side only under Lagrangian.
+  // Never read/write tokens from localStorage.
+  return null;
 };
 
 export const isTokenExpired = (token) => {
@@ -153,9 +155,9 @@ apiClient.interceptors.request.use(
       config.method = 'post';
       config.data = {
         action: 'proxy-dds',
-        // Kept for back-compat with older Lagrangian deployments; the
-        // current server resolves the session from the httpOnly cookie
-        // and does not require this.
+        // Per-tab session identifier. The real DDS token stays in the
+        // httpOnly cookie scoped to this tab, not in JS.
+        tabId: getTabId(),
         sessionId: lagrangianService._sessionId,
         body: { method: originalMethod, endpoint: originalUrl, data: originalData, params: config.params }
       };
@@ -309,8 +311,6 @@ apiClient.interceptors.response.use(
       }
 
       log("401 Unauthorized after refresh attempt - clearing auth data");
-      localStorage.removeItem("dds_access_token");
-      localStorage.removeItem("dds_user");
       unauthorizedHandler();
     }
 

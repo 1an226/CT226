@@ -1,9 +1,20 @@
-const LAGRANGIAN_URL = import.meta.env.PROD ? '/api/lagrangian' : 'http://localhost:3001/api/lagrangian';
+const LAGRANGIAN_URL = import.meta.env.PROD ? '/api/lagrangian' : 'http://localhost:3001/api/lagrangian'\;
+
+export function getTabId() {
+  let tabId = sessionStorage.getItem('ct226_tab_id');
+  if (!tabId) {
+    tabId = crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    sessionStorage.setItem('ct226_tab_id', tabId);
+  }
+  return tabId;
+}
 
 class LagrangianService {
   constructor() {
     this._active = false;
-    this._sessionId = null; // kept only for back-compat with older server code paths
+    this._sessionId = null;
   }
 
   isActive() {
@@ -11,14 +22,13 @@ class LagrangianService {
   }
 
   async init(username, password) {
+    const tabId = getTabId();
+
     const resp = await fetch(LAGRANGIAN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // REQUIRED: without this, the browser won't store the httpOnly
-      // Set-Cookie the server sends back, and every subsequent request
-      // will look unauthenticated even though login "succeeded".
       credentials: 'include',
-      body: JSON.stringify({ action: 'init', username, password }),
+      body: JSON.stringify({ action: 'init', username, password, tabId }),
     });
 
     const data = await resp.json().catch(() => ({}));
@@ -27,21 +37,24 @@ class LagrangianService {
     }
 
     this._active = true;
-    this._sessionId = data.sessionId || null; // server no longer sends this; fine if absent
+    this._sessionId = data.sessionId || null;
     return data;
   }
 
   async logout() {
+    const tabId = getTabId();
+
     try {
       await fetch(LAGRANGIAN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ action: 'logout', sessionId: this._sessionId }),
+        body: JSON.stringify({ action: 'logout', tabId, sessionId: this._sessionId }),
       });
     } finally {
       this._active = false;
       this._sessionId = null;
+      sessionStorage.removeItem('ct226_tab_id');
     }
   }
 }
