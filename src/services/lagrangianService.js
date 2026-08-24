@@ -1,4 +1,4 @@
-const LAGRANGIAN_URL = import.meta.env.PROD ? '/api/lagrangian' : 'http://localhost:3001/api/lagrangian'\;
+const LAGRANGIAN_URL = import.meta.env.PROD ? '/api/lagrangian' : 'http://localhost:3001/api/lagrangian';
 
 export function getTabId() {
   let tabId = sessionStorage.getItem('ct226_tab_id');
