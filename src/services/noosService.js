@@ -3,23 +3,20 @@ import ordersService from './ordersService';
 import customerService from './customerService';
 import branchService from './branchService';
 import agentRuntime from './agentRuntime';
+import { supabase } from './supabaseClient';
 
-// ============================================================================
-// NOOS — CT226 Operating System
-// Harness-engineered intent router using Llama 3.1 8B (deterministic, T=0)
-// Routes user requests to DDS API functions or answers general knowledge
-// ============================================================================
+const HISTORY_LIMIT = 10;
 
 const SYSTEM_PROMPT = `You are NOOS, the AI operating system for CT226, a DDS (Distribution Management System) integration platform used by a Kenyan bakery distributor.
 
 === YOUR CAPABILITIES ===
 You have access to these DDS functions. When a user asks for something DDS-related, you MUST call the appropriate function.
 
-1. switch_branch(branch) 
+1. switch_branch(branch)
    - Switches the active DDS branch
    - Example: "switch to Thika" -> switch_branch("Thika")
 
-2. get_orders(date, branch) 
+2. get_orders(date, branch)
    - Fetches all orders for a branch on a specific date (YYYY-MM-DD)
    - If no date specified, use today's date
    - If no branch specified, use current branch
@@ -77,21 +74,81 @@ You: {"function":"answer","params":{"question":"what is the speed of light"}}
 User: "how many supermarkets in Eldoret"
 You: {"function":"get_customers","params":{"branch":"Eldoret","type":"supermarket"}}`;
 
-// ============================================================================
+function getUserId() {
+  try {
+    const user = authService.getCurrentUser();
+    return user?.details?.id ? String(user.details.id) : 'anonymous';
+  } catch {
+    return 'anonymous';
+  }
+}
+
+async function loadRecentMessages(userId) {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('noos_messages')
+    .select('role, content')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(HISTORY_LIMIT);
+
+  if (error) {
+    console.warn('Failed to load recent messages:', error.message);
+    return [];
+  }
+
+  return (data || []).reverse();
+}
+
+async function saveMessage(userId, role, content, intent = null) {
+  if (!supabase) return;
+
+  const { error } = await supabase.from('noos_messages').insert({
+    user_id: userId,
+    role,
+    content,
+    intent,
+  });
+
+  if (error) {
+    console.warn('Failed to save message:', error.message);
+  }
+}
+
+async function saveFeedback(userId, command, correction) {
+  if (!supabase) return;
+
+  const { error } = await supabase.from('noos_feedback').insert({
+    user_id: userId,
+    command,
+    correction,
+  });
+
+  if (error) {
+    console.warn('Failed to save feedback:', error.message);
+  }
+}
 
 const noosService = {
   async execute(command) {
+    const userId = getUserId();
+
     try {
-      // Step 1: Get intent from 8B model (deterministic, fast)
+      const history = await loadRecentMessages(userId);
+
+      const messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...history.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: command },
+      ];
+
       const intentResp = await fetch('/nvidia-api/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'meta/llama-3.1-8b-instruct',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: command }
-          ],
+          messages,
           temperature: 0,
           max_tokens: 200,
         }),
@@ -102,7 +159,6 @@ const noosService = {
       const data = await intentResp.json();
       const aiText = data.choices[0].message.content;
 
-      // Parse the JSON intent
       let intent;
       try {
         intent = JSON.parse(aiText);
@@ -112,26 +168,33 @@ const noosService = {
         else throw new Error('Could not parse intent from: ' + aiText);
       }
 
-      // Step 2: Execute the function
-      return await executeFunction(intent, command);
+      const response = await executeFunction(intent, command);
 
+      await saveMessage(userId, 'user', command, intent);
+      await saveMessage(userId, 'noos', response);
+
+      return response;
     } catch (e) {
       console.warn('NOOS 8B routing failed, using fallback:', e.message);
-      return await fallbackExecute(command);
-    }
-  }
-};
+      const fallback = await fallbackExecute(command);
 
-// ============================================================================
-// FUNCTION EXECUTOR
-// ============================================================================
+      await saveMessage(userId, 'system', `Error: ${e.message}`);
+      await saveMessage(userId, 'noos', fallback);
+
+      return fallback;
+    }
+  },
+
+  async rememberCorrection(command, correction) {
+    const userId = getUserId();
+    await saveFeedback(userId, command, correction);
+  },
+};
 
 async function executeFunction(intent, originalCommand) {
   const params = intent.params || {};
 
   switch (intent.function) {
-
-    // --- SWITCH BRANCH ---
     case 'switch_branch': {
       const branches = authService.getUserBranches() || [];
       const target = params.branch || '';
@@ -143,11 +206,9 @@ async function executeFunction(intent, originalCommand) {
       return `-> Branch "${target}" not found. Current: ${authService.getCurrentBranch()}`;
     }
 
-    // --- GET ORDERS ---
     case 'get_orders': {
       let branch = params.branch || authService.getCurrentBranch();
-      
-      // Switch branch if needed
+
       if (branch !== authService.getCurrentBranch()) {
         const branches = authService.getUserBranches() || [];
         const match = branches.find(b => b.toLowerCase() === branch.toLowerCase());
@@ -175,11 +236,9 @@ async function executeFunction(intent, originalCommand) {
       return response;
     }
 
-    // --- GET CUSTOMERS ---
     case 'get_customers': {
       let branch = params.branch || authService.getCurrentBranch();
-      
-      // Switch branch if needed
+
       if (branch !== authService.getCurrentBranch()) {
         const branches = authService.getUserBranches() || [];
         const match = branches.find(b => b.toLowerCase() === branch.toLowerCase());
@@ -190,17 +249,16 @@ async function executeFunction(intent, originalCommand) {
       }
 
       const customers = await customerService.getCustomersByBranch(branch).catch(() => []);
-      
+
       if (!customers.length) {
         return `-> No customers found in ${branch}`;
       }
 
-      // Apply type filter if specified
       let filtered = customers;
       const typeFilter = (params.type || '').toLowerCase();
-      
+
       if (typeFilter === 'supermarket' || typeFilter === 'supermarkets') {
-        filtered = customers.filter(c => 
+        filtered = customers.filter(c =>
           (c.customerType || '').toLowerCase().includes('supermarket') ||
           (c.customerType || '').toLowerCase().includes('headoffice')
         );
@@ -209,13 +267,12 @@ async function executeFunction(intent, originalCommand) {
       } else if (typeFilter === 'minishop' || typeFilter === 'mini') {
         filtered = customers.filter(c => (c.customerType || '').toLowerCase().includes('mini'));
       } else if (typeFilter === 'institution' || typeFilter === 'school') {
-        filtered = customers.filter(c => 
+        filtered = customers.filter(c =>
           (c.customerType || '').toLowerCase().includes('school') ||
           (c.customerType || '').toLowerCase().includes('college') ||
           (c.customerType || '').toLowerCase().includes('convenience')
         );
       } else if (typeFilter) {
-        // Specific customer name filter (e.g., "Naivas", "Khetia")
         filtered = customers.filter(c => (c.name || '').toLowerCase().includes(typeFilter));
       }
 
@@ -232,19 +289,29 @@ async function executeFunction(intent, originalCommand) {
       return response;
     }
 
-    // --- GET CHECKLIST ---
     case 'get_checklist': {
       if (!agentRuntime.isReady()) {
         return '-> Agent data is still loading. Please wait for the Messages tab to show completion.';
       }
 
-      const types = params.customers || ['NAIVAS', 'KHETIA', 'QUICKMART', 'CHANDARANA', 'CLEANSHELF', 'JAZARIBU', 'MAJID'];
-      const allBranches = authService.getUserBranches() || [];
-      const branches = (params.branches === 'all' || !params.branches) ? allBranches : params.branches;
-      const date = params.date || new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      let types = params.customers;
+      if (!types || types === 'all' || (Array.isArray(types) && types.includes('all'))) {
+        types = ['NAIVAS', 'KHETIA', 'QUICKMART', 'CHANDARANA', 'CLEANSHELF', 'JAZARIBU', 'MAJID'];
+      } else if (!Array.isArray(types)) {
+        types = [types];
+      }
 
+      const allBranches = authService.getUserBranches() || [];
+      let branches = params.branches;
+      if (!branches || branches === 'all' || (Array.isArray(branches) && branches.includes('all'))) {
+        branches = allBranches;
+      } else if (!Array.isArray(branches)) {
+        branches = [branches];
+      }
+
+      const date = params.date || new Date(Date.now() + 86400000).toISOString().split('T')[0];
       const results = await agentRuntime.generateChecklist(types, branches, date);
-      
+
       if (!results.length) {
         return `-> No checklist data for ${date}`;
       }
@@ -274,32 +341,29 @@ async function executeFunction(intent, originalCommand) {
       return response;
     }
 
-    // --- GET BRANCHES ---
     case 'get_branches': {
       const branches = authService.getUserBranches() || [];
       const current = authService.getCurrentBranch();
       return `-> Current branch: ${current}\n-> ${branches.length} branches available:\n   ${branches.join(', ')}`;
     }
 
-    // --- GET CURRENT BRANCH ---
     case 'get_current_branch': {
       return `-> Current branch: ${authService.getCurrentBranch()}`;
     }
 
-    // --- ANSWER GENERAL QUESTION (8B) ---
     case 'answer':
     default: {
       const question = params.question || originalCommand;
-      
+
       const resp = await fetch('/nvidia-api/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'meta/llama-3.1-8b-instruct',
           messages: [
-            { 
-              role: 'system', 
-              content: 'You are NOOS, the AI assistant for CT226 (a DDS platform used by a Kenyan bakery distributor). Answer questions clearly and concisely. You can discuss any topic — science, history, technology, current events, or general knowledge. Be helpful and accurate.' 
+            {
+              role: 'system',
+              content: 'You are NOOS, the AI assistant for CT226 (a DDS platform used by a Kenyan bakery distributor). Answer questions clearly and concisely. You can discuss any topic — science, history, technology, current events, or general knowledge. Be helpful and accurate.'
             },
             { role: 'user', content: question }
           ],
@@ -317,10 +381,6 @@ async function executeFunction(intent, originalCommand) {
     }
   }
 }
-
-// ============================================================================
-// FALLBACK — used when 8B intent routing fails
-// ============================================================================
 
 async function fallbackExecute(command) {
   const lower = command.toLowerCase();
