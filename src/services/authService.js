@@ -336,7 +336,7 @@ class AuthService {
     }
 
     // Store branch separately
-    localStorage.setItem("dds_current_branch", branch);
+    sessionStorage.setItem("dds_current_branch", branch);
 
     console.log(`Force updated to branch: ${branch}`);
     return true;
@@ -392,7 +392,7 @@ class AuthService {
 
       // Set current branch
       this.currentBranch = user.details?.branch || "";
-      localStorage.setItem("dds_current_branch", this.currentBranch);
+      sessionStorage.setItem("dds_current_branch", this.currentBranch);
 
       // Update API client with new token (harmless under Lagrangian —
       // these headers are simply ignored server-side since the real auth
@@ -429,7 +429,7 @@ class AuthService {
 
     try {
       // Check localStorage
-      const storedBranch = localStorage.getItem("dds_current_branch");
+      const storedBranch = sessionStorage.getItem("dds_current_branch");
       if (storedBranch) {
         this.currentBranch = storedBranch;
         return storedBranch;
@@ -747,7 +747,7 @@ class AuthService {
       localStorage.removeItem("dds_access_token");
       localStorage.removeItem("dds_user");
       localStorage.removeItem("dds_token_timestamp");
-      localStorage.removeItem("dds_current_branch");
+      sessionStorage.removeItem("dds_current_branch");
 
       if (apiClient && apiClient.defaults && apiClient.defaults.headers) {
         delete apiClient.defaults.headers.common["Authorization"];

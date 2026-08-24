@@ -1272,7 +1272,7 @@ function App() {
     syncBranchState();
 
     const handleStorageChange = (e) => {
-      if (e.key === "dds_current_branch" || e.key === "dds_user") {
+      if (e.key === "dds_user") {
         syncBranchState();
       }
     };
