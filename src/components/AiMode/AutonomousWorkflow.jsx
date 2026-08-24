@@ -216,7 +216,7 @@ const AutonomousWorkflow = () => {
           onClick={() => document.getElementById('auto-file-input').click()}
         >
           {processing ? 'Processing...' : 'Click or drop PDF to process order'}
-          <input id="auto-file-input" type="file" accept=".pdf" style={{ display: 'none' }}
+          <input id="auto-file-input" type="file" accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style={{ display: 'none' }}
             onChange={e => e.target.files[0] && handleFileDrop(e.target.files[0])} />
         </div>
       )}

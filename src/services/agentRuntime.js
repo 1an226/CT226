@@ -1,4 +1,5 @@
 import agentDataService from './agentDataService';
+import { resolveMajidDigitalCustomerCode } from '@utils/deterministicLpoMap';
 import authService from './authService';
 import ordersService from './ordersService';
 
@@ -264,6 +265,20 @@ const identifyCustomerViaAI = async (ocrText, fileName, customers) => {
 // ============================================================================
 const agentRuntime = {
   async identifyCustomer(ocrText, fileName = '') {
+    // Majid digital TXT: resolve from prefix map before other checks
+    const digitalCode = resolveMajidDigitalCustomerCode(ocrText);
+    if (digitalCode) {
+      const customers = agentDataService.getCustomers();
+      const match = customers.find(c => c.code === digitalCode);
+      if (match) {
+        return {
+          name: match.name,
+          code: match.code,
+          branch: match.branch,
+          type: 'MAJID',
+        };
+      }
+    }
     const customers = agentDataService.getCustomers();
     const text = (ocrText || '').toUpperCase();
 

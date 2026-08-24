@@ -390,6 +390,18 @@ const extractMajid = (text) => {
   const items = [];
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
+  // Pipe layout: barcode | ref | fam | description | qty | price...
+  const pipeLayoutRegex = /^\|?\s*U?(\d{13})\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*[^|]+\|\s*(\d{1,2})\s*\|/;
+  for (const line of lines) {
+    const m = line.match(pipeLayoutRegex);
+    if (m) {
+      items.push({ code: m[1], quantity: parseInt(m[2], 10) });
+    }
+  }
+  if (items.length > 0) {
+    return { outlet, lpo, items };
+  }
+
   // Vertical layout: barcode on its own line, followed by ref, fam, description, quantity
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -700,6 +712,19 @@ const QUICKMART_BARCODES = [
   "6161102320411"
 ];
 
+
+const OCR_CORRECTIONS = {
+  MAJID: {
+    "616400136610": "6164000136610",
+    "6161102320205": "6161102320305",
+  },
+  QUICKMART: {
+    "6161102320188": "6161102320138",
+    "6161102320183": "6161102320183", // placeholder no-op
+  },
+  CHANDARANA: {},
+};
+
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
   const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
@@ -719,6 +744,8 @@ function levenshtein(a, b) {
 
 function correctBarcode(rawCode, customerType) {
   if (!rawCode || rawCode.startsWith("UNKNOWN")) return rawCode;
+  const correctionMap = OCR_CORRECTIONS[customerType] || {};
+  if (correctionMap[rawCode]) return correctionMap[rawCode];
   const list = customerType === "MAJID" ? MAJID_BARCODES :
     customerType === "CHANDARANA" ? CHANDARANA_BARCODES :
     customerType === "QUICKMART" ? QUICKMART_BARCODES : null;
