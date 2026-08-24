@@ -35,7 +35,7 @@ const VALIDATION_SETTINGS = {
   MIN_ITEM_COUNT: parseInt(import.meta.env.VITE_MIN_ITEM_COUNT) || 1,
 };
 
-const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl";
+const VISION_MODEL = "meta/llama-3.2-11b-vision-instruct";
 
 // ─── NVIDIA API helper — routes through Lagrangian when active ──
 const callNvidiaAPI = async (body, isVision = false) => {
