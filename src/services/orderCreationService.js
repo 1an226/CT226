@@ -203,7 +203,6 @@ const normaliseText = (text) => {
   return text
     .toUpperCase()
     .replace(/[\u2018\u2019\u0060\u00B4]/g, "'")
-    .replace(/[|]/g, " ")
     .replace(/O(?=\d)/g, "0")
     .replace(/[lI](?=\d)/g, "1")
     .replace(/U(?=\d{13})/g, "")
@@ -321,7 +320,7 @@ const extractQuickmart = (text) => {
 
   const items = [];
   const lines = text.split("\n");
-  const lineRegex = /(\d{13})\b[^\n]*?\b1\s+PCS\s+(\d+(?:\.\d+)?)\s+PCS/;
+  const lineRegex = /(\d{13})\s+(.+?)\s+1\s+PCS\s+(\d+(?:\.\d+)?)\s+PCS/;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -329,7 +328,8 @@ const extractQuickmart = (text) => {
     if (match) {
       items.push({
         code: match[1],
-        quantity: Math.round(parseFloat(match[2]))
+        description: match[2] || '',
+        quantity: Math.round(parseFloat(match[3]))
       });
     }
   }
@@ -338,7 +338,7 @@ const extractQuickmart = (text) => {
 };
 
 const extractChandarana = (text) => {
-  const outletMatch = text.match(/Delivery\s*To\s*-\s*([^\n]+)/i);
+  const outletMatch = text.match(/Delivery\s*To\s*[-–]\s*([^\n]+)/i);
   const outlet = outletMatch ? outletMatch[1].trim() : "UNKNOWN_OUTLET";
 
   const lpoMatch = text.match(/Order\s*No\.\s*&\s*Date\s*-\s*(\d{13,14})/i);
@@ -385,9 +385,19 @@ const extractMajid = (text) => {
       }
     }
   }
-  const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
+    let lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
 
-  const items = [];
+  // Fallback: find standalone 8-digit number, excluding supplier TRN/PIN/date.
+  if (lpo === "UNKNOWN_LPO") {
+    const allLines = text.split("\n").map(l => l.trim()).filter(Boolean);
+    for (const line of allLines) {
+      const digits = line.replace(/[^0-9]/g, '');
+      if (/^\d{8}$/.test(digits) && !/P\d+/.test(line) && !/DATE|DELIVERY|DEADLINE|TRN|PIN/i.test(line)) {
+        lpo = digits;
+        break;
+      }
+    }
+  }  const items = [];
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
   // Pipe layout: barcode | ref | fam | description | qty | price...
@@ -720,9 +730,14 @@ const OCR_CORRECTIONS = {
   },
   QUICKMART: {
     "6161102320188": "6161102320138",
-    "6161102320183": "6161102320183", // placeholder no-op
   },
   CHANDARANA: {},
+};
+
+const OCR_NAME_CORRECTIONS = {
+  QUICKMART: [
+    { pattern: /6161102320183/i, namePattern: /BUTTER\s*TOAST\s*400/i, replace: "6161102320138" },
+  ],
 };
 
 function levenshtein(a, b) {
@@ -742,10 +757,19 @@ function levenshtein(a, b) {
   return dp[m][n];
 }
 
-function correctBarcode(rawCode, customerType) {
+function correctBarcode(rawCode, customerType, description = '') {
   if (!rawCode || rawCode.startsWith("UNKNOWN")) return rawCode;
   const correctionMap = OCR_CORRECTIONS[customerType] || {};
   if (correctionMap[rawCode]) return correctionMap[rawCode];
+
+  // Name-based corrections
+  const nameCorrections = OCR_NAME_CORRECTIONS[customerType] || [];
+  for (const rule of nameCorrections) {
+    if (rule.pattern.test(rawCode) && rule.namePattern.test(description)) {
+      return rule.replace;
+    }
+  }
+
   const list = customerType === "MAJID" ? MAJID_BARCODES :
     customerType === "CHANDARANA" ? CHANDARANA_BARCODES :
     customerType === "QUICKMART" ? QUICKMART_BARCODES : null;
@@ -768,11 +792,13 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
   if (customerType === "NAIVAS" && lpoNumber.endsWith("-1")) lpoNumber = lpoNumber.slice(0, -2);
 
   const items = (parsedAI.items || []).map(item => {
-    const correctedCode = correctBarcode(item.code, customerType);
+    const description = item.description || '';
+    const correctedCode = correctBarcode(item.code, customerType, description);
     const fgCode = getFGCode(correctedCode, customerType);
     return {
       ocrItemCode: item.code,
       correctedCode,
+      description,
       actualItemCode: fgCode,
       quantity: Math.round(item.quantity) || 0,
       foundQuantity: item.quantity || 0,
