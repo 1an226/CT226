@@ -86,116 +86,76 @@ function getUserId() {
 
 async function loadRecentMessages(userId) {
   if (!supabase) return [];
-
   const { data, error } = await supabase
     .from('noos_messages')
     .select('role, content')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(HISTORY_LIMIT);
-
   if (error) {
     console.warn('Failed to load recent messages:', error.message);
     return [];
   }
-
   return (data || []).reverse();
 }
 
 async function saveMessage(userId, role, content, intent = null) {
   if (!supabase) return;
-
   const { error } = await supabase.from('noos_messages').insert({
     user_id: userId,
     role,
     content,
     intent,
   });
-
-  if (error) {
-    console.warn('Failed to save message:', error.message);
-  }
+  if (error) console.warn('Failed to save message:', error.message);
 }
 
 async function saveFeedback(userId, command, correction) {
   if (!supabase) return;
-
   const { error } = await supabase.from('noos_feedback').insert({
     user_id: userId,
     command,
     correction,
   });
-
-  if (error) {
-    console.warn('Failed to save feedback:', error.message);
-  }
+  if (error) console.warn('Failed to save feedback:', error.message);
 }
 
-function detectCustomerTypeFromText(text) {
-  const t = text.toUpperCase();
-  if (/JAZARIBU/i.test(t)) return 'JAZARIBU';
-  if (/NAIVAS/i.test(t)) return 'NAIVAS';
-  if (/KHETIA/i.test(t)) return 'KHETIA';
-  if (/QUICK\s*MART|QUICKMART/i.test(t)) return 'QUICKMART';
-  if (/CHANDARANA/i.test(t)) return 'CHANDARANA';
-  if (/CLEAN\s*SHELF|CLEANSHELF/i.test(t)) return 'CLEANSHELF';
-  if (/MAJID|CARREFOUR/i.test(t)) return 'MAJID';
-  return null;
-}
-
-function extractBranchFromCommand(command, branches) {
+// ===== Deterministic parser for cached customer queries =====
+function parseCustomerQuery(command) {
   const lower = command.toLowerCase();
-  for (const branch of branches) {
-    if (lower.includes(branch.toLowerCase())) return branch;
+  const types = ['NAIVAS','KHETIA','QUICKMART','CHANDARANA','CLEANSHELF','JAZARIBU','MAJID'];
+  const branches = authService.getUserBranches() || [];
+
+  let type = null;
+  for (const t of types) {
+    if (lower.includes(t.toLowerCase())) { type = t; break; }
   }
-  return null;
+
+  let branch = null;
+  for (const b of branches) {
+    if (lower.includes(b.toLowerCase())) { branch = b; break; }
+  }
+
+  const wantsCount = /\bhow many\b|\bcount\b|\bnumber of\b/.test(lower);
+  return { type, branch, wantsCount };
 }
 
-function cachedCustomerQuery(command) {
-  const customers = agentDataService.getCustomers();
-  if (!customers || customers.length === 0) return null;
-
-  const type = detectCustomerTypeFromText(command);
-  const branches = authService.getUserBranches() || [];
-  const branch = extractBranchFromCommand(command, branches);
-
-  let filtered = customers;
-
-  if (branch) {
-    filtered = filtered.filter(c => (c.branch || '').toLowerCase() === branch.toLowerCase());
+function formatCustomersList(customers, title) {
+  if (!customers.length) return `-> No customers found for ${title}`;
+  let response = `-> ${customers.length} customer(s) for ${title}\n\n`;
+  for (const c of customers) {
+    response += `  ${c.name} | ${c.code} | ${c.branch} | ${c.customerType || 'N/A'} | ${c.customerRoute || 'N/A'}\n`;
   }
-
-  if (type) {
-    filtered = filtered.filter(c => (c.name || '').toUpperCase().includes(type));
-  }
-
-  if (filtered.length === 0) return null;
-
-  let response = `-> ${filtered.length} ${type ? type.toLowerCase() : 'customer'} outlets`;
-  if (branch) response += ` in ${branch}`;
-  response += '\n';
-
-  if (filtered.length <= 50) {
-    for (const c of filtered) {
-      response += `  ${c.name} | ${c.code} | ${c.branch || ''}\n`;
-    }
-  } else {
-    response += '  (too many to list, showing first 50)\n';
-    for (const c of filtered.slice(0, 50)) {
-      response += `  ${c.name} | ${c.code} | ${c.branch || ''}\n`;
-    }
-  }
-
   return response;
 }
 
+// ===== MAIN NOOS SERVICE =====
 const noosService = {
   async execute(command) {
     const userId = getUserId();
 
     try {
       const history = await loadRecentMessages(userId);
-
       const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         ...history.map(m => ({ role: m.role, content: m.content })),
@@ -206,7 +166,6 @@ const noosService = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'meta/llama-3.2-3b-instruct',
           messages,
           temperature: 0,
           max_tokens: 200,
@@ -214,7 +173,7 @@ const noosService = {
       });
 
       if (!intentResp.ok) {
-        console.warn(`NOOS 8B routing failed with status: ${intentResp.status}`);
+        console.warn(`NOOS intent failed with status ${intentResp.status}`);
         throw new Error(`8B unavailable: ${intentResp.status}`);
       }
 
@@ -227,30 +186,19 @@ const noosService = {
       } catch (e) {
         const match = aiText.match(/\{[\s\S]*\}/);
         if (match) intent = JSON.parse(match[0]);
-        else throw new Error('Could not parse intent from: ' + aiText);
+        else throw new Error('Could not parse intent');
       }
 
       const response = await executeFunction(intent, command);
-
       await saveMessage(userId, 'user', command, intent);
       await saveMessage(userId, 'noos', response);
-
       return response;
     } catch (e) {
-      console.warn('NOOS 8B routing failed, using fallback:', e.message);
-
-      // Try cached customer query first
-      const cachedResponse = cachedCustomerQuery(command);
-      if (cachedResponse) {
-        await saveMessage(userId, 'system', `Error: ${e.message}`);
-        await saveMessage(userId, 'noos', cachedResponse);
-        return cachedResponse;
-      }
-
-      const fallback = await fallbackExecute(command);
+      console.warn('NOOS AI routing failed, using deterministic fallback:', e.message);
+      const response = await fallbackExecute(command);
       await saveMessage(userId, 'system', `Error: ${e.message}`);
-      await saveMessage(userId, 'noos', fallback);
-      return fallback;
+      await saveMessage(userId, 'noos', response);
+      return response;
     }
   },
 
@@ -262,7 +210,6 @@ const noosService = {
 
 async function executeFunction(intent, originalCommand) {
   const params = intent.params || {};
-
   switch (intent.function) {
     case 'switch_branch': {
       const branches = authService.getUserBranches() || [];
@@ -276,100 +223,44 @@ async function executeFunction(intent, originalCommand) {
     }
 
     case 'get_orders': {
-      let branch = params.branch || authService.getCurrentBranch();
-
-      if (branch !== authService.getCurrentBranch()) {
-        const branches = authService.getUserBranches() || [];
-        const match = branches.find(b => b.toLowerCase() === branch.toLowerCase());
-        if (match) {
-          await authService.switchBranch(match);
-          branch = match;
-        }
-      }
-
+      const branch = params.branch || authService.getCurrentBranch();
       const date = params.date || new Date().toISOString().split('T')[0];
       const orders = await ordersService.getOrders(branch, date, { forceRefresh: true });
-
-      if (!orders.length) {
-        return `-> No orders found for ${branch} on ${date}`;
-      }
-
+      if (!orders.length) return `-> No orders found for ${branch} on ${date}`;
       const total = orders.reduce((sum, o) => sum + (o.totalValue || 0), 0);
       let response = `-> ${orders.length} orders for ${branch} on ${date}\n`;
       response += `-> Total value: Ksh ${total.toLocaleString()}\n\n`;
-
       for (const o of orders) {
         response += `  ${o.customerName} | ${o.orderNumber} | ${o.lpo || 'N/A'} | Ksh ${(o.totalValue || 0).toLocaleString()} | ${o.status || 'pending'}\n`;
       }
-
       return response;
     }
 
     case 'get_customers': {
-      let branch = params.branch || authService.getCurrentBranch();
-
-      if (branch !== authService.getCurrentBranch()) {
-        const branches = authService.getUserBranches() || [];
-        const match = branches.find(b => b.toLowerCase() === branch.toLowerCase());
-        if (match) {
-          await authService.switchBranch(match);
-          branch = match;
-        }
+      const all = agentDataService.getCustomers();
+      let filtered = all;
+      const branch = params.branch || authService.getCurrentBranch();
+      if (branch && branch.toLowerCase() !== 'all') {
+        filtered = filtered.filter(c => (c.branch || '').toLowerCase() === branch.toLowerCase());
       }
-
-      const customers = await customerService.getCustomersByBranch(branch).catch(() => []);
-
-      if (!customers.length) {
-        return `-> No customers found in ${branch}`;
+      const type = (params.type || '').toLowerCase();
+      if (type) {
+        filtered = filtered.filter(c => (c.name || '').toLowerCase().includes(type));
       }
-
-      let filtered = customers;
-      const typeFilter = (params.type || '').toLowerCase();
-
-      if (typeFilter === 'supermarket' || typeFilter === 'supermarkets') {
-        filtered = customers.filter(c =>
-          (c.customerType || '').toLowerCase().includes('supermarket') ||
-          (c.customerType || '').toLowerCase().includes('headoffice')
-        );
-      } else if (typeFilter === 'depot' || typeFilter === 'depots') {
-        filtered = customers.filter(c => (c.customerType || '').toLowerCase().includes('depot'));
-      } else if (typeFilter === 'minishop' || typeFilter === 'mini') {
-        filtered = customers.filter(c => (c.customerType || '').toLowerCase().includes('mini'));
-      } else if (typeFilter === 'institution' || typeFilter === 'school') {
-        filtered = customers.filter(c =>
-          (c.customerType || '').toLowerCase().includes('school') ||
-          (c.customerType || '').toLowerCase().includes('college') ||
-          (c.customerType || '').toLowerCase().includes('convenience')
-        );
-      } else if (typeFilter) {
-        filtered = customers.filter(c => (c.name || '').toLowerCase().includes(typeFilter));
-      }
-
-      let response = `-> ${filtered.length} customers in ${branch}`;
-      if (typeFilter) response += ` (filtered by: ${typeFilter})`;
-      response += `\n\n`;
-
-      for (const c of filtered) {
-        response += `  ${c.name} | ${c.code} | ${c.customerType || 'N/A'}`;
-        if (c.customerRoute) response += ` | Route: ${c.customerRoute}`;
-        response += `\n`;
-      }
-
-      return response;
+      return formatCustomersList(filtered, branch || 'all branches');
     }
 
     case 'get_checklist': {
+      // Keep existing checklist logic but use cached data if possible
       if (!agentRuntime.isReady()) {
         return '-> Agent data is still loading. Please wait for the Messages tab to show completion.';
       }
-
       let types = params.customers;
       if (!types || types === 'all' || (Array.isArray(types) && types.includes('all'))) {
-        types = ['NAIVAS', 'KHETIA', 'QUICKMART', 'CHANDARANA', 'CLEANSHELF', 'JAZARIBU', 'MAJID'];
+        types = ['NAIVAS','KHETIA','QUICKMART','CHANDARANA','CLEANSHELF','JAZARIBU','MAJID'];
       } else if (!Array.isArray(types)) {
         types = [types];
       }
-
       const allBranches = authService.getUserBranches() || [];
       let branches = params.branches;
       if (!branches || branches === 'all' || (Array.isArray(branches) && branches.includes('all'))) {
@@ -377,36 +268,27 @@ async function executeFunction(intent, originalCommand) {
       } else if (!Array.isArray(branches)) {
         branches = [branches];
       }
-
       const date = params.date || new Date(Date.now() + 86400000).toISOString().split('T')[0];
       const results = await agentRuntime.generateChecklist(types, branches, date);
-
-      if (!results.length) {
-        return `-> No checklist data for ${date}`;
-      }
-
+      if (!results.length) return `-> No checklist data for ${date}`;
       const placed = results.filter(r => r.placed);
       const missing = results.filter(r => !r.placed);
       const total = placed.reduce((sum, r) => sum + (r.amount || 0), 0);
-
       let response = `-> CHECKLIST for ${date}\n`;
       response += `-> ${placed.length} orders placed, ${missing.length} missing\n`;
       response += `-> Total placed value: Ksh ${total.toLocaleString()}\n\n`;
-
       if (placed.length > 0) {
         response += `PLACED:\n`;
         for (const r of placed) {
           response += `  [+] ${r.customer} | ${r.lpo} | Ksh ${(r.amount || 0).toLocaleString()} | ${r.status}\n`;
         }
       }
-
       if (missing.length > 0) {
         response += `\nMISSING:\n`;
         for (const r of missing) {
           response += `  [-] ${r.customer} (${r.code}) | ${r.branch} | ${r.route}\n`;
         }
       }
-
       return response;
     }
 
@@ -423,57 +305,55 @@ async function executeFunction(intent, originalCommand) {
     case 'answer':
     default: {
       const question = params.question || originalCommand;
-
       const resp = await fetch('https://noos-ai.kililoian5.workers.dev', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'meta/llama-3.2-3b-instruct',
           messages: [
-            {
-              role: 'system',
-              content: 'You are NOOS, the AI assistant for CT226 (a DDS platform used by a Kenyan bakery distributor). Answer questions clearly and concisely. You can discuss any topic — science, history, technology, current events, or general knowledge. Be helpful and accurate.'
-            },
+            { role: 'system', content: 'You are NOOS, the AI assistant for CT226 (a DDS platform used by a Kenyan bakery distributor). Answer questions clearly and concisely.' },
             { role: 'user', content: question }
           ],
           temperature: 0.7,
           max_tokens: 500,
         }),
       });
-
       if (resp.ok) {
         const data = await resp.json();
         return data.choices[0].message.content;
       }
-
-      return `-> NOOS is ready. Current branch: ${authService.getCurrentBranch()}. Try asking about orders, customers, or any general question.`;
+      return `-> NOOS is ready. Current branch: ${authService.getCurrentBranch()}.`;
     }
   }
 }
 
 async function fallbackExecute(command) {
   const lower = command.toLowerCase();
-  const branch = authService.getCurrentBranch();
 
-  // Cached customer query first (deterministic, no AI)
-  const cachedResponse = cachedCustomerQuery(command);
-  if (cachedResponse) return cachedResponse;
-
+  // Order query detection
   if (lower.includes('order')) {
-    const orders = await ordersService.getOrders(branch, new Date().toISOString().split('T')[0], { forceRefresh: true });
+    const branch = authService.getCurrentBranch();
+    const dateMatch = lower.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(?:august|sept|oct|nov|dec|jan|feb|mar|apr|may|jun|jul)/i);
+    const date = dateMatch ? new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const orders = await ordersService.getOrders(branch, date, { forceRefresh: true });
     return `-> ${orders.length} orders for ${branch} today`;
   }
 
-  if (lower.includes('customer')) {
-    const customers = await customerService.getCustomersByBranch(branch).catch(() => []);
-    return `-> ${customers.length} customers in ${branch}`;
+  // Cached customer query fallback
+  const parsed = parseCustomerQuery(command);
+  if (parsed.type || parsed.branch) {
+    const all = agentDataService.getCustomers();
+    let filtered = all;
+    if (parsed.type) filtered = filtered.filter(c => (c.name || '').toUpperCase().includes(parsed.type));
+    if (parsed.branch) filtered = filtered.filter(c => (c.branch || '').toLowerCase() === parsed.branch.toLowerCase());
+    if (parsed.wantsCount) return `-> ${filtered.length} ${parsed.type ? parsed.type.toLowerCase() : 'customer'} outlets ${parsed.branch ? 'in ' + parsed.branch : 'across all branches'}`;
+    return formatCustomersList(filtered, parsed.branch || 'all branches');
   }
 
+  // General fallback to AI
   const resp = await fetch('https://noos-ai.kililoian5.workers.dev', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'meta/llama-3.2-3b-instruct',
       messages: [
         { role: 'system', content: 'You are NOOS. Answer clearly and concisely.' },
         { role: 'user', content: command }
@@ -482,13 +362,11 @@ async function fallbackExecute(command) {
       max_tokens: 400,
     }),
   });
-
   if (resp.ok) {
     const data = await resp.json();
     return data.choices[0].message.content;
   }
-
-  return `-> Current branch: ${branch}. Try "orders today" or "customers in ${branch}".`;
+  return `-> Current branch: ${authService.getCurrentBranch()}. Try "orders today" or "customers in ${authService.getCurrentBranch()}".`;
 }
 
 export default noosService;
