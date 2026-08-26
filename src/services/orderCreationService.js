@@ -563,7 +563,7 @@ const preprocessCropForVision = (cropCanvas) => {
 };
 
 const extractFromScannedPDF = async (file, customerType) => {
-  const prompt = 'This image contains a purchase order. Copy ALL the text from the image exactly as it appears, preserving columns, spaces, and line breaks. Do not add any extra words, explanations, or formatting. Output ONLY the raw text.';
+  const prompt = 'This image contains a purchase order. Extract and output EVERY line of text exactly as it appears, preserving columns, spaces, line breaks, and ALL numbers. Do NOT summarize, skip, truncate, or omit any line, even if it looks like a date, phone, TRN, PIN, or ORDER number. Output ONLY the raw text from the image, starting from the first line to the last line.';
 
   if (customerType === 'MAJID') {
     console.log('[INFO] Using server‑side PDF renderer for Majid');
@@ -590,7 +590,7 @@ const extractFromScannedPDF = async (file, customerType) => {
       model: VISION_MODEL,
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
       temperature: 0,
-      max_tokens: 2048,
+      max_tokens: 4096,
     }, true);
     const ocrText = ocrData.choices[0].message.content;
     console.timeEnd('Vision OCR');
@@ -635,7 +635,7 @@ const extractFromScannedPDF = async (file, customerType) => {
     model: VISION_MODEL,
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
     temperature: 0,
-    max_tokens: 2048,
+    max_tokens: 4096,
   }, true);
   const ocrText = data.choices[0].message.content;
   console.timeEnd('Vision OCR');
@@ -1134,7 +1134,7 @@ export const getVisionOcrText = async (file) => {
       model: VISION_MODEL,
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
       temperature: 0,
-      max_tokens: 2048,
+      max_tokens: 4096,
     }, true);
     return ocrData.choices[0].message.content;
   }
@@ -1170,7 +1170,7 @@ export const getVisionOcrText = async (file) => {
     model: VISION_MODEL,
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
     temperature: 0,
-    max_tokens: 2048,
+    max_tokens: 4096,
   }, true);
   return result.choices[0].message.content;
 };

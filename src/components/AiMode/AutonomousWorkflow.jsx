@@ -164,6 +164,14 @@ const AutonomousWorkflow = () => {
       };
       setOrderPreview(finalOrderData);
 
+      // Majid LPO guard: scanned Majid must have 26-prefixed order number
+      if (customer.type === 'MAJID' && !/^26\d{6}$/.test(finalOrderData.lpoNumber || '')) {
+        const msg = `Invalid Majid order number: ${finalOrderData.lpoNumber}. Order creation blocked.`;
+        markFailed(s5, msg);
+        setError(msg);
+        return;
+      }
+
       // Step 6: Auto-create order
       const s6 = addStep('Creating order...');
       try {
