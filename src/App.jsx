@@ -81,6 +81,8 @@ const DocumentReaderModal = memo(
     handleCreateOrder,
   }) => {
     const textAreaRef = useRef(null);
+    const startTimeRef = useRef(null);
+    const [manualDuration, setManualDuration] = useState('');
     const [inputMode, setInputMode] = useState("text");
     const [uploadedFile, setUploadedFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
@@ -241,6 +243,7 @@ const validateFile = (file) => {
       setValidationErrors([]);
 
       if (inputMode === "text" && poText.trim()) {
+        startTimeRef.current = performance.now();
         if (poText.length < 50) {
           setValidationErrors([
             "PO text appears too short. Minimum 50 characters required.",
@@ -249,6 +252,7 @@ const validateFile = (file) => {
         }
         await handleProcessPO(poText, selectedCustomer);
       } else if (inputMode === "file" && uploadedFile) {
+        startTimeRef.current = performance.now();
         setIsProcessing(true);
         try {
           let poData;
@@ -287,6 +291,14 @@ const validateFile = (file) => {
           poData.isNaivasCustomer = isNaivas;
 
           setParsedOrderData(poData);
+
+          if (startTimeRef.current) {
+            const elapsed = performance.now() - startTimeRef.current;
+            const sec = Math.floor(elapsed / 1000);
+            const min = Math.floor(sec / 60);
+            const remSec = sec % 60;
+            setManualDuration(min > 0 ? `${min}m ${remSec}s` : `${remSec}s`);
+          }
         } catch (error) {
           console.error("Failed to process file:", error.message);
         } finally {
@@ -781,6 +793,11 @@ const validateFile = (file) => {
                       )
                       .toFixed(2)}
                   </p>
+                  {manualDuration && (
+                    <p className="order-duration" style={{ textAlign: 'right', marginTop: '5px', color: '#00ff00' }}>
+                      Duration: {manualDuration}
+                    </p>
+                  )}
                 </div>
 
                 {parsedOrderData.parsingWarnings &&

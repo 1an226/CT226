@@ -9,6 +9,7 @@ const ChatInterface = () => {
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [orderPreview, setOrderPreview] = useState(null);
+  const [orderCreated, setOrderCreated] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const chatRef = useRef(null);
 
@@ -42,6 +43,8 @@ const ChatInterface = () => {
     if (!text || loading) return;
     setInput('');
     setLoading(true);
+    setOrderPreview(null);
+    setOrderCreated(false);
     setMessages(prev => [...prev, { role: 'user', content: text }]);
     try {
       const response = await noosService.execute(text);
@@ -63,17 +66,22 @@ const ChatInterface = () => {
     try {
       const result = await noosService.confirmOrder(orderPreview);
       if (result.success) {
-        setMessages(prev => [...prev, { role: 'system', content: `✅ Order ${result.orderNumber} created and verified.` }]);
+        setOrderCreated(true);
+        setMessages(prev => [...prev, { role: 'system', content: `Order ${result.orderNumber} created and verified.` }]);
       } else {
-        setMessages(prev => [...prev, { role: 'system', content: `❌ Order failed: ${result.error || 'Unknown error'}` }]);
+        setMessages(prev => [...prev, { role: 'system', content: `Order failed: ${result.error || 'Unknown error'}` }]);
       }
-      setOrderPreview(null);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'system', content: `❌ Order failed: ${error.message}` }]);
+      setMessages(prev => [...prev, { role: 'system', content: `Order failed: ${error.message}` }]);
     } finally {
       setCreatingOrder(false);
     }
   };
+
+  const totalAmount = orderPreview?.orderData?.items?.reduce(
+    (sum, it) => sum + (it.netAmount || 0),
+    0
+  ) || 0;
 
   return (
     <div className="chat-interface">
@@ -112,10 +120,16 @@ const ChatInterface = () => {
                 ))}
               </tbody>
             </table>
-            <p className="order-total">Total: Ksh {orderPreview.orderData.items.reduce((sum, it) => sum + (it.netAmount || 0), 0).toFixed(2)}</p>
-            <button className="create-order-btn" onClick={handleCreateOrder} disabled={creatingOrder}>
-              {creatingOrder ? 'CREATING...' : 'CREATE ORDER'}
-            </button>
+            <p className="order-total">Total: Ksh {totalAmount.toFixed(2)}</p>
+            {!orderCreated ? (
+              <button className="create-order-btn" onClick={handleCreateOrder} disabled={creatingOrder}>
+                {creatingOrder ? 'CREATING...' : 'CREATE ORDER'}
+              </button>
+            ) : (
+              <div className="success-message" style={{ textAlign: 'center', marginTop: '10px' }}>
+                Order created and verified.
+              </div>
+            )}
           </div>
         )}
       </div>
