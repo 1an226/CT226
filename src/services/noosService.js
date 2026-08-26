@@ -199,7 +199,7 @@ const noosService = {
         { role: 'user', content: command },
       ];
 
-      const intentResp = await fetch('/nvidia-api/chat/completions', {
+      const intentResp = await fetch('https://noos-ai.kililoian5.workers.dev', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -421,7 +421,7 @@ async function executeFunction(intent, originalCommand) {
     default: {
       const question = params.question || originalCommand;
 
-      const resp = await fetch('/nvidia-api/chat/completions', {
+      const resp = await fetch('https://noos-ai.kililoian5.workers.dev', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -466,7 +466,7 @@ async function fallbackExecute(command) {
     return `-> ${customers.length} customers in ${branch}`;
   }
 
-  const resp = await fetch('/nvidia-api/chat/completions', {
+  const resp = await fetch('https://noos-ai.kililoian5.workers.dev', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
