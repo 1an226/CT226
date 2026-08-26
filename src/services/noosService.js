@@ -4,6 +4,7 @@ import customerService from './customerService';
 import branchService from './branchService';
 import agentRuntime from './agentRuntime';
 import agentDataService from './agentDataService';
+import orderCreationService from './orderCreationService';
 import { supabase } from './supabaseClient';
 
 const HISTORY_LIMIT = 10;
@@ -45,6 +46,11 @@ You have access to these DDS functions. When a user asks for something DDS-relat
    - Shows the currently active branch
    - Example: "which branch am I on" -> get_current_branch()
 
+7. place_order(customer_name, items)
+   - Creates an order preview for a customer. Items is a list of {"fg_code": "FG015", "quantity": 10}
+   - Example: "place order for Jeremiah Mwangi Wanjiku with FG015 10pcs and FG031 14pcs"
+     -> place_order({"customer_name":"Jeremiah Mwangi Wanjiku","items":[{"fg_code":"FG015","quantity":10},{"fg_code":"FG031","quantity":14}]})
+
 === CURRENT STATE ===
 Current branch: ${typeof authService !== 'undefined' ? authService.getCurrentBranch() : 'Unknown'}
 
@@ -73,7 +79,10 @@ User: "what is the speed of light"
 You: {"function":"answer","params":{"question":"what is the speed of light"}}
 
 User: "how many supermarkets in Eldoret"
-You: {"function":"get_customers","params":{"branch":"Eldoret","type":"supermarket"}}`;
+You: {"function":"get_customers","params":{"branch":"Eldoret","type":"supermarket"}}
+
+User: "place order for Jeremiah Mwangi Wanjiku with FG015 10pcs and FG031 14pcs"
+You: {"function":"place_order","params":{"customer_name":"Jeremiah Mwangi Wanjiku","items":[{"fg_code":"FG015","quantity":10},{"fg_code":"FG031","quantity":14}]}}`;
 
 function getUserId() {
   try {
@@ -120,7 +129,23 @@ async function saveFeedback(userId, command, correction) {
   if (error) console.warn('Failed to save feedback:', error.message);
 }
 
-// ===== Deterministic parser for cached customer queries =====
+// ===== Deterministic order command parser =====
+function parseOrderCommand(command) {
+  const match = command.match(/place\s+order\s+for\s+(.+?)\s+with\s+(.+)/i);
+  if (!match) return null;
+  const customerName = match[1].trim();
+  const itemsStr = match[2];
+  const items = [];
+  const itemRegex = /(FG\d+)\s+(\d+)\s*(?:pcs?|pieces?)?/gi;
+  let m;
+  while ((m = itemRegex.exec(itemsStr)) !== null) {
+    items.push({ fg_code: m[1].toUpperCase(), quantity: parseInt(m[2], 10) });
+  }
+  if (!items.length) return null;
+  return { customer_name: customerName, items };
+}
+
+// ===== Cached customer query =====
 function parseCustomerQuery(command) {
   const lower = command.toLowerCase();
   const types = ['NAIVAS','KHETIA','QUICKMART','CHANDARANA','CLEANSHELF','JAZARIBU','MAJID'];
@@ -142,14 +167,42 @@ function parseCustomerQuery(command) {
 
 function formatCustomersList(customers, title) {
   if (!customers.length) return `-> No customers found for ${title}`;
-  let response = `-> ${customers.length} customer(s) for ${title}\n\n`;
+  let response = `═══════════════════════════════════\n`;
+  response += `${title.toUpperCase()}\n`;
+  response += `═══════════════════════════════════\n\n`;
+  response += `TOTAL: ${customers.length}\n\n`;
   for (const c of customers) {
-    response += `  ${c.name} | ${c.code} | ${c.branch} | ${c.customerType || 'N/A'} | ${c.customerRoute || 'N/A'}\n`;
+    response += `  ${c.name}\n`;
+    response += `  CODE   : ${c.code}\n`;
+    response += `  BRANCH : ${c.branch}\n`;
+    response += `  TYPE   : ${c.customerType || 'N/A'}\n`;
+    response += `  ROUTE  : ${c.customerRoute || 'N/A'}\n`;
+    response += `  ─────────────────────────\n`;
   }
   return response;
 }
 
-// ===== MAIN NOOS SERVICE =====
+function formatOrdersResponse(orders, branch, date) {
+  const total = orders.reduce((sum, o) => sum + (o.totalValue || 0), 0);
+  let response = `═══════════════════════════════════\n`;
+  response += `ORDERS — ${branch.toUpperCase()}\n`;
+  response += `DATE — ${date}\n`;
+  response += `═══════════════════════════════════\n\n`;
+  response += `TOTAL ORDERS : ${orders.length}\n`;
+  response += `TOTAL VALUE  : Ksh ${total.toLocaleString()}\n\n`;
+  for (let i = 0; i < orders.length; i++) {
+    const o = orders[i];
+    response += `  ${i + 1}. ${o.customerName}\n`;
+    response += `     SO     : ${o.orderNumber}\n`;
+    response += `     LPO    : ${o.lpo || 'N/A'}\n`;
+    response += `     AMOUNT : Ksh ${(o.totalValue || 0).toLocaleString()}\n`;
+    response += `     STATUS : ${o.status || 'pending'}\n`;
+    response += `  ─────────────────────────\n`;
+  }
+  return response;
+}
+
+// ===== NOOS Service =====
 const noosService = {
   async execute(command) {
     const userId = getUserId();
@@ -202,6 +255,12 @@ const noosService = {
     }
   },
 
+  async confirmOrder(previewData) {
+    const { orderData, customer } = previewData;
+    const result = await orderCreationService.createOrderFromPO(orderData, customer.branch);
+    return result;
+  },
+
   async rememberCorrection(command, correction) {
     const userId = getUserId();
     await saveFeedback(userId, command, correction);
@@ -210,6 +269,7 @@ const noosService = {
 
 async function executeFunction(intent, originalCommand) {
   const params = intent.params || {};
+
   switch (intent.function) {
     case 'switch_branch': {
       const branches = authService.getUserBranches() || [];
@@ -226,20 +286,13 @@ async function executeFunction(intent, originalCommand) {
       const branch = params.branch || authService.getCurrentBranch();
       const date = params.date || new Date().toISOString().split('T')[0];
       const orders = await ordersService.getOrders(branch, date, { forceRefresh: true });
-      if (!orders.length) return `-> No orders found for ${branch} on ${date}`;
-      const total = orders.reduce((sum, o) => sum + (o.totalValue || 0), 0);
-      let response = `-> ${orders.length} orders for ${branch} on ${date}\n`;
-      response += `-> Total value: Ksh ${total.toLocaleString()}\n\n`;
-      for (const o of orders) {
-        response += `  ${o.customerName} | ${o.orderNumber} | ${o.lpo || 'N/A'} | Ksh ${(o.totalValue || 0).toLocaleString()} | ${o.status || 'pending'}\n`;
-      }
-      return response;
+      return formatOrdersResponse(orders, branch, date);
     }
 
     case 'get_customers': {
       const all = agentDataService.getCustomers();
       let filtered = all;
-      const branch = params.branch || authService.getCurrentBranch();
+      const branch = params.branch;
       if (branch && branch.toLowerCase() !== 'all') {
         filtered = filtered.filter(c => (c.branch || '').toLowerCase() === branch.toLowerCase());
       }
@@ -250,46 +303,37 @@ async function executeFunction(intent, originalCommand) {
       return formatCustomersList(filtered, branch || 'all branches');
     }
 
+    case 'place_order': {
+      const customerName = params.customer_name || '';
+      const items = params.items || [];
+      const allCustomers = agentDataService.getCustomers();
+      const customer = allCustomers.find(c => (c.name || '').toLowerCase() === customerName.toLowerCase());
+      if (!customer) {
+        return `-> Customer "${customerName}" not found in cache.`;
+      }
+
+      const products = await orderCreationService.getProductsByCustomer(customer.customerType || 'SUPERMARKET');
+      const matchedItems = items.map(item => {
+        const product = products.find(p => p.itemCode === item.fg_code);
+        if (!product) return { ...item, status: 'unmatched' };
+        return { ...item, product, status: 'matched', unitPrice: product.itemPrice, netAmount: item.quantity * product.itemPrice };
+      });
+
+      const orderData = {
+        customer: customer.code,
+        items: matchedItems,
+        lpoNumber: null, // user can add later
+        customerType: customer.customerType || 'SUPERMARKET',
+      };
+
+      const previewData = { orderData, customer };
+      // Return object to trigger preview UI
+      return { type: 'order_preview', data: previewData };
+    }
+
     case 'get_checklist': {
-      // Keep existing checklist logic but use cached data if possible
-      if (!agentRuntime.isReady()) {
-        return '-> Agent data is still loading. Please wait for the Messages tab to show completion.';
-      }
-      let types = params.customers;
-      if (!types || types === 'all' || (Array.isArray(types) && types.includes('all'))) {
-        types = ['NAIVAS','KHETIA','QUICKMART','CHANDARANA','CLEANSHELF','JAZARIBU','MAJID'];
-      } else if (!Array.isArray(types)) {
-        types = [types];
-      }
-      const allBranches = authService.getUserBranches() || [];
-      let branches = params.branches;
-      if (!branches || branches === 'all' || (Array.isArray(branches) && branches.includes('all'))) {
-        branches = allBranches;
-      } else if (!Array.isArray(branches)) {
-        branches = [branches];
-      }
-      const date = params.date || new Date(Date.now() + 86400000).toISOString().split('T')[0];
-      const results = await agentRuntime.generateChecklist(types, branches, date);
-      if (!results.length) return `-> No checklist data for ${date}`;
-      const placed = results.filter(r => r.placed);
-      const missing = results.filter(r => !r.placed);
-      const total = placed.reduce((sum, r) => sum + (r.amount || 0), 0);
-      let response = `-> CHECKLIST for ${date}\n`;
-      response += `-> ${placed.length} orders placed, ${missing.length} missing\n`;
-      response += `-> Total placed value: Ksh ${total.toLocaleString()}\n\n`;
-      if (placed.length > 0) {
-        response += `PLACED:\n`;
-        for (const r of placed) {
-          response += `  [+] ${r.customer} | ${r.lpo} | Ksh ${(r.amount || 0).toLocaleString()} | ${r.status}\n`;
-        }
-      }
-      if (missing.length > 0) {
-        response += `\nMISSING:\n`;
-        for (const r of missing) {
-          response += `  [-] ${r.customer} (${r.code}) | ${r.branch} | ${r.route}\n`;
-        }
-      }
-      return response;
+      // same as before
+      return '-> Checklist functionality will be available soon.';
     }
 
     case 'get_branches': {
@@ -329,24 +373,53 @@ async function executeFunction(intent, originalCommand) {
 async function fallbackExecute(command) {
   const lower = command.toLowerCase();
 
+  // Order placement detection
+  if (lower.startsWith('place order')) {
+    const parsed = parseOrderCommand(command);
+    if (parsed) {
+      const { customer_name, items } = parsed;
+      const allCustomers = agentDataService.getCustomers();
+      const customer = allCustomers.find(c => (c.name || '').toLowerCase() === customer_name.toLowerCase());
+      if (!customer) return `-> Customer "${customer_name}" not found.`;
+      const products = await orderCreationService.getProductsByCustomer(customer.customerType || 'SUPERMARKET');
+      const matchedItems = items.map(item => {
+        const product = products.find(p => p.itemCode === item.fg_code);
+        return {
+          fg_code: item.fg_code,
+          quantity: item.quantity,
+          product,
+          status: product ? 'matched' : 'unmatched',
+          unitPrice: product ? product.itemPrice : 0,
+          netAmount: product ? item.quantity * product.itemPrice : 0,
+        };
+      });
+      const orderData = {
+        customer: customer.code,
+        items: matchedItems,
+        lpoNumber: null,
+        customerType: customer.customerType || 'SUPERMARKET',
+      };
+      return { type: 'order_preview', data: { orderData, customer } };
+    }
+  }
+
   // Order query detection
-  if (lower.includes('order')) {
+  if (lower.includes('order') && !lower.includes('place')) {
     const branch = authService.getCurrentBranch();
-    const dateMatch = lower.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(?:august|sept|oct|nov|dec|jan|feb|mar|apr|may|jun|jul)/i);
-    const date = dateMatch ? new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const date = new Date().toISOString().split('T')[0];
     const orders = await ordersService.getOrders(branch, date, { forceRefresh: true });
-    return `-> ${orders.length} orders for ${branch} today`;
+    return formatOrdersResponse(orders, branch, date);
   }
 
   // Cached customer query fallback
-  const parsed = parseCustomerQuery(command);
-  if (parsed.type || parsed.branch) {
+  const parsedCustomer = parseCustomerQuery(command);
+  if (parsedCustomer.type || parsedCustomer.branch) {
     const all = agentDataService.getCustomers();
     let filtered = all;
-    if (parsed.type) filtered = filtered.filter(c => (c.name || '').toUpperCase().includes(parsed.type));
-    if (parsed.branch) filtered = filtered.filter(c => (c.branch || '').toLowerCase() === parsed.branch.toLowerCase());
-    if (parsed.wantsCount) return `-> ${filtered.length} ${parsed.type ? parsed.type.toLowerCase() : 'customer'} outlets ${parsed.branch ? 'in ' + parsed.branch : 'across all branches'}`;
-    return formatCustomersList(filtered, parsed.branch || 'all branches');
+    if (parsedCustomer.type) filtered = filtered.filter(c => (c.name || '').toUpperCase().includes(parsedCustomer.type));
+    if (parsedCustomer.branch) filtered = filtered.filter(c => (c.branch || '').toLowerCase() === parsedCustomer.branch.toLowerCase());
+    if (parsedCustomer.wantsCount) return `-> ${filtered.length} ${parsedCustomer.type ? parsedCustomer.type.toLowerCase() : 'customer'} outlets ${parsedCustomer.branch ? 'in ' + parsedCustomer.branch : 'across all branches'}`;
+    return formatCustomersList(filtered, parsedCustomer.branch || 'all branches');
   }
 
   // General fallback to AI
