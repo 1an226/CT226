@@ -6,7 +6,8 @@ import Messages from './Messages';
 import Checklist from './Checklist';
 import agentDataService from '@services/agentDataService';
 import agentRuntime from '@services/agentRuntime';
-import orderCreationService, { onOrderAudit, getAuditLog } from '@services/orderCreationService';
+import orderCreationService from '@services/orderCreationService';
+import { supabase } from '@services/supabaseClient';
 import './AiMode.css';
 
 const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
@@ -75,38 +76,62 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
     return unsubscribe;
   }, []);
 
-  // Subscribe to order audit results — fires synchronously the instant
-  // createOrderFromPO's audit check resolves (pass OR fail), whether the
-  // order came from AI Mode's Autonomous tab or the manual-mode flow in
-  // App.jsx, since orderCreationService is a shared singleton either way.
-  //
-  // Seeds from getAuditLog() first, so an order created while this panel
-  // was closed still shows up here once it's reopened, instead of being
-  // silently missed.
+  // Fetch persistent order notifications from Supabase
   useEffect(() => {
-    const toLog = (event) => ({
-      id: 'audit-' + event.timestamp + '-' + Math.random(),
-      emoji: event.success ? '✅' : '🚫',
-      text: event.message,
-      time: new Date(event.timestamp).toLocaleTimeString(),
+    if (!supabase) return;
+
+    const userId = authService.getCurrentUser()?.id
+      ? String(authService.getCurrentUser().id)
+      : 'anonymous';
+
+    const toLog = (row) => ({
+      id: row.id,
+      emoji: '',
+      text: row.message,
+      time: new Date(row.created_at).toLocaleTimeString(),
     });
 
-    const history = getAuditLog();
-    if (history.length > 0) {
-      setLogs(prev => {
-        const existingIds = new Set(prev.map(l => l.id));
-        const newEntries = history.map(toLog).filter(l => !existingIds.has(l.id));
-        if (newEntries.length === 0) return prev;
-        return [...prev, ...newEntries];
+    // Initial fetch
+    supabase
+      .from('order_notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setLogs(prev => {
+            const existing = new Set(prev.map(l => l.id));
+            const newLogs = data.map(toLog).filter(l => !existing.has(l.id));
+            return newLogs.length ? [...prev, ...newLogs] : prev;
+          });
+        }
       });
-    }
 
-    const unsubscribe = onOrderAudit((event) => {
-      setLogs(prev => [...prev, toLog(event)]);
-      setUnreadCount(count => count + 1);
-    });
+    // Realtime subscription for cross-tab sync
+    const channel = supabase
+      .channel('order-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'order_notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const row = payload.new;
+          setLogs(prev => {
+            if (prev.some(l => l.id === row.id)) return prev;
+            return [...prev, toLog(row)];
+          });
+          setUnreadCount(count => count + 1);
+        }
+      )
+      .subscribe();
 
-    return unsubscribe;
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleTabChange = (tab) => {

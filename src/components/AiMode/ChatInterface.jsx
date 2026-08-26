@@ -1,38 +1,16 @@
+
 import { useState, useRef, useEffect } from 'react';
 import noosService from '@services/noosService';
 import authService from '@services/authService';
-import { supabase } from '@services/supabaseClient';
 
 const ChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loadingHistory, setLoadingHistory] = useState(true);
   const [orderPreview, setOrderPreview] = useState(null);
   const [orderCreated, setOrderCreated] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const chatRef = useRef(null);
-
-  const userId = authService.getCurrentUser()?.id
-    ? String(authService.getCurrentUser().id)
-    : 'anonymous';
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadHistory() {
-      if (!supabase) { setLoadingHistory(false); return; }
-      const { data, error } = await supabase
-        .from('noos_messages')
-        .select('role, content')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true })
-        .limit(100);
-      if (!cancelled && !error) setMessages(data || []);
-      if (!cancelled) setLoadingHistory(false);
-    }
-    loadHistory();
-    return () => { cancelled = true; };
-  }, [userId]);
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -86,19 +64,27 @@ const ChatInterface = () => {
   return (
     <div className="chat-interface">
       <div className="chat-messages" ref={chatRef}>
-        {loadingHistory ? (
-          <div className="chat-message noos"><div className="chat-role">NOOS</div><div className="chat-text">Loading history...</div></div>
-        ) : messages.length === 0 ? (
-          <div className="chat-message noos"><div className="chat-role">NOOS</div><div className="chat-text">I am NOOS, the CT226 operating system. Ask me anything.</div></div>
+        {messages.length === 0 ? (
+          <div className="chat-message noos">
+            <div className="chat-role">NOOS</div>
+            <div className="chat-text">I am NOOS, the CT226 operating system. Ask me anything.</div>
+          </div>
         ) : (
           messages.map((msg, i) => (
             <div key={i} className={`chat-message ${msg.role}`}>
-              <div className="chat-role">{msg.role === 'noos' ? 'NOOS' : msg.role === 'system' ? 'SYSTEM' : 'You'}</div>
+              <div className="chat-role">
+                {msg.role === 'noos' ? 'NOOS' : msg.role === 'system' ? 'SYSTEM' : 'You'}
+              </div>
               <div className="chat-text">{msg.content}</div>
             </div>
           ))
         )}
-        {loading && <div className="chat-message noos"><div className="chat-role">NOOS</div><div className="chat-text">...</div></div>}
+        {loading && (
+          <div className="chat-message noos">
+            <div className="chat-role">NOOS</div>
+            <div className="chat-text">...</div>
+          </div>
+        )}
 
         {orderPreview && (
           <div className="order-preview">

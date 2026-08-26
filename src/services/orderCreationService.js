@@ -1082,6 +1082,25 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
     const successMsg = `Audit passed for ${poData.customer} ${poData.lpoNumber}. Order ${orderNumber} verified.`;
     notifyAudit(true, successMsg);
 
+    // Insert persistent order notification for Messages tab
+    if (supabase) {
+      const userId = (() => {
+        try {
+          const user = JSON.parse(sessionStorage.getItem('dds_user') || '{}');
+          return user?.id ? String(user.id) : null;
+        } catch { return null; }
+      })();
+      if (userId) {
+        const customerName = poData.customerName || poData.customerInfo?.name || poData.customer;
+        await supabase.from('order_notifications').insert({
+          user_id: userId,
+          message: `Order ${orderNumber} created and verified. Customer: ${customerName}`,
+          so_number: orderNumber,
+          customer_name: customerName,
+        });
+      }
+    }
+
     return {
       success: true,
       orderNumber,

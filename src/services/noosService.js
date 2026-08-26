@@ -1,3 +1,4 @@
+
 import authService from './authService';
 import ordersService from './ordersService';
 import customerService from './customerService';
@@ -5,9 +6,6 @@ import branchService from './branchService';
 import agentRuntime from './agentRuntime';
 import agentDataService from './agentDataService';
 import orderCreationService from './orderCreationService';
-import { supabase } from './supabaseClient';
-
-const HISTORY_LIMIT = 10;
 
 const SYSTEM_PROMPT = `You are NOOS, the AI operating system for CT226, a DDS (Distribution Management System) integration platform used by a Kenyan bakery distributor.
 
@@ -86,47 +84,9 @@ You: {"function":"place_order","params":{"customer_name":"Jeremiah Mwangi Wanjik
 
 function getUserId() {
   try {
-    const user = authService.getCurrentUser();
-    return user?.id ? String(user.id) : 'anonymous';
-  } catch {
-    return 'anonymous';
-  }
-}
-
-async function loadRecentMessages(userId) {
-  if (!supabase) return [];
-  const { data, error } = await supabase
-    .from('noos_messages')
-    .select('role, content')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(HISTORY_LIMIT);
-  if (error) {
-    console.warn('Failed to load recent messages:', error.message);
-    return [];
-  }
-  return (data || []).reverse();
-}
-
-async function saveMessage(userId, role, content, intent = null) {
-  if (!supabase) return;
-  const { error } = await supabase.from('noos_messages').insert({
-    user_id: userId,
-    role,
-    content,
-    intent,
-  });
-  if (error) console.warn('Failed to save message:', error.message);
-}
-
-async function saveFeedback(userId, command, correction) {
-  if (!supabase) return;
-  const { error } = await supabase.from('noos_feedback').insert({
-    user_id: userId,
-    command,
-    correction,
-  });
-  if (error) console.warn('Failed to save feedback:', error.message);
+    const user = JSON.parse(sessionStorage.getItem('dds_user') || '{}');
+    return user?.id ? String(user.id) : null;
+  } catch { return null; }
 }
 
 // ===== Deterministic parsers =====
@@ -150,8 +110,6 @@ function parseCustomerQuery(command) {
 }
 
 function parseChatOrderCommand(command) {
-  // Match pattern: "<customer name> with FGxxx qty pcs and FGyyy qty pcs"
-  // Also allow "place order for <customer name> with ..."
   const match = command.match(/(?:place\s+order\s+for\s+)?(.+?)\s+with\s+(.+)/i);
   if (!match) return null;
 
@@ -173,8 +131,6 @@ function parseMultipleOrderCommands(command) {
 
   const branches = authService.getUserBranches() || [];
   const results = [];
-
-  // Pattern: "orders for <branch> dated the <day> <month> <year>"
   const regex = /orders?\s+for\s+([A-Za-z0-9 ]+?)\s+dated\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})/gi;
   let m;
   while ((m = regex.exec(command)) !== null) {
@@ -189,17 +145,14 @@ function parseMultipleOrderCommands(command) {
     const month = monthMap[monthStr];
     if (!month) continue;
     const date = `${year}-${month}-${day}`;
-
     let branch = null;
     for (const b of branches) {
       if (branchRaw.toLowerCase().includes(b.toLowerCase()) || b.toLowerCase().includes(branchRaw.toLowerCase())) {
-        branch = b;
-        break;
+        branch = b; break;
       }
     }
     if (branch) results.push({ branch, date });
   }
-
   return results.length ? results : null;
 }
 
@@ -240,166 +193,99 @@ function formatOrdersResponse(orders, branch, date) {
   return response;
 }
 
-// ===== NOOS Service =====
 const noosService = {
   async execute(command) {
-    const userId = getUserId();
-
     try {
-      const history = await loadRecentMessages(userId);
-      const messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        ...history.map(m => ({ role: m.role, content: m.content })),
-        { role: 'user', content: command },
-      ];
-
       const intentResp = await fetch('https://noos-ai.kililoian5.workers.dev', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: command }
+          ],
           temperature: 0,
           max_tokens: 200,
         }),
       });
 
-      if (!intentResp.ok) {
-        console.warn(`NOOS intent failed with status ${intentResp.status}`);
-        throw new Error(`8B unavailable: ${intentResp.status}`);
-      }
+      if (!intentResp.ok) throw new Error(`8B unavailable: ${intentResp.status}`);
 
       const data = await intentResp.json();
       const aiText = data.choices[0].message.content;
-
       let intent;
-      try {
-        intent = JSON.parse(aiText);
-      } catch (e) {
+      try { intent = JSON.parse(aiText); }
+      catch (e) {
         const match = aiText.match(/\{[\s\S]*\}/);
         if (match) intent = JSON.parse(match[0]);
         else throw new Error('Could not parse intent');
       }
-
-      const response = await executeFunction(intent, command);
-      await saveMessage(userId, 'user', command, intent);
-      await saveMessage(userId, 'noos', response);
-      return response;
+      return await executeFunction(intent, command);
     } catch (e) {
-      console.warn('NOOS AI routing failed, using deterministic fallback:', e.message);
-      const response = await fallbackExecute(command);
-      await saveMessage(userId, 'system', `Error: ${e.message}`);
-      await saveMessage(userId, 'noos', response);
-      return response;
+      console.warn('NOOS AI routing failed, using fallback:', e.message);
+      return await fallbackExecute(command);
     }
   },
 
   async confirmOrder(previewData) {
     const { orderData, customer } = previewData;
-    const result = await orderCreationService.createOrderFromPO(orderData, customer.branch);
-    return result;
-  },
-
-  async rememberCorrection(command, correction) {
-    const userId = getUserId();
-    await saveFeedback(userId, command, correction);
+    return await orderCreationService.createOrderFromPO(orderData, customer.branch);
   },
 };
 
 async function executeFunction(intent, originalCommand) {
   const params = intent.params || {};
-
   switch (intent.function) {
     case 'switch_branch': {
       const branches = authService.getUserBranches() || [];
       const target = params.branch || '';
       const match = branches.find(b => b.toLowerCase() === target.toLowerCase());
-      if (match) {
-        await authService.switchBranch(match);
-        return `-> Switched to ${match}`;
-      }
+      if (match) { await authService.switchBranch(match); return `-> Switched to ${match}`; }
       return `-> Branch "${target}" not found. Current: ${authService.getCurrentBranch()}`;
     }
-
     case 'get_orders': {
       const branch = params.branch || authService.getCurrentBranch();
       const date = params.date || new Date().toISOString().split('T')[0];
       const orders = await ordersService.getOrders(branch, date, { forceRefresh: true });
       return formatOrdersResponse(orders, branch, date);
     }
-
     case 'get_customers': {
       const all = agentDataService.getCustomers();
       let filtered = all;
       const branch = params.branch;
-      if (branch && branch.toLowerCase() !== 'all') {
-        filtered = filtered.filter(c => (c.branch || '').toLowerCase() === branch.toLowerCase());
-      }
+      if (branch && branch.toLowerCase() !== 'all') filtered = filtered.filter(c => (c.branch || '').toLowerCase() === branch.toLowerCase());
       const type = (params.type || '').toLowerCase();
-      if (type) {
-        filtered = filtered.filter(c => (c.name || '').toLowerCase().includes(type));
-      }
+      if (type) filtered = filtered.filter(c => (c.name || '').toLowerCase().includes(type));
       return formatCustomersList(filtered, branch || 'all branches');
     }
-
     case 'place_order': {
       const customerName = params.customer_name || '';
       const items = params.items || [];
       const allCustomers = agentDataService.getCustomers();
       const customer = allCustomers.find(c => (c.name || '').toLowerCase() === customerName.toLowerCase());
-      if (!customer) {
-        return `-> Customer "${customerName}" not found in cache.`;
-      }
-
+      if (!customer) return `-> Customer "${customerName}" not found in cache.`;
       const products = await orderCreationService.getProductsByCustomer(customer.customerType || 'SUPERMARKET');
       const matchedItems = items.map(item => {
         const product = products.find(p => p.itemCode === item.fg_code);
-        if (!product) return { ...item, status: 'unmatched' };
-        return { ...item, product, status: 'matched', unitPrice: product.itemPrice, netAmount: item.quantity * product.itemPrice };
+        return product ? { ...item, product, status:'matched', unitPrice:product.itemPrice, netAmount:item.quantity*product.itemPrice } : { ...item, status:'unmatched' };
       });
-
-      const orderData = {
-        customer: customer.code,
-        items: matchedItems,
-        lpoNumber: null,
-        customerType: customer.customerType || 'SUPERMARKET',
-      };
-
-      return { type: 'order_preview', data: { orderData, customer } };
+      const orderData = { customer: customer.code, items: matchedItems, lpoNumber:null, customerType: customer.customerType || 'SUPERMARKET' };
+      return { type:'order_preview', data:{ orderData, customer } };
     }
-
-    case 'get_checklist': {
-      return '-> Checklist functionality will be available soon.';
-    }
-
     case 'get_branches': {
       const branches = authService.getUserBranches() || [];
       const current = authService.getCurrentBranch();
       return `-> Current branch: ${current}\n-> ${branches.length} branches available:\n   ${branches.join(', ')}`;
     }
-
-    case 'get_current_branch': {
-      return `-> Current branch: ${authService.getCurrentBranch()}`;
-    }
-
+    case 'get_current_branch': return `-> Current branch: ${authService.getCurrentBranch()}`;
     case 'answer':
     default: {
       const question = params.question || originalCommand;
       const resp = await fetch('https://noos-ai.kililoian5.workers.dev', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: 'You are NOOS, the AI assistant for CT226 (a DDS platform used by a Kenyan bakery distributor). Answer questions clearly and concisely.' },
-            { role: 'user', content: question }
-          ],
-          temperature: 0.7,
-          max_tokens: 500,
-        }),
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ messages:[{role:'system',content:'You are NOOS, the AI assistant for CT226 (a DDS platform used by a Kenyan bakery distributor). Answer questions clearly and concisely.'},{role:'user',content:question}], temperature:0.7, max_tokens:500 })
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        return data.choices[0].message.content;
-      }
+      if (resp.ok) { const data = await resp.json(); return data.choices[0].message.content; }
       return `-> NOOS is ready. Current branch: ${authService.getCurrentBranch()}.`;
     }
   }
@@ -408,57 +294,38 @@ async function executeFunction(intent, originalCommand) {
 async function fallbackExecute(command) {
   const lower = command.toLowerCase();
 
-  // Multiple branch/date order queries
   const multiOrders = parseMultipleOrderCommands(command);
   if (multiOrders) {
     let response = '';
     for (const req of multiOrders) {
-      const orders = await ordersService.getOrders(req.branch, req.date, { forceRefresh: true });
+      const orders = await ordersService.getOrders(req.branch, req.date, { forceRefresh:true });
       response += formatOrdersResponse(orders, req.branch, req.date) + '\n';
     }
     return response.trim();
   }
 
-  // Chat order preview detection
   const chatOrder = parseChatOrderCommand(command);
   if (chatOrder) {
     const { customer_name, items } = chatOrder;
     const allCustomers = agentDataService.getCustomers();
     const customer = allCustomers.find(c => (c.name || '').toLowerCase() === customer_name.toLowerCase());
     if (!customer) return `-> Customer "${customer_name}" not found.`;
-
     const products = await orderCreationService.getProductsByCustomer(customer.customerType || 'SUPERMARKET');
     const matchedItems = items.map(item => {
       const product = products.find(p => p.itemCode === item.fg_code);
-      return {
-        fg_code: item.fg_code,
-        quantity: item.quantity,
-        product,
-        status: product ? 'matched' : 'unmatched',
-        unitPrice: product ? product.itemPrice : 0,
-        netAmount: product ? item.quantity * product.itemPrice : 0,
-      };
+      return product ? { fg_code:item.fg_code, quantity:item.quantity, product, status:'matched', unitPrice:product.itemPrice, netAmount:item.quantity*product.itemPrice } : { fg_code:item.fg_code, quantity:item.quantity, product:null, status:'unmatched', unitPrice:0, netAmount:0 };
     });
-
-    const orderData = {
-      customer: customer.code,
-      items: matchedItems,
-      lpoNumber: null,
-      customerType: customer.customerType || 'SUPERMARKET',
-    };
-
-    return { type: 'order_preview', data: { orderData, customer } };
+    const orderData = { customer: customer.code, items: matchedItems, lpoNumber:null, customerType: customer.customerType || 'SUPERMARKET' };
+    return { type:'order_preview', data:{ orderData, customer } };
   }
 
-  // Single order query detection
   if (lower.includes('order')) {
     const branch = authService.getCurrentBranch();
     const date = new Date().toISOString().split('T')[0];
-    const orders = await ordersService.getOrders(branch, date, { forceRefresh: true });
+    const orders = await ordersService.getOrders(branch, date, { forceRefresh:true });
     return formatOrdersResponse(orders, branch, date);
   }
 
-  // Cached customer query fallback
   const parsedCustomer = parseCustomerQuery(command);
   if (parsedCustomer.type || parsedCustomer.branch) {
     const all = agentDataService.getCustomers();
@@ -469,23 +336,11 @@ async function fallbackExecute(command) {
     return formatCustomersList(filtered, parsedCustomer.branch || 'all branches');
   }
 
-  // General fallback to AI
   const resp = await fetch('https://noos-ai.kililoian5.workers.dev', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages: [
-        { role: 'system', content: 'You are NOOS. Answer clearly and concisely.' },
-        { role: 'user', content: command }
-      ],
-      temperature: 0.7,
-      max_tokens: 400,
-    }),
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ messages:[{role:'system',content:'You are NOOS. Answer clearly and concisely.'},{role:'user',content:command}], temperature:0.7, max_tokens:400 })
   });
-  if (resp.ok) {
-    const data = await resp.json();
-    return data.choices[0].message.content;
-  }
+  if (resp.ok) { const data = await resp.json(); return data.choices[0].message.content; }
   return `-> Current branch: ${authService.getCurrentBranch()}. Try "orders today" or "customers in ${authService.getCurrentBranch()}".`;
 }
 
