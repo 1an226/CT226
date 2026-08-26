@@ -4,7 +4,16 @@ import noosService from '@services/noosService';
 import authService from '@services/authService';
 
 const ChatInterface = () => {
-  const [messages, setMessages] = useState([]);
+  const firstName = authService.getCurrentUser()?.details?.firstName ||
+    authService.getCurrentUser()?.name?.split(' ')[0] ||
+    'there';
+
+  const [messages, setMessages] = useState([
+    {
+      role: 'noos',
+      content: `Hello ${firstName}, I'm Noos, the CT226 operating system and your AI assistant, how may I be of help?`,
+    },
+  ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [orderPreview, setOrderPreview] = useState(null);

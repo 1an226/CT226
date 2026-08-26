@@ -269,7 +269,14 @@ async function executeFunction(intent, originalCommand) {
         const product = products.find(p => p.itemCode === item.fg_code);
         return product ? { ...item, product, status:'matched', unitPrice:product.itemPrice, netAmount:item.quantity*product.itemPrice } : { ...item, status:'unmatched' };
       });
-      const orderData = { customer: customer.code, items: matchedItems, lpoNumber:null, customerType: customer.customerType || 'SUPERMARKET' };
+      const orderData = {
+        customer: customer.code,
+        customerName: customer.name,
+        customerInfo: customer,
+        items: matchedItems,
+        lpoNumber: null,
+        customerType: customer.customerType || 'SUPERMARKET',
+      };
       return { type:'order_preview', data:{ orderData, customer } };
     }
     case 'get_branches': {
@@ -315,7 +322,14 @@ async function fallbackExecute(command) {
       const product = products.find(p => p.itemCode === item.fg_code);
       return product ? { fg_code:item.fg_code, quantity:item.quantity, product, status:'matched', unitPrice:product.itemPrice, netAmount:item.quantity*product.itemPrice } : { fg_code:item.fg_code, quantity:item.quantity, product:null, status:'unmatched', unitPrice:0, netAmount:0 };
     });
-    const orderData = { customer: customer.code, items: matchedItems, lpoNumber:null, customerType: customer.customerType || 'SUPERMARKET' };
+    const orderData = {
+      customer: customer.code,
+      customerName: customer.name,
+      customerInfo: customer,
+      items: matchedItems,
+      lpoNumber: null,
+      customerType: customer.customerType || 'SUPERMARKET',
+    };
     return { type:'order_preview', data:{ orderData, customer } };
   }
 

@@ -930,6 +930,25 @@ export const onOrderAudit = (callback) => {
 
 export const getAuditLog = () => auditLog;
 
+
+async function insertOrderNotification(userId, message, soNumber = null, customerName = '') {
+  if (!supabase || !userId) return;
+  const { error } = await supabase.from('order_notifications').insert({
+    user_id: userId,
+    message,
+    so_number: soNumber,
+    customer_name: customerName,
+  });
+  if (error) console.warn('Failed to insert order notification:', error.message);
+}
+
+function getNotificationUserId() {
+  try {
+    const user = JSON.parse(sessionStorage.getItem('dds_user') || '{}');
+    return user?.id ? String(user.id) : null;
+  } catch { return null; }
+}
+
 const notifyAudit = (success, message) => {
   const event = { success, message, timestamp: Date.now() };
 
@@ -1069,6 +1088,16 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
 
       const msg = `Audit failed for ${poData.customer} ${poData.lpoNumber}: ${mismatches.join('; ')}. Order ${orderNumber} cancelled.`;
       notifyAudit(false, msg);
+
+      const customerName = poData.customerName || poData.customerInfo?.name || poData.customer;
+      const userId = getNotificationUserId();
+      await insertOrderNotification(
+        userId,
+        `Audit failed: Order ${orderNumber} cancelled. Customer: ${customerName}. Reason: ${mismatches.join('; ')}`,
+        orderNumber,
+        customerName
+      );
+
       return {
         success: false,
         error: msg,
@@ -1082,24 +1111,14 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
     const successMsg = `Audit passed for ${poData.customer} ${poData.lpoNumber}. Order ${orderNumber} verified.`;
     notifyAudit(true, successMsg);
 
-    // Insert persistent order notification for Messages tab
-    if (supabase) {
-      const userId = (() => {
-        try {
-          const user = JSON.parse(sessionStorage.getItem('dds_user') || '{}');
-          return user?.id ? String(user.id) : null;
-        } catch { return null; }
-      })();
-      if (userId) {
-        const customerName = poData.customerName || poData.customerInfo?.name || poData.customer;
-        await supabase.from('order_notifications').insert({
-          user_id: userId,
-          message: `Order ${orderNumber} created and verified. Customer: ${customerName}`,
-          so_number: orderNumber,
-          customer_name: customerName,
-        });
-      }
-    }
+    const customerName = poData.customerName || poData.customerInfo?.name || poData.customer;
+    const userId = getNotificationUserId();
+    await insertOrderNotification(
+      userId,
+      `Order ${orderNumber} created and verified. Customer: ${customerName}`,
+      orderNumber,
+      customerName
+    );
 
     return {
       success: true,

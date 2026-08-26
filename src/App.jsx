@@ -740,7 +740,7 @@ const validateFile = (file) => {
             )}
 
             {/* Parsed Order Preview - updated to match AI Mode */}
-            {parsedOrderData && !isProcessing && (
+            {parsedOrderData && (
               <>
                 <button
                   type="button"
