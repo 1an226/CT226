@@ -702,7 +702,7 @@ const validateFile = (file) => {
             )}
 
             {/* Processing Status */}
-            {isProcessing && (
+            {!parsedOrderData && isProcessing && (
               <div
                 style={{
                   textAlign: "center",

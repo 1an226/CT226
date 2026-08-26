@@ -83,6 +83,19 @@ const ITEM_NAMES_MAPPING = (() => {
 
 let cachedProducts = {};
 
+// ─── Local order event emitter (same-tab immediate updates) ───────
+const orderEventListeners = new Set();
+export const onOrderEvent = (callback) => {
+  orderEventListeners.add(callback);
+  return () => orderEventListeners.delete(callback);
+};
+function emitOrderEvent(event) {
+  orderEventListeners.forEach(fn => {
+    try { fn(event); } catch (e) { console.warn('Order event listener error:', e); }
+  });
+}
+
+
 // ─── Helpers ─────────────────────────────────────────────────────
 const getFGCode = (itemCode) => getFGCodeFromStandard(itemCode) || "UNKNOWN_" + itemCode;
 const getProductName = (itemCode, customerType = "NAIVAS") => {
@@ -1098,6 +1111,14 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
         customerName
       );
 
+      emitOrderEvent({
+        id: `${orderNumber}-${Date.now()}`,
+        message: `Audit failed: Order ${orderNumber} cancelled. Customer: ${customerName}. Reason: ${mismatches.join('; ')}`,
+        so_number: orderNumber,
+        customer_name: customerName,
+        created_at: new Date().toISOString(),
+      });
+
       return {
         success: false,
         error: msg,
@@ -1119,6 +1140,15 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
       orderNumber,
       customerName
     );
+
+    // Emit local event for immediate UI update
+    emitOrderEvent({
+      id: `${orderNumber}-${Date.now()}`,
+      message: `Order ${orderNumber} created and verified. Customer: ${customerName}`,
+      so_number: orderNumber,
+      customer_name: customerName,
+      created_at: new Date().toISOString(),
+    });
 
     return {
       success: true,

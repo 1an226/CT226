@@ -122,7 +122,26 @@ function parseChatOrderCommand(command) {
     items.push({ fg_code: m[1].toUpperCase(), quantity: parseInt(m[2], 10) });
   }
   if (!items.length) return null;
-  return { customer_name: customerName, items };
+
+  // Extract LPO if present
+  let lpo = null;
+  const lpoPatterns = [
+    /\bLPO\s*[:#]?\s*([A-Z0-9\-]+)/i,
+    /\bPO-J\d{3}-\d{6}/i,
+    /\bP\d{8,9}(?:-\d+)?/i,
+    /\b\d{3}-\d{8}\b/,
+    /\b\d{13,14}\b/,
+  ];
+  for (const pattern of lpoPatterns) {
+    const lpoMatch = command.match(pattern);
+    if (lpoMatch) {
+      lpo = lpoMatch[0]; // for LPO with prefix capture, adjust
+      if (pattern === lpoPatterns[0]) lpo = lpoMatch[1];
+      break;
+    }
+  }
+
+  return { customer_name: customerName, items, lpo };
 }
 
 function parseMultipleOrderCommands(command) {
@@ -274,7 +293,7 @@ async function executeFunction(intent, originalCommand) {
         customerName: customer.name,
         customerInfo: customer,
         items: matchedItems,
-        lpoNumber: null,
+        lpoNumber: params.lpo || null,
         customerType: customer.customerType || 'SUPERMARKET',
       };
       return { type:'order_preview', data:{ orderData, customer } };
@@ -327,7 +346,7 @@ async function fallbackExecute(command) {
       customerName: customer.name,
       customerInfo: customer,
       items: matchedItems,
-      lpoNumber: null,
+      lpoNumber: chatOrder.lpo || null,
       customerType: customer.customerType || 'SUPERMARKET',
     };
     return { type:'order_preview', data:{ orderData, customer } };

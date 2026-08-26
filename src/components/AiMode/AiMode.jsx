@@ -6,13 +6,17 @@ import Messages from './Messages';
 import Checklist from './Checklist';
 import agentDataService from '@services/agentDataService';
 import agentRuntime from '@services/agentRuntime';
-import orderCreationService from '@services/orderCreationService';
+import orderCreationService, { onOrderEvent } from '@services/orderCreationService';
 import { supabase } from '@services/supabaseClient';
 import authService from '@services/authService';
 import './AiMode.css';
 
 const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
   const [activeTab, setActiveTab] = useState('autonomous');
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
   const [dataReady, setDataReady] = useState(agentDataService.isReady());
   const [unreadCount, setUnreadCount] = useState(0);
   const [logs, setLogs] = useState([]);
@@ -92,18 +96,21 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
       time: new Date(row.created_at).toLocaleTimeString(),
     });
 
-    // Initial fetch
+    // Initial fetch (descending order)
     supabase
       .from('order_notifications')
       .select('*')
       .eq('user_id', userId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .then(({ data, error }) => {
         if (!error && data) {
           setLogs(prev => {
             const existing = new Set(prev.map(l => l.id));
             const newLogs = data.map(toLog).filter(l => !existing.has(l.id));
-            return newLogs.length ? [...prev, ...newLogs] : prev;
+            // Merge and sort descending by time string (approx)
+            const combined = [...newLogs, ...prev];
+            combined.sort((a, b) => b.time.localeCompare(a.time));
+            return combined;
           });
         }
       });
@@ -121,17 +128,38 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
         },
         (payload) => {
           const row = payload.new;
+          const log = toLog(row);
           setLogs(prev => {
             if (prev.some(l => l.id === row.id)) return prev;
-            return [...prev, toLog(row)];
+            return [log, ...prev];
           });
-          setUnreadCount(count => count + 1);
+          if (activeTabRef.current !== 'messages') {
+            setUnreadCount(count => count + 1);
+          }
         }
       )
       .subscribe();
 
+    // Local event for same-tab immediate updates
+    const unsubscribeLocal = onOrderEvent((event) => {
+      const log = {
+        id: event.id,
+        emoji: '',
+        text: event.message,
+        time: new Date(event.created_at).toLocaleTimeString(),
+      };
+      setLogs(prev => {
+        if (prev.some(l => l.id === event.id)) return prev;
+        return [log, ...prev];
+      });
+      if (activeTabRef.current !== 'messages') {
+        setUnreadCount(count => count + 1);
+      }
+    });
+
     return () => {
       supabase.removeChannel(channel);
+      unsubscribeLocal();
     };
   }, []);
 
