@@ -401,7 +401,7 @@ const extractMajid = (text) => {
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
   // Pipe layout: barcode | ref | fam | description | qty | price...
-  const pipeLayoutRegex = /^\|?\s*U?(\d{13})\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*[^|]+\|\s*(\d{1,2})\s*\|/;
+  const pipeLayoutRegex = /^\|?\s*U?(\d{12,14})\s*\|\s*\d+\s*\|\s*\d+\s*\|\s*[^|]+\|\s*(\d{1,2})\s*\|/;
   for (const line of lines) {
     const m = line.match(pipeLayoutRegex);
     if (m) {
@@ -415,7 +415,7 @@ const extractMajid = (text) => {
   // Vertical layout: barcode on its own line, followed by ref, fam, description, quantity
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const barcodeMatch = line.match(/^U?(\d{13})$/);
+    const barcodeMatch = line.match(/^U?(\d{12,14})$/);
     if (!barcodeMatch) continue;
 
     const code = barcodeMatch[1];
@@ -454,7 +454,7 @@ const extractMajid = (text) => {
 
   // Compact / pipe layout fallback
   const pipeRegex = /^U?(\d{13})\s+\d+\s+\d+\s*\|\s*(.+?)\s*\|\s*(\d+)\s*\|/;
-  const simpleRegex = /^U?(\d{13})\s+\d+\s+\d+\s+(.+?)\s+(\d+)\s+[\d.]+/;
+  const simpleRegex = /^U?(\d{12,14})\s+\d+\s+\d+\s+(.+?)\s+(\d+)\s+[\d.]+/;
 
   for (const rawLine of lines) {
     let match = rawLine.match(pipeRegex);
