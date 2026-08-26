@@ -203,7 +203,7 @@ const noosService = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'meta/llama-3.1-8b-instruct',
+          model: 'meta/llama-3.2-3b-instruct',
           messages,
           temperature: 0,
           max_tokens: 200,
@@ -425,7 +425,7 @@ async function executeFunction(intent, originalCommand) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'meta/llama-3.1-8b-instruct',
+          model: 'meta/llama-3.2-3b-instruct',
           messages: [
             {
               role: 'system',
@@ -470,7 +470,7 @@ async function fallbackExecute(command) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'meta/llama-3.1-8b-instruct',
+      model: 'meta/llama-3.2-3b-instruct',
       messages: [
         { role: 'system', content: 'You are NOOS. Answer clearly and concisely.' },
         { role: 'user', content: command }
