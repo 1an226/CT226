@@ -5,6 +5,37 @@ import agentRuntime from '@services/agentRuntime';
 import agentDataService from '@services/agentDataService';
 import { resolveCustomerCodeFromLpo, resolveMajidDigitalCustomerCode } from '@utils/deterministicLpoMap';
 
+
+function detectCustomerTypeFromText(text) {
+  const t = text.toUpperCase();
+  if (/QUICK\s*MART/i.test(t)) return 'QUICKMART';
+  if (/CHANDARANA/i.test(t)) return 'CHANDARANA';
+  if (/JAZARIBU/i.test(t)) return 'JAZARIBU';
+  if (/KHETIA/i.test(t)) return 'KHETIA';
+  if (/CLEAN\s*SHELF/i.test(t)) return 'CLEANSHELF';
+  if (/MAJID|CARREFOUR/i.test(t)) return 'MAJID';
+  if (/NAIVAS/i.test(t)) return 'NAIVAS';
+  return null;
+}
+
+function extractLpoQuick(text, type) {
+  if (!text) return null;
+  const t = text.toUpperCase();
+  if (type === 'QUICKMART') {
+    const m = t.match(/PURCHASE\s*ORDER\s*#\s*(\d{3}-\d{8})/i);
+    return m ? m[1] : null;
+  }
+  if (type === 'CHANDARANA') {
+    const m = t.match(/Order\s*No\.\s*&\s*Date\s*-\s*(\d{13,14})/i);
+    return m ? m[1] : null;
+  }
+  if (type === 'JAZARIBU') {
+    const m = t.match(/PO-J\d{3}-\d{6}/i);
+    return m ? m[0] : null;
+  }
+  return null;
+}
+
 function formatDuration(ms) {
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -82,11 +113,39 @@ const AutonomousWorkflow = () => {
 
       // Step 2: Identify customer
       const s2 = addStep('Identifying customer...');
-      let customer = await agentRuntime.identifyCustomer(rawText, file.name);
-      if (!customer || !customer.branch) {
-        throw new Error('Could not identify customer or branch.');
+      let customer = null;
+
+      try {
+        customer = await agentRuntime.identifyCustomer(rawText, file.name);
+      } catch (e) {
+        console.warn('Fuzzy/outlet identification failed, trying LPO map:', e.message);
+        customer = null;
       }
-      markDone(s2, `Customer: ${customer.name}`);
+
+      if (!customer || !customer.branch) {
+        const detectedType = detectCustomerTypeFromText(rawText);
+        const lpo = extractLpoQuick(rawText, detectedType);
+        const code = resolveCustomerCodeFromLpo(lpo, detectedType);
+        if (code) {
+          const allCustomers = agentDataService.getCustomers();
+          const found = allCustomers.find(c => c.code === code);
+          if (found) {
+            customer = {
+              name: found.name,
+              code: found.code,
+              branch: found.branch,
+              type: detectedType,
+            };
+            markDone(s2, `Customer resolved from LPO: ${customer.name}`);
+          }
+        }
+
+        if (!customer || !customer.branch) {
+          throw new Error('Could not identify customer or branch.');
+        }
+      } else {
+        markDone(s2, `Customer: ${customer.name}`);
+      }
 
       // Step 3: Parallel parse PO and fetch products
       const s3a = addStep('Parsing order data...');
