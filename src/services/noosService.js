@@ -3,6 +3,7 @@ import ordersService from './ordersService';
 import customerService from './customerService';
 import branchService from './branchService';
 import agentRuntime from './agentRuntime';
+import agentDataService from './agentDataService';
 import { supabase } from './supabaseClient';
 
 const HISTORY_LIMIT = 10;
@@ -130,6 +131,61 @@ async function saveFeedback(userId, command, correction) {
   }
 }
 
+function detectCustomerTypeFromText(text) {
+  const t = text.toUpperCase();
+  if (/NAIVAS/i.test(t)) return 'NAIVAS';
+  if (/KHETIA/i.test(t)) return 'KHETIA';
+  if (/QUICK\s*MART|QUICKMART/i.test(t)) return 'QUICKMART';
+  if (/CHANDARANA/i.test(t)) return 'CHANDARANA';
+  if (/CLEAN\s*SHELF|CLEANSHELF/i.test(t)) return 'CLEANSHELF';
+  if (/JAZARIBU/i.test(t)) return 'JAZARIBU';
+  if (/MAJID|CARREFOUR/i.test(t)) return 'MAJID';
+  return null;
+}
+
+function extractBranchFromCommand(command, branches) {
+  const lower = command.toLowerCase();
+  for (const branch of branches) {
+    if (lower.includes(branch.toLowerCase())) return branch;
+  }
+  return null;
+}
+
+function cachedCustomerQuery(command) {
+  const customers = agentDataService.getCustomers();
+  if (!customers || customers.length === 0) return null;
+
+  const type = detectCustomerTypeFromText(command);
+  const branches = authService.getUserBranches() || [];
+  const branch = extractBranchFromCommand(command, branches);
+
+  let filtered = customers;
+
+  if (branch) {
+    filtered = filtered.filter(c => (c.branch || '').toLowerCase() === branch.toLowerCase());
+  }
+
+  if (type) {
+    filtered = filtered.filter(c => (c.name || '').toUpperCase().includes(type));
+  }
+
+  if (filtered.length === 0) return null;
+
+  let response = `-> ${filtered.length} ${type ? type.toLowerCase() : 'customer'} outlets`;
+  if (branch) response += ` in ${branch}`;
+  response += '\n';
+
+  if (filtered.length <= 20) {
+    for (const c of filtered) {
+      response += `  ${c.name} | ${c.code} | ${c.branch || ''}\n`;
+    }
+  } else {
+    response += '  (too many to list)';
+  }
+
+  return response;
+}
+
 const noosService = {
   async execute(command) {
     const userId = getUserId();
@@ -154,7 +210,10 @@ const noosService = {
         }),
       });
 
-      if (!intentResp.ok) throw new Error('8B unavailable');
+      if (!intentResp.ok) {
+        console.warn(`NOOS 8B routing failed with status: ${intentResp.status}`);
+        throw new Error(`8B unavailable: ${intentResp.status}`);
+      }
 
       const data = await intentResp.json();
       const aiText = data.choices[0].message.content;
@@ -176,11 +235,18 @@ const noosService = {
       return response;
     } catch (e) {
       console.warn('NOOS 8B routing failed, using fallback:', e.message);
-      const fallback = await fallbackExecute(command);
 
+      // Try cached customer query first
+      const cachedResponse = cachedCustomerQuery(command);
+      if (cachedResponse) {
+        await saveMessage(userId, 'system', `Error: ${e.message}`);
+        await saveMessage(userId, 'noos', cachedResponse);
+        return cachedResponse;
+      }
+
+      const fallback = await fallbackExecute(command);
       await saveMessage(userId, 'system', `Error: ${e.message}`);
       await saveMessage(userId, 'noos', fallback);
-
       return fallback;
     }
   },
@@ -385,6 +451,10 @@ async function executeFunction(intent, originalCommand) {
 async function fallbackExecute(command) {
   const lower = command.toLowerCase();
   const branch = authService.getCurrentBranch();
+
+  // Cached customer query first (deterministic, no AI)
+  const cachedResponse = cachedCustomerQuery(command);
+  if (cachedResponse) return cachedResponse;
 
   if (lower.includes('order')) {
     const orders = await ordersService.getOrders(branch, new Date().toISOString().split('T')[0], { forceRefresh: true });
