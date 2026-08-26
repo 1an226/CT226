@@ -129,23 +129,7 @@ async function saveFeedback(userId, command, correction) {
   if (error) console.warn('Failed to save feedback:', error.message);
 }
 
-// ===== Deterministic order command parser =====
-function parseOrderCommand(command) {
-  const match = command.match(/place\s+order\s+for\s+(.+?)\s+with\s+(.+)/i);
-  if (!match) return null;
-  const customerName = match[1].trim();
-  const itemsStr = match[2];
-  const items = [];
-  const itemRegex = /(FG\d+)\s+(\d+)\s*(?:pcs?|pieces?)?/gi;
-  let m;
-  while ((m = itemRegex.exec(itemsStr)) !== null) {
-    items.push({ fg_code: m[1].toUpperCase(), quantity: parseInt(m[2], 10) });
-  }
-  if (!items.length) return null;
-  return { customer_name: customerName, items };
-}
-
-// ===== Cached customer query =====
+// ===== Deterministic parsers =====
 function parseCustomerQuery(command) {
   const lower = command.toLowerCase();
   const types = ['NAIVAS','KHETIA','QUICKMART','CHANDARANA','CLEANSHELF','JAZARIBU','MAJID'];
@@ -163,6 +147,60 @@ function parseCustomerQuery(command) {
 
   const wantsCount = /\bhow many\b|\bcount\b|\bnumber of\b/.test(lower);
   return { type, branch, wantsCount };
+}
+
+function parseChatOrderCommand(command) {
+  // Match pattern: "<customer name> with FGxxx qty pcs and FGyyy qty pcs"
+  // Also allow "place order for <customer name> with ..."
+  const match = command.match(/(?:place\s+order\s+for\s+)?(.+?)\s+with\s+(.+)/i);
+  if (!match) return null;
+
+  const customerName = match[1].trim().replace(/^for\s+/i, '');
+  const itemsStr = match[2];
+  const items = [];
+  const itemRegex = /(FG\d+)\s+(\d+)\s*(?:pcs?|pieces?)?/gi;
+  let m;
+  while ((m = itemRegex.exec(itemsStr)) !== null) {
+    items.push({ fg_code: m[1].toUpperCase(), quantity: parseInt(m[2], 10) });
+  }
+  if (!items.length) return null;
+  return { customer_name: customerName, items };
+}
+
+function parseMultipleOrderCommands(command) {
+  const lower = command.toLowerCase();
+  if (!lower.includes('order')) return null;
+
+  const branches = authService.getUserBranches() || [];
+  const results = [];
+
+  // Pattern: "orders for <branch> dated the <day> <month> <year>"
+  const regex = /orders?\s+for\s+([A-Za-z0-9 ]+?)\s+dated\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})/gi;
+  let m;
+  while ((m = regex.exec(command)) !== null) {
+    const branchRaw = m[1].trim();
+    const day = m[2].padStart(2, '0');
+    const monthStr = m[3].toLowerCase();
+    const year = m[4];
+    const monthMap = {
+      january:'01', february:'02', march:'03', april:'04', may:'05', june:'06',
+      july:'07', august:'08', september:'09', october:'10', november:'11', december:'12'
+    };
+    const month = monthMap[monthStr];
+    if (!month) continue;
+    const date = `${year}-${month}-${day}`;
+
+    let branch = null;
+    for (const b of branches) {
+      if (branchRaw.toLowerCase().includes(b.toLowerCase()) || b.toLowerCase().includes(branchRaw.toLowerCase())) {
+        branch = b;
+        break;
+      }
+    }
+    if (branch) results.push({ branch, date });
+  }
+
+  return results.length ? results : null;
 }
 
 function formatCustomersList(customers, title) {
@@ -322,17 +360,14 @@ async function executeFunction(intent, originalCommand) {
       const orderData = {
         customer: customer.code,
         items: matchedItems,
-        lpoNumber: null, // user can add later
+        lpoNumber: null,
         customerType: customer.customerType || 'SUPERMARKET',
       };
 
-      const previewData = { orderData, customer };
-      // Return object to trigger preview UI
-      return { type: 'order_preview', data: previewData };
+      return { type: 'order_preview', data: { orderData, customer } };
     }
 
     case 'get_checklist': {
-      // same as before
       return '-> Checklist functionality will be available soon.';
     }
 
@@ -373,38 +408,50 @@ async function executeFunction(intent, originalCommand) {
 async function fallbackExecute(command) {
   const lower = command.toLowerCase();
 
-  // Order placement detection
-  if (lower.startsWith('place order')) {
-    const parsed = parseOrderCommand(command);
-    if (parsed) {
-      const { customer_name, items } = parsed;
-      const allCustomers = agentDataService.getCustomers();
-      const customer = allCustomers.find(c => (c.name || '').toLowerCase() === customer_name.toLowerCase());
-      if (!customer) return `-> Customer "${customer_name}" not found.`;
-      const products = await orderCreationService.getProductsByCustomer(customer.customerType || 'SUPERMARKET');
-      const matchedItems = items.map(item => {
-        const product = products.find(p => p.itemCode === item.fg_code);
-        return {
-          fg_code: item.fg_code,
-          quantity: item.quantity,
-          product,
-          status: product ? 'matched' : 'unmatched',
-          unitPrice: product ? product.itemPrice : 0,
-          netAmount: product ? item.quantity * product.itemPrice : 0,
-        };
-      });
-      const orderData = {
-        customer: customer.code,
-        items: matchedItems,
-        lpoNumber: null,
-        customerType: customer.customerType || 'SUPERMARKET',
-      };
-      return { type: 'order_preview', data: { orderData, customer } };
+  // Multiple branch/date order queries
+  const multiOrders = parseMultipleOrderCommands(command);
+  if (multiOrders) {
+    let response = '';
+    for (const req of multiOrders) {
+      const orders = await ordersService.getOrders(req.branch, req.date, { forceRefresh: true });
+      response += formatOrdersResponse(orders, req.branch, req.date) + '\n';
     }
+    return response.trim();
   }
 
-  // Order query detection
-  if (lower.includes('order') && !lower.includes('place')) {
+  // Chat order preview detection
+  const chatOrder = parseChatOrderCommand(command);
+  if (chatOrder) {
+    const { customer_name, items } = chatOrder;
+    const allCustomers = agentDataService.getCustomers();
+    const customer = allCustomers.find(c => (c.name || '').toLowerCase() === customer_name.toLowerCase());
+    if (!customer) return `-> Customer "${customer_name}" not found.`;
+
+    const products = await orderCreationService.getProductsByCustomer(customer.customerType || 'SUPERMARKET');
+    const matchedItems = items.map(item => {
+      const product = products.find(p => p.itemCode === item.fg_code);
+      return {
+        fg_code: item.fg_code,
+        quantity: item.quantity,
+        product,
+        status: product ? 'matched' : 'unmatched',
+        unitPrice: product ? product.itemPrice : 0,
+        netAmount: product ? item.quantity * product.itemPrice : 0,
+      };
+    });
+
+    const orderData = {
+      customer: customer.code,
+      items: matchedItems,
+      lpoNumber: null,
+      customerType: customer.customerType || 'SUPERMARKET',
+    };
+
+    return { type: 'order_preview', data: { orderData, customer } };
+  }
+
+  // Single order query detection
+  if (lower.includes('order')) {
     const branch = authService.getCurrentBranch();
     const date = new Date().toISOString().split('T')[0];
     const orders = await ordersService.getOrders(branch, date, { forceRefresh: true });
