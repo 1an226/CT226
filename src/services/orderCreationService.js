@@ -387,12 +387,12 @@ const extractMajid = (text) => {
   }
     let lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
 
-  // Fallback: find standalone 8-digit number, excluding supplier TRN/PIN/date.
+  // Fallback: pick first standalone 8-digit number starting with 26.
   if (lpo === "UNKNOWN_LPO") {
     const allLines = text.split("\n").map(l => l.trim()).filter(Boolean);
     for (const line of allLines) {
       const digits = line.replace(/[^0-9]/g, '');
-      if (/^\d{8}$/.test(digits) && !/P\d+/.test(line) && !/DATE|DELIVERY|DEADLINE|TRN|PIN/i.test(line)) {
+      if (/^26\d{6}$/.test(digits) && !/DATE|DELIVERY|DEADLINE|TRN|PIN/i.test(line)) {
         lpo = digits;
         break;
       }
