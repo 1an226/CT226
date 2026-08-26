@@ -8,6 +8,7 @@ import agentDataService from '@services/agentDataService';
 import agentRuntime from '@services/agentRuntime';
 import orderCreationService from '@services/orderCreationService';
 import { supabase } from '@services/supabaseClient';
+import authService from '@services/authService';
 import './AiMode.css';
 
 const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
