@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
 import AutonomousWorkflow from './AutonomousWorkflow';
 import ChatInterface from './ChatInterface';
