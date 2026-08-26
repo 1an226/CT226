@@ -133,12 +133,12 @@ async function saveFeedback(userId, command, correction) {
 
 function detectCustomerTypeFromText(text) {
   const t = text.toUpperCase();
+  if (/JAZARIBU/i.test(t)) return 'JAZARIBU';
   if (/NAIVAS/i.test(t)) return 'NAIVAS';
   if (/KHETIA/i.test(t)) return 'KHETIA';
   if (/QUICK\s*MART|QUICKMART/i.test(t)) return 'QUICKMART';
   if (/CHANDARANA/i.test(t)) return 'CHANDARANA';
   if (/CLEAN\s*SHELF|CLEANSHELF/i.test(t)) return 'CLEANSHELF';
-  if (/JAZARIBU/i.test(t)) return 'JAZARIBU';
   if (/MAJID|CARREFOUR/i.test(t)) return 'MAJID';
   return null;
 }
@@ -175,12 +175,15 @@ function cachedCustomerQuery(command) {
   if (branch) response += ` in ${branch}`;
   response += '\n';
 
-  if (filtered.length <= 20) {
+  if (filtered.length <= 50) {
     for (const c of filtered) {
       response += `  ${c.name} | ${c.code} | ${c.branch || ''}\n`;
     }
   } else {
-    response += '  (too many to list)';
+    response += '  (too many to list, showing first 50)\n';
+    for (const c of filtered.slice(0, 50)) {
+      response += `  ${c.name} | ${c.code} | ${c.branch || ''}\n`;
+    }
   }
 
   return response;
