@@ -218,6 +218,9 @@ const AutonomousWorkflow = () => {
 
       const finalOrderData = {
         ...parsedData,
+        customer: customer.code,
+        customerName: customer.name,
+        branch: customer.branch,
         items: finalItems,
         customerInfo: customer,
       };

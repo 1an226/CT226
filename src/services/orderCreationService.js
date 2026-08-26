@@ -964,23 +964,6 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
 
   const dedupeKey = buildOrderDedupeKey(poData, customerBranch);
 
-  // Database-level duplicate prevention (cross-tab, cross-device)
-  if (supabase) {
-    const { data: existing, error: checkError } = await supabase
-      .from('order_submissions')
-      .select('id')
-      .eq('customer_code', poData.customer)
-      .eq('lpo_number', poData.lpoNumber)
-      .eq('branch', customerBranch)
-      .maybeSingle();
-
-    if (checkError) {
-      console.warn('Duplicate check failed:', checkError.message);
-    } else if (existing) {
-      throw new Error(`Duplicate order blocked: LPO ${poData.lpoNumber} already submitted for ${poData.customer} at ${customerBranch}`);
-    }
-  }
-
   if (inFlightOrders.has(dedupeKey)) {
     console.warn("[GUARD] Duplicate submit blocked — already in flight:", dedupeKey);
     return inFlightOrders.get(dedupeKey);
@@ -1098,19 +1081,6 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
 
     const successMsg = `Audit passed for ${poData.customer} ${poData.lpoNumber}. Order ${orderNumber} verified.`;
     notifyAudit(true, successMsg);
-
-    // Record successful submission in Supabase for future duplicate prevention
-    if (supabase) {
-      const { error: insertError } = await supabase.from('order_submissions').insert({
-        customer_code: poData.customer,
-        lpo_number: poData.lpoNumber,
-        branch: customerBranch,
-        so_number: orderNumber,
-      });
-      if (insertError) {
-        console.warn('Failed to record order submission:', insertError.message);
-      }
-    }
 
     return {
       success: true,
