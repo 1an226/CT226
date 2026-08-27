@@ -485,7 +485,7 @@ const extractMajid = (text) => {
 };
 
 const extractMajidDigital = (text) => {
-  const lpoMatch = text.match(/[A-Z]+(26\d{6})/);
+  const lpoMatch = text.match(/(26\d{6})/);
   if (!lpoMatch) return { outlet: '', lpo: 'UNKNOWN_LPO', items: [] };
   const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
 
