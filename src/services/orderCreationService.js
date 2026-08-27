@@ -889,6 +889,7 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
 
   console.log("[INFO] Extracted " + items.length + " items; " + knownItems.length + " known items after resolution.");
 
+  const products = await getProductsByCustomer(customerType);
   const resultItems = [];
   let totalValue = 0;
   for (const found of knownItems) {
