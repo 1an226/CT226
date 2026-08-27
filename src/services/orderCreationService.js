@@ -533,7 +533,7 @@ const extractViaRegex = (rawText, customerType) => {
       result = extractKhetia(text);
       break;
     case "MAJID":
-      if (/[A-Z]+(26\d{6})/.test(text) && !/DELIVERED\s*TO/i.test(text)) {
+      if (/(26\d{6})/.test(text) && !/DELIVERED\s*TO/i.test(text)) {
         result = extractMajidDigital(text);
       } else {
         result = extractMajid(text);
