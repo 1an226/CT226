@@ -834,6 +834,7 @@ function resolveByProductName(description, customerType, products) {
   return bestScore >= 4 ? best.itemCode : null;
 }
 
+
 function correctBarcode(rawCode, customerType, description = '') {
   if (!rawCode || rawCode.startsWith("UNKNOWN")) return rawCode;
   const correctionMap = OCR_CORRECTIONS[customerType] || {};
