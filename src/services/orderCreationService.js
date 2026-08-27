@@ -5,7 +5,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dis
 pdfjsLib.GlobalWorkerOptions.wasmUrl = "/pdfjs/";
 import { getFGCode as getFGCodeFromStandard, STANDARD_MODEL } from "@utils/StandardModel.js";
 import { supabase } from './supabaseClient';
-import { resolveBarcode } from '@utils/barcodeResolver.js';
 
 // ─── Configuration ───────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -841,31 +840,29 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
   if (customerType === "CLEANSHELF" && lpoNumber.includes(",")) lpoNumber = lpoNumber.replace(/,/g, "");
   if (customerType === "NAIVAS" && lpoNumber.endsWith("-1")) lpoNumber = lpoNumber.slice(0, -2);
 
-  const products = await getProductsByCustomer(customerType);
-
   const items = (parsedAI.items || []).map(item => {
     const description = item.description || '';
-    const unitPrice = item.unitPrice != null ? item.unitPrice : null;
-    const resolved = resolveBarcode({
-      rawCode: item.code,
-      description,
-      unitPrice,
-      customerType,
-      products,
-    });
+    let correctedCode = correctBarcode(item.code, customerType, description);
+    let fgCode = correctedCode ? getFGCode(correctedCode, customerType) : null;
 
-    const actualItemCode = resolved ? resolved.fgCode : "UNKNOWN_" + item.code;
-    const correctedCode = resolved ? resolved.matchedCode : item.code;
+    // Name fallback: if barcode unknown/corrupted, try product name match
+    if (!fgCode || fgCode.startsWith("UNKNOWN_")) {
+      const nameFgCode = correctBarcodeByDescription(description, customerType);
+      if (nameFgCode) {
+        correctedCode = item.code; // keep original for display
+        fgCode = nameFgCode;
+      }
+    }
 
     return {
       ocrItemCode: item.code,
-      correctedCode,
+      correctedCode: fgCode ? correctedCode : item.code,
       description,
-      actualItemCode,
+      actualItemCode: fgCode || "UNKNOWN_" + item.code,
       quantity: Math.round(item.quantity) || 0,
       foundQuantity: item.quantity || 0,
-      productName: resolved ? getProductName(correctedCode, customerType) : "Unknown Product",
-      method: "resolver",
+      productName: fgCode ? getProductName(item.code, customerType) : "Unknown Product",
+      method: "regex",
     };
   });
 
