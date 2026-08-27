@@ -869,25 +869,29 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
   if (customerType === "CLEANSHELF" && lpoNumber.includes(",")) lpoNumber = lpoNumber.replace(/,/g, "");
   if (customerType === "NAIVAS" && lpoNumber.endsWith("-1")) lpoNumber = lpoNumber.slice(0, -2);
 
+  // Fetch products BEFORE mapping items, so name-based resolver can use them
+  const products = await getProductsByCustomer(customerType);
+
   const items = (parsedAI.items || []).map(item => {
     const description = item.description || '';
     const rawCode = item.code;
-    let correctedCode = correctBarcode(rawCode, customerType, description);
-    let barcodeFg = correctedCode ? getFGCode(correctedCode, customerType) : null;
+    const correctedCode = correctBarcode(rawCode, customerType, description);
+    const barcodeFg = correctedCode ? getFGCode(correctedCode, customerType) : null;
 
-    // Name-based resolution (always compute, but only override if barcode was not exact)
+    // Name fallback: always try product name, override only if barcode wasn't exact
     const nameFg = resolveByProductName(description, customerType, products);
-
     let finalFg = barcodeFg;
     let finalCode = correctedCode;
 
-    // If barcode was not exact (i.e., not in whitelist) and name gives a different FG, use name
-    const exactMatch = (customerType === "MAJID" && MAJID_BARCODES.includes(rawCode.replace(/^U/, ''))) ||
-                       (customerType === "CHANDARANA" && CHANDARANA_BARCODES.includes(rawCode.replace(/^U/, ''))) ||
-                       (customerType === "QUICKMART" && QUICKMART_BARCODES.includes(rawCode.replace(/^U/, '')));
+    const cleaned = rawCode.replace(/^U/, '');
+    const exactMatch =
+      (customerType === "MAJID" && MAJID_BARCODES.includes(cleaned)) ||
+      (customerType === "CHANDARANA" && CHANDARANA_BARCODES.includes(cleaned)) ||
+      (customerType === "QUICKMART" && QUICKMART_BARCODES.includes(cleaned));
+
     if (!exactMatch && nameFg && nameFg !== barcodeFg) {
       finalFg = nameFg;
-      finalCode = rawCode; // keep raw for display
+      finalCode = rawCode;
     }
 
     return {
@@ -902,7 +906,7 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
     };
   });
 
-  // Enhanced logging: outlet (if available), LPO, and each item mapping
+  // Enhanced logging
   if (parsedAI.outlet) {
     console.log(`[OUTLET] ${parsedAI.outlet}`);
   }
@@ -912,7 +916,6 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
     console.log(`[ITEM] ${found.ocrItemCode} -> ${found.actualItemCode} = ${found.quantity}`);
   }
 
-  // Remove duplicates by actualItemCode (keep first)
   const seen = new Set();
   const uniqueItems = items.filter(item => {
     if (seen.has(item.actualItemCode)) return false;
@@ -920,12 +923,10 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
     return true;
   });
 
-  // Keep only items with known FG code (not UNKNOWN_)
   const knownItems = uniqueItems.filter(item => !item.actualItemCode.startsWith("UNKNOWN_"));
 
   console.log("[INFO] Extracted " + items.length + " items; " + knownItems.length + " known items after resolution.");
 
-  const products = await getProductsByCustomer(customerType);
   const resultItems = [];
   let totalValue = 0;
   for (const found of knownItems) {
