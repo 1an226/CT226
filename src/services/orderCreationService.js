@@ -5,6 +5,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dis
 pdfjsLib.GlobalWorkerOptions.wasmUrl = "/pdfjs/";
 import { getFGCode as getFGCodeFromStandard, STANDARD_MODEL } from "@utils/StandardModel.js";
 import { supabase } from './supabaseClient';
+import { resolveBarcode } from '@utils/barcodeResolver.js';
 
 // ─── Configuration ───────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
@@ -840,29 +841,31 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
   if (customerType === "CLEANSHELF" && lpoNumber.includes(",")) lpoNumber = lpoNumber.replace(/,/g, "");
   if (customerType === "NAIVAS" && lpoNumber.endsWith("-1")) lpoNumber = lpoNumber.slice(0, -2);
 
+  const products = await getProductsByCustomer(customerType);
+
   const items = (parsedAI.items || []).map(item => {
     const description = item.description || '';
-    let correctedCode = correctBarcode(item.code, customerType, description);
-    let fgCode = correctedCode ? getFGCode(correctedCode, customerType) : null;
+    const unitPrice = item.unitPrice != null ? item.unitPrice : null;
+    const resolved = resolveBarcode({
+      rawCode: item.code,
+      description,
+      unitPrice,
+      customerType,
+      products,
+    });
 
-    // Name fallback: if barcode unknown/corrupted, try product name match
-    if (!fgCode || fgCode.startsWith("UNKNOWN_")) {
-      const nameFgCode = correctBarcodeByDescription(description, customerType);
-      if (nameFgCode) {
-        correctedCode = item.code; // keep original for display
-        fgCode = nameFgCode;
-      }
-    }
+    const actualItemCode = resolved ? resolved.fgCode : "UNKNOWN_" + item.code;
+    const correctedCode = resolved ? resolved.matchedCode : item.code;
 
     return {
       ocrItemCode: item.code,
-      correctedCode: fgCode ? correctedCode : item.code,
+      correctedCode,
       description,
-      actualItemCode: fgCode || "UNKNOWN_" + item.code,
+      actualItemCode,
       quantity: Math.round(item.quantity) || 0,
       foundQuantity: item.quantity || 0,
-      productName: fgCode ? getProductName(item.code, customerType) : "Unknown Product",
-      method: "regex",
+      productName: resolved ? getProductName(correctedCode, customerType) : "Unknown Product",
+      method: "resolver",
     };
   });
 
@@ -887,9 +890,8 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
   // Keep only items with known FG code (not UNKNOWN_)
   const knownItems = uniqueItems.filter(item => !item.actualItemCode.startsWith("UNKNOWN_"));
 
-  console.log("[INFO] Extracted " + items.length + " items; " + knownItems.length + " known items after correction.");
+  console.log("[INFO] Extracted " + items.length + " items; " + knownItems.length + " known items after resolution.");
 
-  const products = await getProductsByCustomer(customerType);
   const resultItems = [];
   let totalValue = 0;
   for (const found of knownItems) {
