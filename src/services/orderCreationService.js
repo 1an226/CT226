@@ -806,6 +806,34 @@ function correctBarcodeByDescription(description, customerType) {
   return null;
 }
 
+
+function resolveByProductName(description, customerType, products) {
+  if (!description || !products.length) return null;
+  const tokens = description.toUpperCase().replace(/[^A-Z0-9]/g, ' ').split(/\s+/).filter(Boolean);
+  let best = null, bestScore = 0;
+  for (const p of products) {
+    const pName = (p.itemName || '').toUpperCase().replace(/[^A-Z0-9]/g, ' ').split(/\s+/).filter(Boolean);
+    let score = 0;
+    for (const t of tokens) {
+      if (pName.includes(t)) score += 2;
+      else {
+        for (const pt of pName) {
+          if ((t.includes(pt) || pt.includes(t)) && Math.abs(t.length - pt.length) <= 2) score += 1;
+        }
+      }
+    }
+    // Weight important terms
+    if (description.includes('800')) score += 1;
+    if (description.includes('600')) score += 1;
+    if (description.includes('400')) score += 1;
+    if (score > bestScore) {
+      bestScore = score;
+      best = p;
+    }
+  }
+  return bestScore >= 4 ? best.itemCode : null;
+}
+
 function correctBarcode(rawCode, customerType, description = '') {
   if (!rawCode || rawCode.startsWith("UNKNOWN")) return rawCode;
   const correctionMap = OCR_CORRECTIONS[customerType] || {};
@@ -842,27 +870,34 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
 
   const items = (parsedAI.items || []).map(item => {
     const description = item.description || '';
-    let correctedCode = correctBarcode(item.code, customerType, description);
-    let fgCode = correctedCode ? getFGCode(correctedCode, customerType) : null;
+    const rawCode = item.code;
+    let correctedCode = correctBarcode(rawCode, customerType, description);
+    let barcodeFg = correctedCode ? getFGCode(correctedCode, customerType) : null;
 
-    // Name fallback: if barcode unknown/corrupted, try product name match
-    if (!fgCode || fgCode.startsWith("UNKNOWN_")) {
-      const nameFgCode = correctBarcodeByDescription(description, customerType);
-      if (nameFgCode) {
-        correctedCode = item.code; // keep original for display
-        fgCode = nameFgCode;
-      }
+    // Name-based resolution (always compute, but only override if barcode was not exact)
+    const nameFg = resolveByProductName(description, customerType, products);
+
+    let finalFg = barcodeFg;
+    let finalCode = correctedCode;
+
+    // If barcode was not exact (i.e., not in whitelist) and name gives a different FG, use name
+    const exactMatch = (customerType === "MAJID" && MAJID_BARCODES.includes(rawCode.replace(/^U/, ''))) ||
+                       (customerType === "CHANDARANA" && CHANDARANA_BARCODES.includes(rawCode.replace(/^U/, ''))) ||
+                       (customerType === "QUICKMART" && QUICKMART_BARCODES.includes(rawCode.replace(/^U/, '')));
+    if (!exactMatch && nameFg && nameFg !== barcodeFg) {
+      finalFg = nameFg;
+      finalCode = rawCode; // keep raw for display
     }
 
     return {
-      ocrItemCode: item.code,
-      correctedCode: fgCode ? correctedCode : item.code,
+      ocrItemCode: rawCode,
+      correctedCode: finalCode,
       description,
-      actualItemCode: fgCode || "UNKNOWN_" + item.code,
+      actualItemCode: finalFg || "UNKNOWN_" + rawCode,
       quantity: Math.round(item.quantity) || 0,
       foundQuantity: item.quantity || 0,
-      productName: fgCode ? getProductName(item.code, customerType) : "Unknown Product",
-      method: "regex",
+      productName: finalFg ? getProductName(finalCode, customerType) : "Unknown Product",
+      method: "regex+name",
     };
   });
 
