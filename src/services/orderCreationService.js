@@ -486,6 +486,7 @@ const extractMajid = (text) => {
 
 const extractMajidDigital = (text) => {
   const lpoMatch = text.match(/[A-Z]+(26\d{6})/);
+  if (!lpoMatch) return { outlet: '', lpo: 'UNKNOWN_LPO', items: [] };
   const lpo = lpoMatch ? lpoMatch[1] : "UNKNOWN_LPO";
 
   const items = [];
@@ -532,7 +533,7 @@ const extractViaRegex = (rawText, customerType) => {
       result = extractKhetia(text);
       break;
     case "MAJID":
-      if (/[A-Z]+\d{8}/.test(text) && !/DELIVERED\s*TO/i.test(text)) {
+      if (/[A-Z]+(26\d{6})/.test(text) && !/DELIVERED\s*TO/i.test(text)) {
         result = extractMajidDigital(text);
       } else {
         result = extractMajid(text);
@@ -885,6 +886,8 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
     if (regexResult) {
       return regexResult;
     }
+    // For digital customers, fail fast without AI fallback
+    throw new Error(`Deterministic extraction failed for ${customerType}`);
   }
 
   const systemPrompt = "You are CT226, a deterministic order-entry transducer.\n=== LAWS OF EXTRACTION (PHYSICS GAUGE MAP) ===\nExtract LPO and items strictly per this map.\nMajid      : LPO=\"ORDER :\", Code=\"BAR CODE\", Qty=\"QTY UC\"\nChandarana : LPO=\"Order No. :\", Code=\"Bar Code\", Qty=\"Quantity\" (not Scan Qty)\nQuickmart  : LPO=\"PURCHASE ORDER #\", Code=\"Scan Code\", Qty=\"Order Qty\"\nKhetia     : LPO=\"PURCHASE ORDER #\", Code=\"YOUR Code\", Qty=\"Order Qty\"\nJazaribu   : LPO=\"Order No.\" or \"PO-J\", Code=\"No.\" (JT), Qty=\"Quantity\"\nCleanshelf Pending : LPO=\"LPO No.\" (remove commas), Code=\"Code\", Qty=\"Orderd Qty.\"\nCleanshelf Local   : LPO=\"L. P. O. No:\" (keep CLS -), Code=\"CODE\", Qty=\"Pieces\"\nNaivas     : LPO=\"P\" + 8-9 digits (strip \"-1\" suffix), Code=\"Item Code\", Qty=\"Quantity\"\n\n=== OUTPUT FORMAT ===\nReturn ONLY JSON: {\"lpo\":\"string\",\"confidence\":0.0-1.0,\"items\":[{\"code\":\"string\",\"quantity\":integer}]}";
