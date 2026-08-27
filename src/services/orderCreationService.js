@@ -499,15 +499,19 @@ const extractMajidDigital = (text) => {
   while ((match = barcodeRegex.exec(text)) !== null) {
     const barcode = match[1];
 
-    const afterStart = match.index + barcode.length;
-    const after = text.slice(afterStart, afterStart + 40);
-    const qtyMatch = after.match(/^0102100900[12]0*?(\d{2})/);
+    // Look at the rest of the line after barcode
+    const lineEnd = text.indexOf('\n', match.index);
+    const rest = text.slice(match.index + barcode.length, lineEnd === -1 ? undefined : lineEnd);
 
-    if (qtyMatch) {
-      items.push({
-        code: barcode,
-        quantity: parseInt(qtyMatch[1], 10)
-      });
+    // Quantity appears as a 2-digit number followed by many zeros, after the prefix segment
+    const qtyMatch = rest.match(/0{5,}(\d{2})0{5,}/);
+    if (!qtyMatch) {
+      // fallback: any two digits after a long zero run
+      const fallback = rest.match(/(\d{2})0{6,}/);
+      if (!fallback) continue;
+      items.push({ code: barcode, quantity: parseInt(fallback[1], 10) });
+    } else {
+      items.push({ code: barcode, quantity: parseInt(qtyMatch[1], 10) });
     }
   }
 
