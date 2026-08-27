@@ -504,7 +504,7 @@ const extractMajidDigital = (text) => {
     const rest = text.slice(match.index + barcode.length, lineEnd === -1 ? undefined : lineEnd);
 
     // Quantity appears as a 2-digit number followed by many zeros, after the prefix segment
-    const qtyMatch = rest.match(/0{5,}(\d{2})0{5,}/);
+    const qtyMatch = rest.match(/^0102100900[12]000000(\d{2})/);
     if (!qtyMatch) {
       // fallback: any two digits after a long zero run
       const fallback = rest.match(/(\d{2})0{6,}/);
@@ -781,6 +781,31 @@ function levenshtein(a, b) {
   return dp[m][n];
 }
 
+
+function correctBarcodeByDescription(description, customerType) {
+  // Only for known FG codes, never for unmapped products
+  const products = cachedProducts[customerType] || [];
+  if (!products.length || !description) return null;
+
+  const tokens = description.toUpperCase().split(/\s+/);
+  const significantTokens = tokens.filter(t => t.length > 2 && !/^\d+$/.test(t));
+
+  for (const product of products) {
+    const nameTokens = (product.itemName || '').toUpperCase().split(/\s+/);
+    const nameSig = nameTokens.filter(t => t.length > 2 && !/^\d+$/.test(t));
+
+    // If at least 2 meaningful tokens match, consider this a good match
+    let matches = 0;
+    for (const t of significantTokens) {
+      if (nameSig.includes(t)) matches++;
+    }
+    if (matches >= 2) {
+      return product.itemCode; // returns FG code
+    }
+  }
+  return null;
+}
+
 function correctBarcode(rawCode, customerType, description = '') {
   if (!rawCode || rawCode.startsWith("UNKNOWN")) return rawCode;
   const correctionMap = OCR_CORRECTIONS[customerType] || {};
@@ -817,16 +842,26 @@ const parsePOTextFromParsedJSON = async (parsedAI, customerCode, customerType) =
 
   const items = (parsedAI.items || []).map(item => {
     const description = item.description || '';
-    const correctedCode = correctBarcode(item.code, customerType, description);
-    const fgCode = getFGCode(correctedCode, customerType);
+    let correctedCode = correctBarcode(item.code, customerType, description);
+    let fgCode = correctedCode ? getFGCode(correctedCode, customerType) : null;
+
+    // Name fallback: if barcode unknown/corrupted, try product name match
+    if (!fgCode || fgCode.startsWith("UNKNOWN_")) {
+      const nameFgCode = correctBarcodeByDescription(description, customerType);
+      if (nameFgCode) {
+        correctedCode = item.code; // keep original for display
+        fgCode = nameFgCode;
+      }
+    }
+
     return {
       ocrItemCode: item.code,
-      correctedCode,
+      correctedCode: fgCode ? correctedCode : item.code,
       description,
-      actualItemCode: fgCode,
+      actualItemCode: fgCode || "UNKNOWN_" + item.code,
       quantity: Math.round(item.quantity) || 0,
       foundQuantity: item.quantity || 0,
-      productName: getProductName(correctedCode, customerType),
+      productName: fgCode ? getProductName(item.code, customerType) : "Unknown Product",
       method: "regex",
     };
   });
