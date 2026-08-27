@@ -377,7 +377,10 @@ const extractChandarana = (text) => {
 };
 
 const extractMajid = (text) => {
-  const outletMatch = text.match(/DELIVERED\s*TO\s*:\s*([^\n]+)/i);
+  let outletMatch = text.match(/SECTION\s*:\s*([^\n]+)/i);
+  if (!outletMatch || /\d{2}\/\d{2}\/\d{2}/.test(outletMatch[1])) {
+    outletMatch = text.match(/DELIVERED\s*TO\s*:\s*([^\n]+)/i);
+  }
   const outlet = outletMatch ? outletMatch[1].trim() : "UNKNOWN_OUTLET";
 
   let lpoMatch = text.match(/ORDER\s*:\s*(\d+)/i);
@@ -498,7 +501,7 @@ const extractMajidDigital = (text) => {
 
     const afterStart = match.index + barcode.length;
     const after = text.slice(afterStart, afterStart + 40);
-    const qtyMatch = after.match(/^01021009001000000(\d{2})/);
+    const qtyMatch = after.match(/^0102100900[12]0*?(\d{2})/);
 
     if (qtyMatch) {
       items.push({
@@ -742,6 +745,8 @@ const OCR_CORRECTIONS = {
   MAJID: {
     "616400136610": "6164000136610",
     "6161102320205": "6161102320305",
+    "6161105320444": "6161102320442",
+    "6161102320456": "6161102320459",
   },
   QUICKMART: {
     "6161102320188": "6161102320138",
