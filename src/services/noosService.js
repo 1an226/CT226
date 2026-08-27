@@ -6,6 +6,7 @@ import branchService from './branchService';
 import agentRuntime from './agentRuntime';
 import agentDataService from './agentDataService';
 import orderCreationService from './orderCreationService';
+import apiClient from '@services/api.js';
 
 const SYSTEM_PROMPT = `You are NOOS, the AI operating system for CT226, a DDS (Distribution Management System) integration platform used by a Kenyan bakery distributor.
 
@@ -44,10 +45,21 @@ You have access to these DDS functions. When a user asks for something DDS-relat
    - Shows the currently active branch
    - Example: "which branch am I on" -> get_current_branch()
 
-7. place_order(customer_name, items)
+7. place_order(customer_name, items, lpo)
    - Creates an order preview for a customer. Items is a list of {"fg_code": "FG015", "quantity": 10}
+   - lpo is optional LPO number. If provided, include it in the order.
    - Example: "place order for Jeremiah Mwangi Wanjiku with FG015 10pcs and FG031 14pcs"
      -> place_order({"customer_name":"Jeremiah Mwangi Wanjiku","items":[{"fg_code":"FG015","quantity":10},{"fg_code":"FG031","quantity":14}]})
+   - Example with LPO: "place order for John with FG015 1pcs LPO PO-J001-000123"
+     -> place_order({"customer_name":"John","items":[{"fg_code":"FG015","quantity":1}],"lpo":"PO-J001-000123"})
+
+8. get_order(so_number)
+   - Fetches order details by SO number
+   - Example: "get order SO-26-08-068078" -> get_order({"so_number":"SO-26-08-068078"})
+
+9. cancel_order(so_number)
+   - Cancels an order by SO number
+   - Example: "cancel order SO-26-08-068078" -> cancel_order({"so_number":"SO-26-08-068078"})
 
 === CURRENT STATE ===
 Current branch: ${typeof authService !== 'undefined' ? authService.getCurrentBranch() : 'Unknown'}
@@ -173,6 +185,22 @@ function parseMultipleOrderCommands(command) {
     if (branch) results.push({ branch, date });
   }
   return results.length ? results : null;
+}
+
+
+async function fetchOrderDetail(soNumber) {
+  const response = await apiClient.get(`/orders/detail/${soNumber}`);
+  return response.data?.payload || response.data || null;
+}
+
+async function cancelOrderBySo(soNumber) {
+  const detail = await fetchOrderDetail(soNumber);
+  if (!detail) return { success: false, error: 'Order not found' };
+  const branch = detail.branch;
+  if (!branch) return { success: false, error: 'Order branch not found' };
+  await authService.switchBranch(branch);
+  const resp = await apiClient.post(`/orders/close/${soNumber}`, { overrideWarning: true, status: 'Cancel' });
+  return { success: resp.status >= 200 && resp.status < 300, soNumber };
 }
 
 function formatCustomersList(customers, title) {
@@ -304,6 +332,38 @@ async function executeFunction(intent, originalCommand) {
       return `-> Current branch: ${current}\n-> ${branches.length} branches available:\n   ${branches.join(', ')}`;
     }
     case 'get_current_branch': return `-> Current branch: ${authService.getCurrentBranch()}`;
+    case 'get_order': {
+      const so = params.so_number || originalCommand.match(/SO-\d{2}-\d{2}-\d{6}/)?.[0];
+      if (!so) return 'Please provide a valid SO number.';
+      const detail = await fetchOrderDetail(so);
+      if (!detail) return `Order ${so} not found.`;
+      const items = detail.orderItems || [];
+      let response = `═══════════════════════════════════\n`;
+      response += `ORDER DETAIL — ${so}\n`;
+      response += `═══════════════════════════════════\n\n`;
+      response += `Customer : ${detail.customerName}\n`;
+      response += `Code     : ${detail.customerCode}\n`;
+      response += `Branch   : ${detail.branch}\n`;
+      response += `LPO      : ${detail.lpo || 'N/A'}\n`;
+      response += `Date     : ${detail.orderDate}\n`;
+      response += `Delivery : ${detail.dueDate}\n`;
+      response += `Status   : ${detail.orderStatus}\n`;
+      response += `Total    : Ksh ${Number(detail.total || 0).toLocaleString()}\n\n`;
+      response += `ITEMS:\n`;
+      for (const it of items) {
+        response += `  ${it.itemName || it.itemCode} | Qty: ${it.quantity} | Rate: ${it.itemRate} | Amount: ${it.netAmount}\n`;
+      }
+      return response;
+    }
+
+    case 'cancel_order': {
+      const so = params.so_number || originalCommand.match(/SO-\d{2}-\d{2}-\d{6}/)?.[0];
+      if (!so) return 'Please provide a valid SO number.';
+      const result = await cancelOrderBySo(so);
+      if (result.success) return `Order ${so} cancelled successfully.`;
+      return `Failed to cancel order ${so}: ${result.error || 'Unknown error'}`;
+    }
+
     case 'answer':
     default: {
       const question = params.question || originalCommand;

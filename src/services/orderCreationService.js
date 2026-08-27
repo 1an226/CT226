@@ -1155,6 +1155,9 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
       orderNumber,
       totalAmount,
       totalQuantity: orderItems.reduce((s, i) => s + i.quantity, 0),
+      orderDate: detail.orderDate || new Date().toISOString(),
+      dueDate: detail.dueDate || '',
+      orderTime: detail.orderDate || new Date().toISOString(),
       audit: 'passed',
     };
   })();

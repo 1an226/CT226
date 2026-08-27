@@ -18,6 +18,7 @@ const ChatInterface = () => {
   const [loading, setLoading] = useState(false);
   const [orderPreview, setOrderPreview] = useState(null);
   const [orderCreated, setOrderCreated] = useState(false);
+  const [orderResult, setOrderResult] = useState(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const chatRef = useRef(null);
 
@@ -54,6 +55,7 @@ const ChatInterface = () => {
       const result = await noosService.confirmOrder(orderPreview);
       if (result.success) {
         setOrderCreated(true);
+        setOrderResult(result);
         setMessages(prev => [...prev, { role: 'system', content: `Order ${result.orderNumber} created and verified.` }]);
       } else {
         setMessages(prev => [...prev, { role: 'system', content: `Order failed: ${result.error || 'Unknown error'}` }]);
@@ -101,6 +103,7 @@ const ChatInterface = () => {
             <div className="order-preview-meta">
               <p>Customer: {orderPreview.customer.name} ({orderPreview.customer.code})</p>
               <p>Branch: {orderPreview.customer.branch}</p>
+              <p>LPO: {orderPreview.orderData.lpoNumber || 'N/A'}</p>
             </div>
             <table>
               <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
@@ -116,6 +119,13 @@ const ChatInterface = () => {
               </tbody>
             </table>
             <p className="order-total">Total: Ksh {totalAmount.toFixed(2)}</p>
+            {orderCreated && orderResult && (
+              <div className="order-preview-meta" style={{ marginTop: '10px' }}>
+                <p>SO: {orderResult.orderNumber}</p>
+                <p>Delivery Date: {orderResult.dueDate || 'N/A'}</p>
+                <p>Order Time: {new Date(orderResult.orderDate).toLocaleString()}</p>
+              </div>
+            )}
             {!orderCreated ? (
               <button className="create-order-btn" onClick={handleCreateOrder} disabled={creatingOrder}>
                 {creatingOrder ? 'CREATING...' : 'CREATE ORDER'}

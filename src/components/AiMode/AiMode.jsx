@@ -157,9 +157,35 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
       }
     });
 
+    const handleFocus = () => {
+      // Refetch on window focus to catch missed cross-tab messages
+      if (supabase) {
+        supabase
+          .from('order_notifications')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .then(({ data, error }) => {
+            if (!error && data) {
+              setLogs(prev => {
+                const existing = new Set(prev.map(l => l.id));
+                const newLogs = data.map(toLog).filter(l => !existing.has(l.id));
+                if (newLogs.length) {
+                  setUnreadCount(count => count + newLogs.length);
+                }
+                return [...newLogs, ...prev];
+              });
+            }
+          });
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       supabase.removeChannel(channel);
       unsubscribeLocal();
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
