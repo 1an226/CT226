@@ -914,9 +914,19 @@ const findItemsAndQuantities = async (text, customerType = "NAIVAS") => {
   return { lpo: parsed.lpo || "UNKNOWN_LPO", confidence: parsed.confidence || 0.0, items: (parsed.items || []).map(i => ({ code: i.code, quantity: Math.round(i.quantity) })) };
 };
 
-const parsePOText = async (text, customerCode = null, customerType = "NAIVAS") => {
+const parsePOText = async (text, customerCode = null, customerType = "NAIVAS", fileName = null) => {
   const detected = detectCustomerTypeByCode(customerCode, text);
   if (detected !== customerType) customerType = detected;
+
+  // For digital Majid, if text lacks LPO, extract from filename
+  if (customerType === 'MAJID' && !/(26\d{6})/.test(text) && fileName) {
+    const fileLpo = fileName.match(/(26\d{6})/)?.[1];
+    if (fileLpo) {
+      text = `LPO: ${fileLpo}\n` + text;
+      console.log(`[INFO] Majid digital LPO derived from filename: ${fileLpo}`);
+    }
+  }
+
   const aiOutput = await findItemsAndQuantities(text, customerType);
   return parsePOTextFromParsedJSON(aiOutput, customerCode, customerType);
 };

@@ -271,6 +271,8 @@ const validateFile = (file) => {
             poData = await orderCreationService.parsePOText(
               text,
               selectedCustomer.code,
+              null,
+              uploadedFile.name,
             );
           }
 
