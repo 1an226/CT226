@@ -1038,6 +1038,25 @@ export const onOrderAudit = (callback) => {
 export const getAuditLog = () => auditLog;
 
 
+
+async function insertOrderPayload(payload, userId) {
+  if (!supabase || !userId || !payload.so_number) return;
+  const { error } = await supabase.from('order_payloads').upsert({
+    user_id: userId,
+    so_number: payload.so_number,
+    customer_code: payload.customer_code,
+    customer_name: payload.customer_name,
+    branch: payload.branch,
+    lpo: payload.lpo,
+    delivery_date: payload.delivery_date,
+    order_date: payload.order_date,
+    total_amount: payload.total_amount,
+    items_jsonb: payload.items_jsonb,
+    status: payload.status,
+  });
+  if (error) console.warn('Failed to insert order payload:', error.message);
+}
+
 async function insertOrderNotification(userId, message, soNumber = null, customerName = '') {
   if (!supabase || !userId) return;
   const { error } = await supabase.from('order_notifications').insert({
@@ -1234,6 +1253,27 @@ const createOrderFromPO = async (poData, customerBranch, warehouse = DEFAULT_SET
       orderNumber,
       customerName
     );
+
+    // Build and store full order payload
+    const orderPayloadToStore = {
+      so_number: orderNumber,
+      customer_code: poData.customer,
+      customer_name: customerName,
+      branch: customerBranch,
+      lpo: poData.lpoNumber !== "UNKNOWN_LPO" ? poData.lpoNumber : null,
+      delivery_date: detail.dueDate || '',
+      order_date: detail.orderDate || new Date().toISOString(),
+      total_amount: totalAmount,
+      items_jsonb: JSON.stringify(orderItems.map(i => ({
+        itemCode: i.item.itemCode,
+        itemName: i.item.itemName,
+        quantity: i.quantity,
+        unitPrice: i.amount / i.quantity,
+        netAmount: i.amount,
+      }))),
+      status: detail.orderStatus || 'Pending',
+    };
+    await insertOrderPayload(orderPayloadToStore, userId);
 
     // Emit local event for immediate UI update
     emitOrderEvent({

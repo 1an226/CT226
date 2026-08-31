@@ -1,5 +1,7 @@
+
 import { useState } from 'react';
 import apiClient from '@services/api.js';
+import { supabase } from '@services/supabaseClient';
 
 const Messages = ({ logs }) => {
   const [preview, setPreview] = useState(null);
@@ -9,10 +11,40 @@ const Messages = ({ logs }) => {
     setLoadingPreview(true);
     setPreview(null);
     try {
+      // Try Supabase first
+      if (supabase) {
+        const { data: payload, error } = await supabase
+          .from('order_payloads')
+          .select('*')
+          .eq('so_number', soNumber)
+          .maybeSingle();
+
+        if (!error && payload) {
+          // Map Supabase payload to the same shape as DDS detail
+          const items = payload.items_jsonb ? JSON.parse(payload.items_jsonb) : [];
+          setPreview({
+            orderNo: payload.so_number,
+            orderNumber: payload.so_number,
+            customerName: payload.customer_name,
+            customerCode: payload.customer_code,
+            branch: payload.branch,
+            lpo: payload.lpo || 'N/A',
+            dueDate: payload.delivery_date,
+            orderDate: payload.order_date,
+            total: payload.total_amount,
+            orderStatus: payload.status,
+            orderItems: items,
+          });
+          return;
+        }
+      }
+
+      // Fallback to DDS
       const resp = await apiClient.get(`/orders/detail/${soNumber}`);
       const detail = resp.data?.payload || resp.data;
       setPreview(detail);
     } catch (e) {
+      console.error('Order preview error:', e);
       setPreview({ error: 'Could not load order details.' });
     } finally {
       setLoadingPreview(false);
@@ -39,8 +71,15 @@ const Messages = ({ logs }) => {
               <span className="message-time">{log.time}</span>
               {soNumber && (
                 <button
-                  onClick={() => openOrderPreview(soNumber)}
-                  style={{ marginLeft: 'auto', fontSize: '0.8rem', cursor: 'pointer' }}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); openOrderPreview(soNumber); }}
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    zIndex: 10,
+                  }}
                 >
                   VIEW
                 </button>
@@ -83,7 +122,7 @@ const Messages = ({ logs }) => {
               </table>
             </>
           )}
-          <button onClick={closePreview} style={{ marginTop: '10px' }}>Close</button>
+          <button type="button" onClick={closePreview} style={{ marginTop: '10px' }}>Close</button>
         </div>
       )}
     </div>

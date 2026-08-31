@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import agentRuntime from '@services/agentRuntime';
+import authService from '@services/authService';
 
 const Checklist = () => {
   const [query, setQuery] = useState('');
@@ -21,8 +22,8 @@ const Checklist = () => {
       customerTypes.push('NAIVAS', 'KHETIA', 'QUICKMART', 'CHANDARANA', 'CLEANSHELF', 'JAZARIBU', 'MAJID');
     }
 
+    const knownBranches = authService.getUserBranches() || [];
     const branches = [];
-    const knownBranches = ['Thika', 'Kitengela', 'Eldoret', 'Kisumu', 'Nakuru', 'Dandora', 'Machakos', 'Karatina', 'Naivasha', 'Nyeri', 'Meru', 'Bungoma', 'Kisii', 'Busia', 'Kitale', 'Kakamega', 'Migori', 'South C', 'Donholm', 'Kitui', 'South B', 'Crater', 'Daraja', 'Forest', 'Rupa', 'Langata', 'Nyamasaria', 'Isiolo Road', 'Eastleigh'];
     for (const b of knownBranches) {
       if (lower.includes(b.toLowerCase())) branches.push(b);
     }
@@ -48,8 +49,8 @@ const Checklist = () => {
 
     try {
       const { customerTypes, branches, date } = parseQuery(query);
-      const allBranches = branches.length > 0 ? branches : ['Thika', 'Kitengela', 'Eldoret', 'Kisumu', 'Nakuru', 'Dandora', 'Machakos', 'Karatina', 'Naivasha', 'Nyeri', 'Meru', 'Bungoma', 'Kisii', 'Busia', 'Kitale', 'Kakamega', 'Migori', 'South C', 'Donholm', 'Kitui', 'South B', 'Crater', 'Daraja', 'Forest', 'Rupa', 'Langata', 'Nyamasaria', 'Isiolo Road', 'Eastleigh'];
-      
+      const allBranches = branches.length > 0 ? branches : (authService.getUserBranches() || []);
+
       const data = await agentRuntime.generateChecklist(customerTypes, allBranches, date);
       setResults({ data, customerTypes, date, query });
     } catch (e) {
@@ -61,9 +62,9 @@ const Checklist = () => {
 
   const exportCSV = () => {
     if (!results) return;
-    const rows = [['Customer', 'Code', 'Branch', 'Route', 'LPO', 'Amount', 'Status']];
+    const rows = [['Customer', 'Branch', 'Route', 'LPO', 'Amount', 'Status']];
     results.data.forEach(r => {
-      rows.push([r.customer, r.code, r.branch, r.route, r.lpo, r.amount.toString(), r.status]);
+      rows.push([r.customer, r.branch, r.route, r.lpo, r.amount.toString(), r.status]);
     });
     const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -87,7 +88,7 @@ const Checklist = () => {
     if (missing.length > 0) {
       text += `\nNOT RECEIVED (${missing.length})\n`;
       missing.slice(0, 10).forEach(r => {
-        text += `  ${r.customer} (${r.code}) — ${r.branch}\n`;
+        text += `  ${r.customer} — ${r.branch}\n`;
       });
     }
     text += `\n═══════════════════════════\n`;
@@ -131,7 +132,7 @@ const Checklist = () => {
             {results.data.map((r, i) => (
               <div key={i} className={`checklist-item ${r.placed ? 'received' : 'not-received'}`}>
                 <span className="checklist-status">{r.placed ? '[+]' : '[-]'}</span>
-                <span className="checklist-customer">{r.customer} </span>
+                <span className="checklist-customer">{r.customer}</span>
                 <span className="checklist-branch">{r.branch}</span>
                 <span className="checklist-lpo">{r.lpo}</span>
                 {r.placed && <span className="checklist-amount">Ksh {r.amount.toLocaleString()}</span>}
