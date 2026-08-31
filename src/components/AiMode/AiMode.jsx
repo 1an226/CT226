@@ -43,6 +43,7 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
           emoji: event.emoji || '',
           text: event.message,
           time: new Date().toLocaleTimeString(),
+          timestamp: Date.now(),
         };
         // Increment unread if the messages tab is not active
         setUnreadCount(count => count + 1);
@@ -71,6 +72,7 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
           emoji: '',
           text: lines.join('\n'),
           time: new Date().toLocaleTimeString(),
+          timestamp: Date.now(),
         };
         setLogs(prev => [summaryLog, ...prev]);
         // Don't count this initial summary as unread
@@ -94,6 +96,7 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
       emoji: '',
       text: row.message,
       time: new Date(row.created_at).toLocaleTimeString(),
+      timestamp: new Date(row.created_at).getTime(),
     });
 
     // Initial fetch (descending order)
@@ -109,7 +112,7 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
             const newLogs = data.map(toLog).filter(l => !existing.has(l.id));
             // Merge and sort descending by time string (approx)
             const combined = [...newLogs, ...prev];
-            combined.sort((a, b) => b.time.localeCompare(a.time));
+            combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
             return combined;
           });
         }

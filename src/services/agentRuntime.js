@@ -297,29 +297,61 @@ const agentRuntime = {
     const customers = agentDataService.getCustomers();
     const originalBranch = authService.getCurrentBranch();
     const results = [];
+
     for (const branch of targetBranches) {
       try {
-        await authService.switchBranch(branch);
-        const branchCustomers = customers.filter(c => (c.branch || '').toLowerCase() === branch.toLowerCase());
+        // Fetch orders once per branch
+        const branchOrders = await ordersService.getOrders(branch, dateStr, {
+          forceRefresh: true,
+          silent: true,
+        }).catch(() => []);
+
+        const branchCustomers = customers.filter(
+          c => (c.branch || '').toLowerCase() === branch.toLowerCase()
+        );
+
         for (const c of branchCustomers) {
           if (!customerTypes.some(t => (c.name || '').toUpperCase().includes(t))) continue;
-          try {
-            const orders = await ordersService.getOrders(branch, dateStr, { forceRefresh: true, silent: true }).catch(() => []);
-            const custOrders = orders.filter(o => o.customerCode === (c.customerCode || c.code));
-            if (custOrders.length > 0) {
-              for (const o of custOrders) {
-                results.push({ customer: c.name, code: c.customerCode || c.code, branch, route: c.customerRoute || 'N/A', lpo: o.lpo || 'N/A', amount: o.totalValue || 0, status: o.status || 'pending', placed: true });
-              }
-            } else {
-              results.push({ customer: c.name, code: c.customerCode || c.code, branch, route: c.customerRoute || 'N/A', lpo: 'NOT PLACED', amount: 0, status: 'Missing', placed: false });
+
+          const custOrders = branchOrders.filter(
+            o => o.customerCode === (c.customerCode || c.code)
+          );
+
+          if (custOrders.length > 0) {
+            for (const o of custOrders) {
+              results.push({
+                customer: c.name,
+                branch,
+                route: c.customerRoute || 'N/A',
+                lpo: o.lpo || 'N/A',
+                amount: o.totalValue || 0,
+                status: o.status || 'pending',
+                placed: true,
+              });
             }
-          } catch (e) {
-            results.push({ customer: c.name, code: c.customerCode || c.code, branch, route: c.customerRoute || 'N/A', lpo: 'ERROR', amount: 0, status: 'Error', placed: false });
+          } else {
+            results.push({
+              customer: c.name,
+              branch,
+              route: c.customerRoute || 'N/A',
+              lpo: 'NOT PLACED',
+              amount: 0,
+              status: 'Missing',
+              placed: false,
+            });
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn(`Checklist failed for branch ${branch}:`, e.message);
+      }
     }
-    try { await authService.switchBranch(originalBranch); } catch (e) {}
+
+    try {
+      await authService.switchBranch(originalBranch);
+    } catch (e) {
+      console.warn('Could not switch back to original branch');
+    }
+
     results.sort((a, b) => (a.customer || '').localeCompare(b.customer || ''));
     return results;
   },

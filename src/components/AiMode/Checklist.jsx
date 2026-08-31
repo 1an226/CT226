@@ -131,7 +131,7 @@ const Checklist = () => {
             {results.data.map((r, i) => (
               <div key={i} className={`checklist-item ${r.placed ? 'received' : 'not-received'}`}>
                 <span className="checklist-status">{r.placed ? '[+]' : '[-]'}</span>
-                <span className="checklist-customer">{r.customer} ({r.code})</span>
+                <span className="checklist-customer">{r.customer} </span>
                 <span className="checklist-branch">{r.branch}</span>
                 <span className="checklist-lpo">{r.lpo}</span>
                 {r.placed && <span className="checklist-amount">Ksh {r.amount.toLocaleString()}</span>}

@@ -8,7 +8,7 @@ import agentDataService from './agentDataService';
 import orderCreationService from './orderCreationService';
 import apiClient from '@services/api.js';
 
-const SYSTEM_PROMPT = `You are NOOS, the AI operating system for CT226, a DDS (Distribution Management System) integration platform used by a Kenyan bakery distributor.
+const SYSTEM_PROMPT = `You are NOOS, the AI operating system for CT226, a DDS (Distribution Management System) integration platform used by Mini Bakeries Nairobi Ltd.
 
 === YOUR CAPABILITIES ===
 You have access to these DDS functions. When a user asks for something DDS-related, you MUST call the appropriate function.
@@ -102,6 +102,19 @@ function getUserId() {
 }
 
 // ===== Deterministic parsers =====
+
+function normalizeBranchName(raw) {
+  if (!raw) return null;
+  const branches = authService.getUserBranches() || [];
+  const target = raw.trim().toLowerCase();
+  // Exact match first
+  let match = branches.find(b => b.toLowerCase() === target);
+  if (match) return match;
+  // Contains match (for cases like "Dandora 3" when user types "dandora")
+  match = branches.find(b => target.includes(b.toLowerCase()) || b.toLowerCase().includes(target));
+  return match || raw.trim();
+}
+
 function parseCustomerQuery(command) {
   const lower = command.toLowerCase();
   const types = ['NAIVAS','KHETIA','QUICKMART','CHANDARANA','CLEANSHELF','JAZARIBU','MAJID'];
@@ -182,7 +195,8 @@ function parseMultipleOrderCommands(command) {
         branch = b; break;
       }
     }
-    if (branch) results.push({ branch, date });
+    const normalizedBranch = normalizeBranchName(branch);
+    if (normalizedBranch) results.push({ branch: normalizedBranch, date });
   }
   return results.length ? results : null;
 }
@@ -292,7 +306,7 @@ async function executeFunction(intent, originalCommand) {
       return `-> Branch "${target}" not found. Current: ${authService.getCurrentBranch()}`;
     }
     case 'get_orders': {
-      const branch = params.branch || authService.getCurrentBranch();
+      const branch = normalizeBranchName(params.branch) || authService.getCurrentBranch();
       const date = params.date || new Date().toISOString().split('T')[0];
       const orders = await ordersService.getOrders(branch, date, { forceRefresh: true });
       return formatOrdersResponse(orders, branch, date);
@@ -300,7 +314,7 @@ async function executeFunction(intent, originalCommand) {
     case 'get_customers': {
       const all = agentDataService.getCustomers();
       let filtered = all;
-      const branch = params.branch;
+      const branch = normalizeBranchName(params.branch);
       if (branch && branch.toLowerCase() !== 'all') filtered = filtered.filter(c => (c.branch || '').toLowerCase() === branch.toLowerCase());
       const type = (params.type || '').toLowerCase();
       if (type) filtered = filtered.filter(c => (c.name || '').toLowerCase().includes(type));
@@ -370,7 +384,7 @@ async function executeFunction(intent, originalCommand) {
       const question = params.question || originalCommand;
       const resp = await fetch('https://noos-ai.kililoian5.workers.dev', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ messages:[{role:'system',content:'You are NOOS, the AI assistant for CT226 (a DDS platform used by a Kenyan bakery distributor). Answer questions clearly and concisely.'},{role:'user',content:question}], temperature:0.7, max_tokens:500 })
+        body: JSON.stringify({ messages:[{role:'system',content:'You are NOOS, the AI assistant for CT226 (a DDS platform used by Mini Bakeries Nairobi Ltd). Answer questions clearly and concisely.'},{role:'user',content:question}], temperature:0.7, max_tokens:1500 })
       });
       if (resp.ok) { const data = await resp.json(); return data.choices[0].message.content; }
       return `-> NOOS is ready. Current branch: ${authService.getCurrentBranch()}.`;
@@ -432,7 +446,7 @@ async function fallbackExecute(command) {
 
   const resp = await fetch('https://noos-ai.kililoian5.workers.dev', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ messages:[{role:'system',content:'You are NOOS. Answer clearly and concisely.'},{role:'user',content:command}], temperature:0.7, max_tokens:400 })
+    body: JSON.stringify({ messages:[{role:'system',content:'You are NOOS. Answer clearly and concisely.'},{role:'user',content:command}], temperature:0.7, max_tokens:1500 })
   });
   if (resp.ok) { const data = await resp.json(); return data.choices[0].message.content; }
   return `-> Current branch: ${authService.getCurrentBranch()}. Try "orders today" or "customers in ${authService.getCurrentBranch()}".`;
