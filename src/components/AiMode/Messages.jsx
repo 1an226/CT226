@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import apiClient from '@services/api.js';
 import { supabase } from '@services/supabaseClient';
@@ -21,9 +20,7 @@ const Messages = ({ logs }) => {
           .eq('so_number', soNumber)
           .maybeSingle();
 
-        if (error) {
-          console.warn('[VIEW] Supabase error:', error.message);
-        } else if (data) {
+        if (!error && data) {
           console.log('[VIEW] Supabase payload found:', data);
           const items = data.items_jsonb ? JSON.parse(data.items_jsonb) : [];
           setPreview({
@@ -38,15 +35,12 @@ const Messages = ({ logs }) => {
             orderItems: items,
           });
           return;
-        } else {
-          console.warn('[VIEW] no Supabase payload, falling back to DDS');
         }
       }
 
-      console.log('[VIEW] fetching from DDS');
+      console.log('[VIEW] falling back to DDS');
       const resp = await apiClient.get(`/orders/detail/${soNumber}`);
       const detail = resp.data?.payload || resp.data;
-      console.log('[VIEW] DDS response:', detail);
       setPreview(detail);
     } catch (e) {
       console.error('[VIEW] error:', e);
@@ -80,10 +74,15 @@ const Messages = ({ logs }) => {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log('[VIEW] button handler firing');
                     openOrderPreview(soNumber);
                   }}
-                  style={{ marginLeft: 'auto', fontSize: '0.8rem', cursor: 'pointer', position: 'relative', zIndex: 20 }}
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    zIndex: 20,
+                    position: 'relative',
+                  }}
                 >
                   VIEW
                 </button>
@@ -93,11 +92,29 @@ const Messages = ({ logs }) => {
         })}
       </div>
 
-      {loadingPreview && <div className="loading-state">Loading order...</div>}
+      {loadingPreview && (
+        <div className="loading-state" style={{ marginTop: '15px' }}>
+          Loading order...
+        </div>
+      )}
 
       {preview && !loadingPreview && (
-        <div className="order-preview" style={{ marginTop: '20px' }}>
-          <h3>ORDER DETAIL</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: '10%',
+            left: '10%',
+            right: '10%',
+            bottom: '10%',
+            background: '#000',
+            border: '2px solid #00ff00',
+            zIndex: 10000,
+            padding: '20px',
+            overflowY: 'auto',
+            boxShadow: '0 0 30px rgba(0,255,0,0.5)',
+          }}
+        >
+          <h3 style={{ color: '#00ff00', marginBottom: '15px' }}>ORDER DETAIL</h3>
           {preview.error ? (
             <p className="error-message">{preview.error}</p>
           ) : (
@@ -111,22 +128,42 @@ const Messages = ({ logs }) => {
                 <p>Status: {preview.orderStatus}</p>
                 <p>Total: Ksh {Number(preview.total || 0).toLocaleString()}</p>
               </div>
-              <table>
-                <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '15px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ border: '1px solid #00ff00', padding: '8px', textAlign: 'left' }}>Product</th>
+                    <th style={{ border: '1px solid #00ff00', padding: '8px' }}>Qty</th>
+                    <th style={{ border: '1px solid #00ff00', padding: '8px' }}>Price</th>
+                    <th style={{ border: '1px solid #00ff00', padding: '8px' }}>Total</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {(preview.orderItems || []).map((it, i) => (
                     <tr key={i}>
-                      <td>{it.itemName || it.itemCode}</td>
-                      <td>{it.quantity}</td>
-                      <td>{it.itemRate || it.unitPrice}</td>
-                      <td>{it.netAmount}</td>
+                      <td style={{ border: '1px solid #00ff00', padding: '8px' }}>{it.itemName || it.itemCode}</td>
+                      <td style={{ border: '1px solid #00ff00', padding: '8px' }}>{it.quantity}</td>
+                      <td style={{ border: '1px solid #00ff00', padding: '8px' }}>{it.itemRate || it.unitPrice}</td>
+                      <td style={{ border: '1px solid #00ff00', padding: '8px' }}>{it.netAmount}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </>
           )}
-          <button type="button" onClick={closePreview} style={{ marginTop: '10px' }}>Close</button>
+          <button
+            type="button"
+            onClick={closePreview}
+            style={{
+              marginTop: '15px',
+              padding: '8px 20px',
+              background: '#000',
+              color: '#00ff00',
+              border: '1px solid #00ff00',
+              cursor: 'pointer',
+            }}
+          >
+            Close
+          </button>
         </div>
       )}
     </div>
