@@ -75,8 +75,10 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
           timestamp: Date.now(),
         };
         setLogs(prev => [summaryLog, ...prev]);
-        // Don't count this initial summary as unread
-        setUnreadCount(0);
+        // Increment unread only if messages tab not active
+        if (activeTabRef.current !== 'messages') {
+          setUnreadCount(count => count + 1);
+        }
         summaryAdded = true;
       }
     }
@@ -97,6 +99,8 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
       text: row.message,
       time: new Date(row.created_at).toLocaleTimeString(),
       timestamp: new Date(row.created_at).getTime(),
+      so_number: row.so_number,
+      customer_name: row.customer_name,
     });
 
     // Initial fetch (descending order)
@@ -131,9 +135,10 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
         },
         (payload) => {
           const row = payload.new;
-          const log = toLog(row);
+          const log = { ...toLog(row), so_number: row.so_number, customer_name: row.customer_name };
           setLogs(prev => {
             if (prev.some(l => l.id === row.id)) return prev;
+            if (row.so_number && prev.some(l => l.so_number === row.so_number)) return prev;
             return [log, ...prev];
           });
           if (activeTabRef.current !== 'messages') {
@@ -150,8 +155,13 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
         emoji: '',
         text: event.message,
         time: new Date(event.created_at).toLocaleTimeString(),
+        timestamp: new Date(event.created_at).getTime(),
+        so_number: event.so_number,
+        customer_name: event.customer_name,
       };
       setLogs(prev => {
+        // Prevent duplicate by SO number
+        if (event.so_number && prev.some(l => l.so_number === event.so_number)) return prev;
         if (prev.some(l => l.id === event.id)) return prev;
         return [log, ...prev];
       });
@@ -173,10 +183,9 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
               setLogs(prev => {
                 const existing = new Set(prev.map(l => l.id));
                 const newLogs = data.map(toLog).filter(l => !existing.has(l.id));
-                if (newLogs.length) {
-                  setUnreadCount(count => count + newLogs.length);
-                }
-                return [...newLogs, ...prev];
+                const combined = [...newLogs, ...prev];
+                combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                return combined;
               });
             }
           });
