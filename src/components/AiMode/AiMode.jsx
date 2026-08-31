@@ -72,7 +72,7 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
           text: lines.join('\n'),
           time: new Date().toLocaleTimeString(),
         };
-        setLogs([summaryLog]);
+        setLogs(prev => [summaryLog, ...prev]);
         // Don't count this initial summary as unread
         setUnreadCount(0);
         summaryAdded = true;

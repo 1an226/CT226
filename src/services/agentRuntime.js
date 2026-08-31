@@ -300,7 +300,6 @@ const agentRuntime = {
     for (const branch of targetBranches) {
       try {
         await authService.switchBranch(branch);
-        await new Promise(r => setTimeout(r, 300));
         const branchCustomers = customers.filter(c => (c.branch || '').toLowerCase() === branch.toLowerCase());
         for (const c of branchCustomers) {
           if (!customerTypes.some(t => (c.name || '').toUpperCase().includes(t))) continue;
@@ -321,6 +320,7 @@ const agentRuntime = {
       } catch (e) {}
     }
     try { await authService.switchBranch(originalBranch); } catch (e) {}
+    results.sort((a, b) => (a.customer || '').localeCompare(b.customer || ''));
     return results;
   },
 

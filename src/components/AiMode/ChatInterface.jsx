@@ -11,7 +11,7 @@ const ChatInterface = () => {
   const [messages, setMessages] = useState([
     {
       role: 'noos',
-      content: `Hello ${firstName}, I'm Noos, the CT226 operating system and your AI assistant, how may I be of help?`,
+      content: `Hello ${firstName}, I'm Noos, your AI assistant, how may I be of help?`,
     },
   ]);
   const [input, setInput] = useState('');

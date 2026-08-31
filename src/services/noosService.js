@@ -205,11 +205,12 @@ async function cancelOrderBySo(soNumber) {
 
 function formatCustomersList(customers, title) {
   if (!customers.length) return `-> No customers found for ${title}`;
+  const sorted = [...customers].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   let response = `═══════════════════════════════════\n`;
   response += `${title.toUpperCase()}\n`;
   response += `═══════════════════════════════════\n\n`;
   response += `TOTAL: ${customers.length}\n\n`;
-  for (const c of customers) {
+  for (const c of sorted) {
     response += `  ${c.name}\n`;
     response += `  CODE   : ${c.code}\n`;
     response += `  BRANCH : ${c.branch}\n`;
