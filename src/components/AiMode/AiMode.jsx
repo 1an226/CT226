@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
 import AutonomousWorkflow from './AutonomousWorkflow';
@@ -17,9 +18,32 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
   useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
+
   const [dataReady, setDataReady] = useState(agentDataService.isReady());
   const [unreadCount, setUnreadCount] = useState(0);
   const [logs, setLogs] = useState([]);
+  const summaryAddedRef = useRef(false);
+
+  const toLog = (row) => ({
+    id: row.id,
+    emoji: '',
+    text: row.message,
+    time: new Date(row.created_at).toLocaleTimeString(),
+    timestamp: new Date(row.created_at).getTime(),
+    so_number: row.so_number || null,
+    customer_name: row.customer_name || null,
+  });
+
+  const addLog = (newLog) => {
+    setLogs(prev => {
+      // Prevent duplicate SO
+      if (newLog.so_number && prev.some(l => l.so_number === newLog.so_number)) return prev;
+      if (prev.some(l => l.id === newLog.id)) return prev;
+      const combined = [newLog, ...prev];
+      combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      return combined;
+    });
+  };
 
   // Load agent data once
   useEffect(() => {
@@ -30,62 +54,39 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
     }
   }, []);
 
-  // Subscribe to agent events – only add the summary once
+  // Add summary after data ready
   useEffect(() => {
-    let summaryAdded = false;
-    const unsubscribe = agentRuntime.onProgress((event) => {
-      setLogs(prev => {
-        // Skip duplicate summary
-        if (event.emoji === '' && summaryAdded) return prev;
-        if (event.emoji === '') summaryAdded = true;
-        const newLog = {
-          id: Date.now() + Math.random(),
-          emoji: event.emoji || '',
-          text: event.message,
-          time: new Date().toLocaleTimeString(),
-          timestamp: Date.now(),
-        };
-        // Increment unread if the messages tab is not active
-        setUnreadCount(count => count + 1);
-        return [...prev, newLog];
-      });
-    });
-    // If data was already loaded before subscription, add the summary now
-    if (agentDataService.isReady() && !summaryAdded) {
-      const customers = agentDataService.getCustomers();
-      if (customers.length > 0) {
-        const types = ['NAIVAS', 'KHETIA', 'QUICKMART', 'CHANDARANA', 'CLEANSHELF', 'JAZARIBU', 'MAJID'];
-        const counts = {};
-        for (const t of types) counts[t] = 0;
-        for (const c of customers) {
-          const name = (c.name || '').toUpperCase();
-          for (const t of types) {
-            if (name.includes(t)) { counts[t]++; break; }
-          }
-        }
-        const lines = types.map((t, i) => {
-          const name = t.charAt(0) + t.slice(1).toLowerCase();
-          return `${i+1}. ${name.charAt(0).toUpperCase() + name.slice(1)}: ${counts[t]} outlets`;
-        });
-        const summaryLog = {
-          id: 'summary',
-          emoji: '',
-          text: lines.join('\n'),
-          time: new Date().toLocaleTimeString(),
-          timestamp: Date.now(),
-        };
-        setLogs(prev => [summaryLog, ...prev]);
-        // Increment unread only if messages tab not active
-        if (activeTabRef.current !== 'messages') {
-          setUnreadCount(count => count + 1);
-        }
-        summaryAdded = true;
+    if (!dataReady || summaryAddedRef.current) return;
+    const customers = agentDataService.getCustomers();
+    if (!customers || customers.length === 0) return;
+
+    const types = ['NAIVAS', 'KHETIA', 'QUICKMART', 'CHANDARANA', 'CLEANSHELF', 'JAZARIBU', 'MAJID'];
+    const counts = {};
+    for (const t of types) counts[t] = 0;
+    for (const c of customers) {
+      const name = (c.name || '').toUpperCase();
+      for (const t of types) {
+        if (name.includes(t)) { counts[t]++; break; }
       }
     }
-    return unsubscribe;
-  }, []);
+    const lines = types.map((t, i) => {
+      const name = t.charAt(0) + t.slice(1).toLowerCase();
+      return `${i+1}. ${name.charAt(0).toUpperCase() + name.slice(1)}: ${counts[t]} outlets`;
+    });
 
-  // Fetch persistent order notifications from Supabase
+    addLog({
+      id: 'summary',
+      emoji: '',
+      text: lines.join('\n'),
+      time: new Date().toLocaleTimeString(),
+      timestamp: Date.now(),
+      so_number: null,
+      customer_name: null,
+    });
+    summaryAddedRef.current = true;
+  }, [dataReady]);
+
+  // Fetch persistent order notifications
   useEffect(() => {
     if (!supabase) return;
 
@@ -93,17 +94,7 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
       ? String(authService.getCurrentUser().id)
       : 'anonymous';
 
-    const toLog = (row) => ({
-      id: row.id,
-      emoji: '',
-      text: row.message,
-      time: new Date(row.created_at).toLocaleTimeString(),
-      timestamp: new Date(row.created_at).getTime(),
-      so_number: row.so_number,
-      customer_name: row.customer_name,
-    });
-
-    // Initial fetch (descending order)
+    // Initial fetch
     supabase
       .from('order_notifications')
       .select('*')
@@ -111,18 +102,11 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
         if (!error && data) {
-          setLogs(prev => {
-            const existing = new Set(prev.map(l => l.id));
-            const newLogs = data.map(toLog).filter(l => !existing.has(l.id));
-            // Merge and sort descending by time string (approx)
-            const combined = [...newLogs, ...prev];
-            combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-            return combined;
-          });
+          data.forEach(row => addLog(toLog(row)));
         }
       });
 
-    // Realtime subscription for cross-tab sync
+    // Realtime
     const channel = supabase
       .channel('order-notifications')
       .on(
@@ -134,13 +118,7 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          const row = payload.new;
-          const log = { ...toLog(row), so_number: row.so_number, customer_name: row.customer_name };
-          setLogs(prev => {
-            if (prev.some(l => l.id === row.id)) return prev;
-            if (row.so_number && prev.some(l => l.so_number === row.so_number)) return prev;
-            return [log, ...prev];
-          });
+          addLog(toLog(payload.new));
           if (activeTabRef.current !== 'messages') {
             setUnreadCount(count => count + 1);
           }
@@ -148,30 +126,24 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
       )
       .subscribe();
 
-    // Local event for same-tab immediate updates
+    // Local event
     const unsubscribeLocal = onOrderEvent((event) => {
-      const log = {
+      addLog({
         id: event.id,
         emoji: '',
         text: event.message,
         time: new Date(event.created_at).toLocaleTimeString(),
         timestamp: new Date(event.created_at).getTime(),
-        so_number: event.so_number,
-        customer_name: event.customer_name,
-      };
-      setLogs(prev => {
-        // Prevent duplicate by SO number
-        if (event.so_number && prev.some(l => l.so_number === event.so_number)) return prev;
-        if (prev.some(l => l.id === event.id)) return prev;
-        return [log, ...prev];
+        so_number: event.so_number || null,
+        customer_name: event.customer_name || null,
       });
       if (activeTabRef.current !== 'messages') {
         setUnreadCount(count => count + 1);
       }
     });
 
+    // Focus refetch
     const handleFocus = () => {
-      // Refetch on window focus to catch missed cross-tab messages
       if (supabase) {
         supabase
           .from('order_notifications')
@@ -180,18 +152,11 @@ const AiMode = ({ user, selectedBranches, onLogout, onClose }) => {
           .order('created_at', { ascending: false })
           .then(({ data, error }) => {
             if (!error && data) {
-              setLogs(prev => {
-                const existing = new Set(prev.map(l => l.id));
-                const newLogs = data.map(toLog).filter(l => !existing.has(l.id));
-                const combined = [...newLogs, ...prev];
-                combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                return combined;
-              });
+              data.forEach(row => addLog(toLog(row)));
             }
           });
       }
     };
-
     window.addEventListener('focus', handleFocus);
 
     return () => {

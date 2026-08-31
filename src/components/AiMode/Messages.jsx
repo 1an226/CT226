@@ -8,43 +8,48 @@ const Messages = ({ logs }) => {
   const [loadingPreview, setLoadingPreview] = useState(false);
 
   const openOrderPreview = async (soNumber) => {
+    console.log('[VIEW] clicked for', soNumber);
     setLoadingPreview(true);
     setPreview(null);
+
     try {
-      // Try Supabase first
       if (supabase) {
-        const { data: payload, error } = await supabase
+        console.log('[VIEW] querying Supabase order_payloads');
+        const { data, error } = await supabase
           .from('order_payloads')
           .select('*')
           .eq('so_number', soNumber)
           .maybeSingle();
 
-        if (!error && payload) {
-          // Map Supabase payload to the same shape as DDS detail
-          const items = payload.items_jsonb ? JSON.parse(payload.items_jsonb) : [];
+        if (error) {
+          console.warn('[VIEW] Supabase error:', error.message);
+        } else if (data) {
+          console.log('[VIEW] Supabase payload found:', data);
+          const items = data.items_jsonb ? JSON.parse(data.items_jsonb) : [];
           setPreview({
-            orderNo: payload.so_number,
-            orderNumber: payload.so_number,
-            customerName: payload.customer_name,
-            customerCode: payload.customer_code,
-            branch: payload.branch,
-            lpo: payload.lpo || 'N/A',
-            dueDate: payload.delivery_date,
-            orderDate: payload.order_date,
-            total: payload.total_amount,
-            orderStatus: payload.status,
+            orderNo: data.so_number,
+            customerName: data.customer_name,
+            branch: data.branch,
+            lpo: data.lpo || 'N/A',
+            dueDate: data.delivery_date,
+            orderDate: data.order_date,
+            total: data.total_amount,
+            orderStatus: data.status,
             orderItems: items,
           });
           return;
+        } else {
+          console.warn('[VIEW] no Supabase payload, falling back to DDS');
         }
       }
 
-      // Fallback to DDS
+      console.log('[VIEW] fetching from DDS');
       const resp = await apiClient.get(`/orders/detail/${soNumber}`);
       const detail = resp.data?.payload || resp.data;
+      console.log('[VIEW] DDS response:', detail);
       setPreview(detail);
     } catch (e) {
-      console.error('Order preview error:', e);
+      console.error('[VIEW] error:', e);
       setPreview({ error: 'Could not load order details.' });
     } finally {
       setLoadingPreview(false);
@@ -72,14 +77,13 @@ const Messages = ({ logs }) => {
               {soNumber && (
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); openOrderPreview(soNumber); }}
-                  style={{
-                    marginLeft: 'auto',
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    zIndex: 10,
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[VIEW] button handler firing');
+                    openOrderPreview(soNumber);
                   }}
+                  style={{ marginLeft: 'auto', fontSize: '0.8rem', cursor: 'pointer', position: 'relative', zIndex: 20 }}
                 >
                   VIEW
                 </button>
@@ -114,7 +118,7 @@ const Messages = ({ logs }) => {
                     <tr key={i}>
                       <td>{it.itemName || it.itemCode}</td>
                       <td>{it.quantity}</td>
-                      <td>{it.itemRate}</td>
+                      <td>{it.itemRate || it.unitPrice}</td>
                       <td>{it.netAmount}</td>
                     </tr>
                   ))}
